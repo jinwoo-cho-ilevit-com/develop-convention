@@ -32,7 +32,7 @@ jobs:
 
       - name: Build site
         run: |
-          pipx install mkdocs-material
+          pip install mkdocs-material
           mkdocs build --strict
 
       - uses: actions/upload-pages-artifact@v3
