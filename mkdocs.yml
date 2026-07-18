@@ -1,0 +1,58 @@
+site_name: Development Conventions
+site_url: https://jinwoo-cho-ilevit-com.github.io/develop-convention/
+repo_url: https://github.com/jinwoo-cho-ilevit-com/develop-convention
+
+# docs/는 빌드 시점에 조립된다 (README.md → docs/index.md, conventions/·templates/ 복사).
+# 로컬 미리보기: .github/workflows/docs.yml의 assemble 스텝과 동일한 명령 실행 후 `uvx --with mkdocs-material mkdocs serve`
+docs_dir: docs
+
+# MkDocs 1.6이 docs 루트의 /templates/를 기본 제외하므로 부정 패턴으로 재포함
+exclude_docs: |
+  !/templates/
+
+theme:
+  name: material
+  language: ko
+  features:
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: 다크 모드로
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: 라이트 모드로
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+nav:
+  - 개요: index.md
+  - 컨벤션:
+      - conventions/00-principles.md
+      - conventions/01-structure-naming.md
+      - conventions/02-config.md
+      - conventions/03-environment.md
+      - conventions/04-pipeline.md
+      - conventions/05-performance.md
+      - conventions/06-testing-verification.md
+      - conventions/07-ml-development.md
+      - conventions/08-llm-development.md
+      - conventions/09-agentic-workflow.md
+      - conventions/10-llm-api-inference.md
+      - conventions/11-llm-api-providers.md
+      - conventions/12-docs-reference.md
+  - 템플릿:
+      - templates/AGENTS.md
+      - templates/CLAUDE.md
