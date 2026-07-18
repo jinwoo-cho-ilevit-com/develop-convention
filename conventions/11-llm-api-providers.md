@@ -1,6 +1,6 @@
 # 11. LLM API Provider별 고려사항 + 구조화 출력 폴백
 
-provider별 API 차이를 다루는 규칙과, 구조화 출력을 지원하지 않는(또는 약하게 지원하는) provider 대응 전략. 코어 컨벤션은 [10-llm-api-inference.md](10-llm-api-inference.md).
+provider별 API 차이를 다루는 규칙과, 구조화 출력을 지원하지 않는(또는 약하게 지원하는) provider 대응 전략. 코어 컨벤션은 [10-llm-api-inference.md](10-llm-api-inference.md). 이 문서의 provider 사실은 낡을 수 있다 — 개발 시 최신 문서 참조 절차는 [12-docs-reference.md](12-docs-reference.md)를 따른다.
 
 ## 핵심 규칙
 

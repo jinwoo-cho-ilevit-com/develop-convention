@@ -20,6 +20,7 @@
 | [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | CLAUDE.md/AGENTS.md 작성법, worktree 병렬 개발, 검증 게이트, 모델 라우팅 |
 | [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API 추론 모듈: 어댑터 구조, 호출/rate limit, 에러/재시도, 앙상블, 캐싱/resume, 비용/평가 |
 | [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider별 고려사항(OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + 구조화 출력 계층 폴백 |
+| [12-docs-reference.md](conventions/12-docs-reference.md) | 최신 문서 참조 절차(4계층) + provider별 canonical URL 레지스트리 + 스모크 확정 |
 
 ## 새 프로젝트에 적용하는 법
 
@@ -76,6 +77,7 @@
 - 모델별 동시성 상한 + rate limit 헤더 기반 적응 제어. 에러는 typed exception으로 분류, 재시도 주인은 한 곳, 앙상블 재시도는 멤버 단위. 실패 태스크는 에러 행으로 기록하고 배치는 계속.
 - 구조화 출력은 최소공통분모 스키마 + 계층 폴백(native schema → json_object+프롬프트 → 파싱 → 검증-재요청 2~3회 상한). 파싱 전 finish_reason 분류 먼저. reasoning 호출에 샘플링 파라미터 금지.
 - 응답 캐시는 개발/디버그 전용. resume은 fingerprint(spec+seed+데이터+프롬프트) 검증 의무. 가격/모델명 하드코딩 금지, dated snapshot 고정, 행 단위 토큰+비용 기록, 예산 상한.
+- provider API 코드 작성 전 canonical URL 레지스트리의 공식 문서를 fetch해 확인. SDK 사용법은 ctx7, 예외/시그니처는 설치된 SDK 소스, 문서에 없는 동작은 스모크 테스트로 실측 확정.
 
 ### 에이전트 워크플로우
 - CLAUDE.md/AGENTS.md는 간결하게(비대하면 규칙 무시 유발), 모듈별 계층화, 가끔 쓰는 지식은 Skills로.
