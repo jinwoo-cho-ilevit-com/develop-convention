@@ -1,5 +1,7 @@
 # 08. LLM 학습/평가
 
+LLM API 호출 기반 추론 모듈(외부 provider API 사용)은 [10-llm-api-inference.md](10-llm-api-inference.md)와 [11-llm-api-providers.md](11-llm-api-providers.md)를 따른다. 이 문서는 모델을 직접 학습/서빙하는 경우를 다룬다.
+
 ## 핵심 규칙
 
 - 학습 프레임워크는 용도별 라우팅 표를 따른다. torchtune은 deprecated — 신규 사용 금지.

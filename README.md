@@ -18,6 +18,8 @@
 | [07-ml-development.md](conventions/07-ml-development.md) | 시드/재현성, train-serve skew 방지, 실험 추적, 체크포인트/spot pod |
 | [08-llm-development.md](conventions/08-llm-development.md) | 학습 프레임워크 라우팅, FSDP2/bf16, chat template 일관성, 평가 재현성, LLM-as-judge, 데이터 |
 | [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | CLAUDE.md/AGENTS.md 작성법, worktree 병렬 개발, 검증 게이트, 모델 라우팅 |
+| [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API 추론 모듈: 어댑터 구조, 호출/rate limit, 에러/재시도, 앙상블, 캐싱/resume, 비용/평가 |
+| [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider별 고려사항(OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + 구조화 출력 계층 폴백 |
 
 ## 새 프로젝트에 적용하는 법
 
@@ -68,6 +70,12 @@
 - 프레임워크는 용도별 라우팅(단일 GPU→Unsloth/TRL, 멀티 GPU 재현성→Axolotl, RL→TRL+vLLM, 프리트레이닝→torchtitan). torchtune 금지(deprecated). FSDP2 + bf16 기본.
 - chat template은 `apply_chat_template` 단일 소스, 학습/추론 문자열 동일성 golden 테스트, 샘플링 파라미터 config 명시.
 - 평가는 하네스/task 버전·fewshot·template 적용 여부까지 기록. judge는 양방향 순서 + cross-family + 길이 인지 루브릭.
+
+### LLM API 추론
+- provider 추상화는 얇은 native SDK 어댑터 + 순수 payload builder(네트워크 없이 테스트 가능). "OpenAI 호환"은 wire 포맷만 — capability/스키마/에러/토큰 매핑은 provider별 격리.
+- 모델별 동시성 상한 + rate limit 헤더 기반 적응 제어. 에러는 typed exception으로 분류, 재시도 주인은 한 곳, 앙상블 재시도는 멤버 단위. 실패 태스크는 에러 행으로 기록하고 배치는 계속.
+- 구조화 출력은 최소공통분모 스키마 + 계층 폴백(native schema → json_object+프롬프트 → 파싱 → 검증-재요청 2~3회 상한). 파싱 전 finish_reason 분류 먼저. reasoning 호출에 샘플링 파라미터 금지.
+- 응답 캐시는 개발/디버그 전용. resume은 fingerprint(spec+seed+데이터+프롬프트) 검증 의무. 가격/모델명 하드코딩 금지, dated snapshot 고정, 행 단위 토큰+비용 기록, 예산 상한.
 
 ### 에이전트 워크플로우
 - CLAUDE.md/AGENTS.md는 간결하게(비대하면 규칙 무시 유발), 모듈별 계층화, 가끔 쓰는 지식은 Skills로.
