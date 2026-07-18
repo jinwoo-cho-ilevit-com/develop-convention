@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this repo is
 
 개발 컨벤션 문서 저장소. 코드가 아니라 문서가 산출물이다 — 빌드/테스트 명령은 없다.
-`README.md`가 문서 맵 + 전체 규칙 요약이고, 실제 규칙은 `conventions/00-*.md`~`09-*.md`에 주제별로 나뉘어 있다. 다른 프로젝트의 CLAUDE.md/AGENTS.md가 이 문서들의 "핵심 규칙" 섹션을 발췌해 쓰는 것이 소비 방식이다.
+`README.md`가 문서 맵 + 전체 규칙 요약이고, 실제 규칙은 `conventions/NN-*.md`에 주제별로 나뉘어 있다. 다른 프로젝트의 CLAUDE.md/AGENTS.md가 이 문서들의 "핵심 규칙" 섹션을 발췌해 쓰는 것이 소비 방식이며, `templates/`의 CLAUDE.md·pyproject.toml이 새 프로젝트 시작점이다. 컨벤션 규칙을 바꾸면 templates/와의 정합성도 확인한다.
 
 ## Document format (must follow when editing/adding docs)
 

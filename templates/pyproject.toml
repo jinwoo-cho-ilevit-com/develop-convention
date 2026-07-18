@@ -1,0 +1,42 @@
+[project]
+name = "PROJECT_NAME"
+version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest", "ruff", "pre-commit"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+
+# --- ML(PyTorch) 프로젝트만: 주석 해제 (conventions/03-environment.md §2) ---
+# macOS는 CPU/MPS, Linux(RunPod)는 CUDA로 자동 라우팅.
+# CUDA 버전은 대상 pod에 맞춰 조정. 임시 GPU 환경은 `uv sync --torch-backend=auto`도 가능.
+#
+# [tool.uv.sources]
+# torch = [
+#   { index = "pytorch-cpu",  marker = "sys_platform != 'linux'" },
+#   { index = "pytorch-cuda", marker = "sys_platform == 'linux'" },
+# ]
+#
+# [[tool.uv.index]]
+# name = "pytorch-cpu"
+# url = "https://download.pytorch.org/whl/cpu"
+# explicit = true
+#
+# [[tool.uv.index]]
+# name = "pytorch-cuda"
+# url = "https://download.pytorch.org/whl/cu130"
+# explicit = true
