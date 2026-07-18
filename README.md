@@ -24,7 +24,7 @@
 
 ## 새 프로젝트에 적용하는 법
 
-1. [templates/CLAUDE.md](templates/CLAUDE.md)와 [templates/pyproject.toml](templates/pyproject.toml)을 새 프로젝트로 복사하고, placeholder(`[...]`, `PROJECT_NAME`)를 채운 뒤 해당 없는 선택 블록(ML/LLM API)을 삭제하거나 주석 해제한다.
+1. [templates/AGENTS.md](templates/AGENTS.md)·[templates/CLAUDE.md](templates/CLAUDE.md)·[templates/pyproject.toml](templates/pyproject.toml)을 새 프로젝트로 복사하고, placeholder(`[...]`, `PROJECT_NAME`)를 채운 뒤 해당 없는 선택 블록(ML/LLM API)을 삭제하거나 주석 해제한다. 공통 지침의 단일 소스는 AGENTS.md(오픈 표준 — Codex/Cursor 등도 읽음)이고, CLAUDE.md는 `@AGENTS.md`로 이를 임포트한다.
 2. 지시 파일은 간결하게 유지한다 — 전체 문서를 붙여넣지 말고, 그 프로젝트에서 실수를 막는 데 필요한 규칙만 넣는다 (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). 전체 컨벤션은 로컬 경로(`~/Codes/develop-convention`)로 참조한다.
 
 ## 전체 규칙 요약 (에이전트 주입용)
