@@ -27,6 +27,19 @@
 1. [templates/AGENTS.md](templates/AGENTS.md)·[templates/CLAUDE.md](templates/CLAUDE.md)·[templates/pyproject.toml](templates/pyproject.toml)을 새 프로젝트로 복사하고, placeholder(`[...]`, `PROJECT_NAME`)를 채운 뒤 해당 없는 선택 블록(ML/LLM API)을 삭제하거나 주석 해제한다. 공통 지침의 단일 소스는 AGENTS.md(오픈 표준 — Codex/Cursor 등도 읽음)이고, CLAUDE.md는 `@AGENTS.md`로 이를 임포트한다.
 2. 지시 파일은 간결하게 유지한다 — 전체 문서를 붙여넣지 말고, 그 프로젝트에서 실수를 막는 데 필요한 규칙만 넣는다 (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). 전체 컨벤션은 로컬 경로(`~/Codes/develop-convention`)로 참조한다.
 
+### 도구별 동작 방식
+
+선행 조건: 각 기기에서 이 저장소를 `~/Codes/develop-convention`에 clone (경로가 다르면 AGENTS.md의 참조 경로 수정).
+
+| 도구 | 동작 |
+|---|---|
+| Claude Code | `CLAUDE.md` → `@AGENTS.md` 임포트로 공통 지침 로드. 작업 중 필요한 컨벤션 문서를 경로로 직접 Read. Claude 전용 지침은 CLAUDE.md에만 추가 |
+| Codex CLI | `AGENTS.md`를 네이티브로 읽음(루트→현재 디렉토리 체인, 용량 상한 있음 — 발췌+경로 참조 구조가 이에 맞음). 추가 설정 불필요 |
+| Cursor | AGENTS.md 표준 공동 제정사 — 네이티브로 읽음. 항상 강제할 소수 규칙만 필요 시 `.cursor/rules/`로 승격 |
+| 기타 (Gemini CLI, Windsurf, Aider 등) | AGENTS.md 표준을 읽는 도구는 동일하게 동작. 미지원 도구만 해당 도구의 지시 파일에서 AGENTS.md를 가리키는 한 줄 추가 |
+
+**클라우드 실행 에이전트 주의**: 로컬 경로 참조는 로컬 실행에만 유효하다. 격리 샌드박스(Codex 클라우드, Cursor 백그라운드 에이전트, Claude Code 웹)에서는 해당 프로젝트에 이 저장소를 git submodule로 포함하거나, AGENTS.md에 규칙 요약을 복사해 self-contained로 만든다. 클라우드 사용이 실제로 시작될 때 submodule 방식 전환을 권장.
+
 ## 전체 규칙 요약 (에이전트 주입용)
 
 ### 원칙
