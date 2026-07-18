@@ -27,7 +27,7 @@
 
 [LLM API 프로젝트면 유지, 아니면 삭제]
 - provider API 코드 작성/수정 전: `[CONVENTION_PATH]/conventions/12-docs-reference.md`의 해당 provider 공식 문서를 fetch해 확인
-- SDK 사용법은 ctx7, 예외/시그니처는 설치된 SDK 소스가 기준
+- provider 공식 skill이 있으면 설치해 사용 (예: Gemini `gemini-api-dev`) — SDK 사용법은 공식 skill > ctx7 순, 예외/시그니처는 설치된 SDK 소스가 기준
 - 문서에 없는 동작은 추측하지 말고 provider 스모크 테스트로 확정 (10/11/12)
 
 ## Verification

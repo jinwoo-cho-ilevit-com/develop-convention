@@ -5,6 +5,7 @@ provider API 지식은 몇 달 단위로 낡는다(`output_format`→`output_con
 ## 핵심 규칙
 
 - provider API 코드를 작성/수정하기 전, 아래 레지스트리의 해당 provider 공식 문서를 실제로 fetch해 확인한다. 훈련 지식·기억으로 API를 쓰지 않는다.
+- provider가 공식 skill을 제공하면 설치해 사용하고, SDK 사용법 확인 시 ctx7보다 우선한다 (provider가 직접 유지보수하는 1차 출처).
 - SDK 사용법·코드 예시는 context7(`ctx7`)로 확인한다. 예외 클래스·파라미터 시그니처·기본 재시도 횟수는 설치된(lock된) SDK 소스가 로컬 진실이다.
 - 공식 문서가 침묵하는 동작(기능 조합 등)은 추측하지 말고 provider별 1-call 스모크 테스트로 실측 확정한다.
 - 컨벤션/코드 주석의 provider 사실에는 검증 날짜 스탬프를 남긴다. 스탬프가 3개월 이상 지난 사실에 의존하는 코드를 만들 때는 공식 문서를 재확인한다.
@@ -18,6 +19,7 @@ provider API 지식은 몇 달 단위로 낡는다(`output_format`→`output_con
 | 계층 | 원천 | 용도 |
 |---|---|---|
 | Tier 1 | 아래 canonical URL 레지스트리 (공식 문서) | API 스펙, 파라미터, 제약, 가격, deprecation — 사실의 원천 |
+| Tier 1.5 | provider 공식 skill (아래 §2.1) | provider가 직접 유지보수하는 온디맨드 지식 번들 — 있으면 Tier 2보다 우선 |
 | Tier 2 | context7 (`ctx7` CLI/MCP) | SDK 사용법, 코드 예시, 버전 마이그레이션 |
 | Tier 3 | 설치된 SDK 소스/타입 정의 | 예외 계층, 시그니처, 기본값 — lock된 버전이 정답 |
 | Tier 4 | provider별 스모크 테스트 | 문서에 없는 동작(기능 조합, 실제 에러 형태)의 실측 확정 |
@@ -46,6 +48,19 @@ provider 관련 작업 시작 시 해당 행의 URL을 fetch한다. provider가 
 - guides/features/structured-outputs · guides/overview/auth/byok · api_reference/limits
 
 ML/학습 스택(torch, TRL, vLLM 등)의 공식 문서는 [08-llm-development.md](08-llm-development.md)의 출처 링크가 시드다. 새 라이브러리를 채택하면 그 공식 문서 URL을 해당 컨벤션 문서에 출처로 남기는 것이 곧 레지스트리 등록이다.
+
+### 2.1 Provider 공식 skill (등록 기준: 2026-07)
+
+SKILL.md는 오픈 표준으로 Claude Code/Codex CLI/Cursor/Gemini CLI 등 주요 에이전트가 지원한다. provider가 공식 skill을 제공하면 매번 문서를 fetch하는 대신 이것을 설치해 쓰고, SDK 사용법 확인 시 ctx7보다 우선한다.
+
+| Provider | 공식 skill | 설치 |
+|---|---|---|
+| Google | `gemini-api-dev` (일반 개발), `gemini-live-api-dev` (실시간), `gemini-interactions-api` | `npx skills add google-gemini/gemini-skills --skill <이름> --global` 또는 ctx7 |
+| Anthropic | anthropics/skills 마켓플레이스 (Claude API 개발 skill 포함) | Claude Code: `/plugin marketplace add anthropics/skills` 후 `/plugin install` |
+| OpenAI | API 개발 전용 skill **미확인** (Codex skills 카탈로그는 deprecated → Plugins repo 이전 중) | — Tier 1/2 경로 사용, 주기적 재확인 |
+| DeepSeek / OpenRouter | **미확인** | — Tier 1/2 경로 사용, 주기적 재확인 |
+
+출처: [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecated 고지)](https://github.com/openai/skills)
 
 ### 3. Provider 스모크 테스트 (Tier 4)
 
