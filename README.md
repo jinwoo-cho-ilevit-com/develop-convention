@@ -25,11 +25,11 @@
 ## 새 프로젝트에 적용하는 법
 
 1. [templates/AGENTS.md](templates/AGENTS.md)·[templates/CLAUDE.md](templates/CLAUDE.md)·[templates/pyproject.toml](templates/pyproject.toml)을 새 프로젝트로 복사하고, placeholder(`[...]`, `PROJECT_NAME`)를 채운 뒤 해당 없는 선택 블록(ML/LLM API)을 삭제하거나 주석 해제한다. 공통 지침의 단일 소스는 AGENTS.md(오픈 표준 — Codex/Cursor 등도 읽음)이고, CLAUDE.md는 `@AGENTS.md`로 이를 임포트한다.
-2. 지시 파일은 간결하게 유지한다 — 전체 문서를 붙여넣지 말고, 그 프로젝트에서 실수를 막는 데 필요한 규칙만 넣는다 (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). 전체 컨벤션은 로컬 경로(`~/Codes/develop-convention`)로 참조한다.
+2. 지시 파일은 간결하게 유지한다 — 전체 문서를 붙여넣지 말고, 그 프로젝트에서 실수를 막는 데 필요한 규칙만 넣는다 (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). 전체 컨벤션은 이 저장소를 clone한 로컬 경로로 참조한다 (템플릿의 `[CONVENTION_PATH]`에 기입).
 
 ### 도구별 동작 방식
 
-선행 조건: 각 기기에서 이 저장소를 `~/Codes/develop-convention`에 clone (경로가 다르면 AGENTS.md의 참조 경로 수정).
+선행 조건: 각 기기에서 이 저장소를 clone하고, 그 경로를 프로젝트 AGENTS.md의 `[CONVENTION_PATH]`에 기입.
 
 | 도구 | 동작 |
 |---|---|
@@ -46,7 +46,7 @@
 
 새 프로젝트 부트스트랩 (1회):
 ```
-~/Codes/develop-convention/templates/의 AGENTS.md, CLAUDE.md, pyproject.toml을
+<컨벤션 저장소 경로>/templates/의 AGENTS.md, CLAUDE.md, pyproject.toml을
 이 프로젝트에 복사하고 placeholder를 채워줘. [한 줄 설명], [일반/ML/LLM API] 프로젝트야.
 ```
 
@@ -58,7 +58,7 @@ DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해�
 
 리뷰:
 ```
-이 diff를 ~/Codes/develop-convention 컨벤션 기준으로 리뷰해줘.
+이 diff를 <컨벤션 저장소 경로> 컨벤션 기준으로 리뷰해줘.
 위반 사항은 문서 번호와 함께, 작성 세션이 아닌 별도 리뷰 에이전트로.
 ```
 
