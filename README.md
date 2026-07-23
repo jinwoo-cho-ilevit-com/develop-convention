@@ -141,4 +141,4 @@ DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해�
 ### 컨텍스트 관리
 - 메인 컨텍스트는 오케스트레이터 — 결론만 보관하고 탐색·검색·대용량 읽기는 subagent(별도 컨텍스트 창)에 위임해 요약만 받는다. 디렉토리 스윕·큰 파일 통독을 메인에서 하지 않는다. 독립 작업은 병렬 디스패치 + 장기 실행은 백그라운드.
 - 진실의 원본은 대화가 아니라 파일에 둔다 — 계획·결정·진행상황을 외부 파일에 지속화하고 마일스톤마다 체크포인트. 지속 규칙·사실은 CLAUDE.md(세션마다 로드·compaction 후 재주입)와 auto memory(`/clear`도 견딤)에 둔다.
-- auto-compaction은 비활성화 불가(오래된 tool output 제거 → 요약). 임박 시 `/compact <focus>`로 남길 것 지시, 무관한 작업 사이·오염 시 `/clear`. resume·compaction 직후 git status·cwd·상태 아티팩트 재확인 후 재개.
+- auto-compaction은 기본 켜짐(오래된 tool output 제거 → 요약)이나 `autoCompactEnabled:false`/`DISABLE_AUTO_COMPACT=1`/`/config`로 비활성화 가능. 임박 시 `/compact <focus>`로 남길 것 지시, 무관한 작업 사이·오염 시 `/clear`. resume·compaction 직후 git status·cwd·상태 아티팩트 재확인 후 재개.

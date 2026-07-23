@@ -5,7 +5,7 @@
 - CLAUDE.md/AGENTS.md는 간결하게 유지한다. 비대한 지시 파일은 규칙 무시를 유발한다. 각 줄에 "이걸 지우면 에이전트가 실수하는가?"를 물어 아니면 지운다.
 - 모듈별 지시는 해당 디렉토리의 AGENTS.md에 계층화한다(closest wins). 가끔 필요한 지식은 Skills로 분리한다.
 - 병렬 작업은 실행 전에 분해 표(Task | 담당 | 파일 | 의존성 | 통합 지점)를 만든다. 파일 소유권이 겹치는 작업은 병렬 금지 — 순차로 돌린다.
-- 병렬화는 workflows/subagent 오케스트레이션을 우선 고려한다. git worktree는 조정(coordination)이 아니라 파일 격리 수단이므로, 병렬 에이전트가 겹치는 파일을 수정해 충돌할 때만 도입한다.
+- 병렬화는 workflows/subagent 오케스트레이션을 우선 고려한다. git worktree는 조정(coordination)이 아니라 파일 격리 수단으로, 여러 에이전트를 독립 브랜치·환경으로 격리할 때 쓴다 — 파일 소유권이 겹치는 작업은 worktree로도 머지 충돌이 남으므로 순차로 돌린다.
 - 공유 인터페이스/스키마는 병렬 실행 중 동결한다. lock 파일과 마이그레이션은 단일 담당만 수정한다.
 - 각 작업 브랜치는 테스트 통과 후 머지하고, 머지 후 통합 검증을 1회 수행한다.
 - 각 에이전트는 개발 완료 후 작성자와 분리된 리뷰를 반드시 거친다. 리뷰 도구(Codex 플러그인 vs cursor CLI)는 개발 시작 전에 선택해 분해 표에 기록한다. 완료는 실행 증거로만 주장한다.
@@ -38,14 +38,14 @@ AGENTS.md는 2025년 OpenAI·Google·Cursor 등이 공동 공식화한 오픈 �
 - **agent teams**(실험적): 워커끼리 메시지로 조정·논쟁이 필요할 때. 자동 격리가 없으니 파일을 논리적으로 분할한다.
 - **agent view**: 독립 백그라운드 세션을 수동 디스패치할 때 — 세션마다 worktree가 자동 부여된다.
 
-**격리: worktree는 충돌할 때만.** git worktree는 조정 수단이 아니라 파일시스템 격리 수단이다. **병렬 에이전트가 겹치는 파일을 수정할 때만** 도입한다 — 그 외에는 같은 작업 트리를 공유하는 subagent가 더 가볍다. worktree는 fresh checkout·환경 셋업(`.worktreeinclude`로 `.env` 등 복사) 비용이 있고 `.git`·플러그인·권한 규칙은 공유된다. subagent는 frontmatter `isolation: worktree`로 격리를 켤 수 있다.
+**격리: worktree는 독립 브랜치가 필요할 때.** git worktree는 조정 수단이 아니라 파일시스템 격리 수단이다. 여러 에이전트에 **서로 다른 파일을 맡겨** 독립 브랜치·환경으로 돌릴 때 쓰고, 그 외에는 같은 작업 트리를 공유하는 subagent가 더 가볍다. 파일 소유권이 겹치는 작업은 worktree로도 머지 충돌이 남으므로(worktree는 실시간 쓰기만 격리한다) 순차로 돌린다. worktree는 fresh checkout·환경 셋업 비용이 있고 `.git`·플러그인·권한 규칙은 공유된다. subagent는 frontmatter `isolation: worktree`로 격리를 켤 수 있다.
 
-표준 패턴: **계획 → 공유 계약 정의 → 소유권 경계로 분할 → (겹치면) worktree 격리 → 작업별 테스트 → 머지 후 통합 검증 1회**
+표준 패턴: **계획 → 공유 계약 정의 → 겹치지 않는 소유권 경계로 분할 → (독립 실행은) worktree 격리 → 작업별 테스트 → 머지 후 통합 검증 1회**
 
-- **분해 표 먼저**: 실행 전에 Task | 담당(subagent/team) | 주요 파일 | 의존성 | 통합 지점 | 리뷰 도구 표를 만든다. 두 작업의 파일 목록이 겹치면 병렬이 아니라 순차이거나 worktree로 격리한다 — 이것이 하드 제약이다.
+- **분해 표 먼저**: 실행 전에 Task | 담당(subagent/team) | 주요 파일 | 의존성 | 통합 지점 | 리뷰 도구 표를 만든다. 두 작업의 파일 목록이 겹치면 병렬이 아니라 순차다 — worktree로도 머지 충돌은 풀리지 않는다(실시간 쓰기만 격리). 이것이 하드 제약이다.
 - **공유 계약 동결**: API 시그니처, 데이터 스키마, 아키텍처 결정은 병렬 실행 시작 전에 문서로 고정하고 실행 중 변경 금지. 에이전트는 시작 시 읽기만 한다. 중간에 설계가 바뀌면 전체를 멈추고 계약을 갱신한 뒤 재시작한다 (context drift 방지).
 - **단독 소유 자원**: lock 파일(uv.lock 등), DB 마이그레이션은 단일 담당만 수정. 마이그레이션은 항상 순차.
-- **격리 위생**: worktree를 쓸 때는 독립 `.env`, 독립 포트, 독립 의존성 디렉토리.
+- **격리 위생**: worktree를 쓸 때 시크릿은 각 worktree에서 런타임 주입으로 공급한다(평문 `.env` 복사 금지 → [13-secret-management.md](13-secret-management.md)). 포트·의존성 디렉토리는 독립으로 둔다.
 - **통합**: 각 브랜치는 lint+테스트 통과가 머지 전제조건. 머지 후 전체 통합 스모크 1회.
 - **경계 인식**: 에이전트/worktree를 늘린다고 자동으로 빨라지지 않는다 — 격리·범위·검증이 안 되면 머지/리뷰 비용이 병렬 이득을 상쇄한다. 실측으로 확인한다 (→ [00-principles.md](00-principles.md)의 METR 사례).
 
@@ -66,9 +66,9 @@ AGENTS.md는 2025년 OpenAI·Google·Cursor 등이 공동 공식화한 오픈 �
 
 **경로 B — cursor CLI (외부 도구)**: 다른 벤더 모델로 교차 검증한다.
 
-- 깊은 추론: `cursor-agent -p --model gpt-5.3-codex-xhigh --output-format text "<변경 diff 리뷰 프롬프트>"` — reasoning effort는 별도 플래그가 아니라 model id 접미사 `-xhigh`로 인코딩된다.
+- 깊은 추론: `cursor-agent -p --mode ask --model gpt-5.3-codex-xhigh --output-format text "<변경 diff 리뷰 프롬프트>"` — `--mode ask`(또는 `--plan`)로 읽기 전용을 강제한다(둘 다 분석·읽기 명령은 되고 편집은 차단). reasoning effort는 별도 플래그가 아니라 model id 접미사 `-xhigh`로 인코딩된다.
 - 빠르고 저렴: `--model composer-2.5`(effort 변형 없음). **depth가 필요하면 `gpt-5.3-codex-xhigh`, 속도·비용이 우선이면 `composer-2.5`.**
-- 리뷰는 읽기 전용으로 실행한다(쓰기 권한 부여 금지). 결과는 오케스트레이터가 반영한다.
+- 리뷰는 반드시 읽기 전용 모드(`--mode ask`/`--plan`)로 실행한다. `-p` 단독은 쓰기·셸까지 모두 열려 리뷰어가 검사 대상을 수정할 수 있으므로 그렇게 쓰지 않는다. 결과는 오케스트레이터가 반영한다.
 
 출처: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Cursor — headless CLI](https://cursor.com/docs/cli/headless)
 

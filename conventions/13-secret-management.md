@@ -63,13 +63,16 @@ CMD infisical run --projectId=$INFISICAL_PROJECT_ID --env=prod -- <실행 명령
 ```
 
 ```bash
-# 컨테이너엔 자격증명(또는 발급 토큰)만 전달
+# 데모용. 주의: 아래 인라인 형태는 client-secret이 셸 argv(`ps`로 관찰)와
+# docker run argv·컨테이너 설정(`docker inspect`)에 노출되므로 프로덕션에서 쓰지 않는다.
 docker run \
   -e INFISICAL_TOKEN="$(infisical login --method=universal-auth \
       --client-id=$CLIENT_ID --client-secret=$CLIENT_SECRET --silent --plain)" \
   -e INFISICAL_PROJECT_ID=<프로젝트 ID> \
   <이미지>
 ```
+
+- **자격증명을 argv로 넘기지 않는다**: client-secret·토큰을 명령행 인자나 `docker run -e KEY=VALUE`의 리터럴 값으로 두면 프로세스 목록·`docker inspect`·컨테이너 설정에 남는다. 배포 플랫폼의 시크릿 스토어(K8s Secret, ECS/Fargate secrets, PaaS secret)가 `INFISICAL_TOKEN`(또는 머신 신원 자격증명)을 컨테이너 env로 직접 주입하게 하고, Infisical CLI가 그 env를 자동으로 읽게 한다 — 셸 치환·argv를 거치지 않는다.
 
 시크릿 값은 컨테이너 **시작 시점**에만 주입하고 이미지 레이어에 남기지 않는다. 규모가 커지면 CLI 대신 Infisical Agent(사이드카)나 Kubernetes Operator(Infisical 시크릿 → 네이티브 K8s Secret 동기화)로 전환한다.
 

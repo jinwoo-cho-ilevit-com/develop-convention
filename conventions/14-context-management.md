@@ -32,7 +32,7 @@
 
 무엇이 남고 무엇이 사라지는지를 알아야 무엇을 외부화할지 정할 수 있다.
 
-- **auto-compaction**: 컨텍스트가 한계에 가까우면 자동 실행 — 오래된 tool output을 먼저 비우고, 그다음 대화를 요약으로 대체한 뒤 세션을 계속한다. **비활성화할 수 없다.** 단일 출력이 너무 커서 매 요약 직후 다시 가득 차면 몇 번 시도 후 thrashing 에러로 멈춘다.
+- **auto-compaction**: 컨텍스트가 한계에 가까우면 자동 실행 — 오래된 tool output을 먼저 비우고, 그다음 대화를 요약으로 대체한 뒤 세션을 계속한다. 기본은 켜져 있으나 `autoCompactEnabled: false`(settings.json)·`DISABLE_AUTO_COMPACT=1`(env)·`/config`로 끌 수 있다. 단일 출력이 너무 커서 매 요약 직후 다시 가득 차면 몇 번 시도 후 thrashing 에러로 멈춘다.
 - **`/compact [focus]`**: 세션을 유지한 채 수동 요약. `focus` 인자로 무엇을 강조할지 지시할 수 있다 (예: `/compact focus on the API changes`).
 - **`/clear [name]`**: 대화 히스토리를 완전히 비우고 새 컨텍스트로 시작(세션 재시작). alias `/reset`·`/new`. 이름을 붙이면 나중에 `/resume`으로 되찾을 수 있다.
 
@@ -44,7 +44,7 @@
 
 - **compaction 후 유지되는 것**: 프로젝트 루트 CLAUDE.md는 디스크에서 재주입된다. auto memory(MEMORY.md 앞 200줄/25KB)도 재로드된다. 하위 디렉토리의 CLAUDE.md는 자동 재주입되지 않고, 그 디렉토리 파일을 읽을 때 로드된다.
 
-출처: [Claude Code — how it works](https://code.claude.com/docs/en/how-claude-code-works), [commands](https://code.claude.com/docs/en/commands), [memory](https://code.claude.com/docs/en/memory)
+출처: [Claude Code — how it works](https://code.claude.com/docs/en/how-claude-code-works), [commands](https://code.claude.com/docs/en/commands), [settings](https://code.claude.com/docs/en/settings), [memory](https://code.claude.com/docs/en/memory)
 
 ### 3. 맥락 손실 방지 (외부화 + 지속 메모리)
 
