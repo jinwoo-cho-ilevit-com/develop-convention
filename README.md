@@ -22,6 +22,7 @@
 | [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider별 고려사항(OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + 구조화 출력 계층 폴백 |
 | [12-docs-reference.md](conventions/12-docs-reference.md) | 최신 문서 참조 절차(4계층) + provider별 canonical URL 레지스트리 + 스모크 확정 |
 | [13-secret-management.md](conventions/13-secret-management.md) | 시크릿 하드코딩·커밋 금지, 중앙 매니저(Infisical) 주입, 코드에서 env 읽기, 컨테이너·CI 머신 신원, 스캐닝·회전 |
+| [14-context-management.md](conventions/14-context-management.md) | 메인 컨텍스트 최소화(방화벽·위임), compaction/clear 동작 이해, 외부 파일·CLAUDE.md·auto memory로 맥락 손실 방지 |
 
 ## 새 프로젝트에 적용하는 법
 
@@ -136,3 +137,8 @@ DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해�
 - 시크릿을 코드·config·로그·이미지에 하드코딩 금지, 평문 `.env` 커밋 금지(`.gitignore`+`.env.example` 키 목록만). 단일 원본은 중앙 시크릿 매니저(Infisical 권장).
 - 로컬·CI·컨테이너 모두 실행 시점 주입(`infisical run -- <cmd>`)으로 공급하고 디스크에 평문 잔존 금지. 코드는 그대로 env로 읽는다(`os.environ[...]`). 코딩 에이전트도 동일 규칙.
 - 컨테이너·CI는 머신 신원(Universal Auth)으로 최소권한·단기 토큰 인증. 환경(dev/staging/prod) 분리 + 회전 + gitleaks 스캐닝(pre-commit/CI). 이미 커밋된 시크릿은 즉시 회전·재발급.
+
+### 컨텍스트 관리
+- 메인 컨텍스트는 오케스트레이터 — 결론만 보관하고 탐색·검색·대용량 읽기는 subagent(별도 컨텍스트 창)에 위임해 요약만 받는다. 디렉토리 스윕·큰 파일 통독을 메인에서 하지 않는다. 독립 작업은 병렬 디스패치 + 장기 실행은 백그라운드.
+- 진실의 원본은 대화가 아니라 파일에 둔다 — 계획·결정·진행상황을 외부 파일에 지속화하고 마일스톤마다 체크포인트. 지속 규칙·사실은 CLAUDE.md(세션마다 로드·compaction 후 재주입)와 auto memory(`/clear`도 견딤)에 둔다.
+- auto-compaction은 비활성화 불가(오래된 tool output 제거 → 요약). 임박 시 `/compact <focus>`로 남길 것 지시, 무관한 작업 사이·오염 시 `/clear`. resume·compaction 직후 git status·cwd·상태 아티팩트 재확인 후 재개.

@@ -54,6 +54,7 @@ nav:
       - conventions/11-llm-api-providers.md
       - conventions/12-docs-reference.md
       - conventions/13-secret-management.md
+      - conventions/14-context-management.md
   - 템플릿:
       - templates/AGENTS.md
       - templates/CLAUDE.md
