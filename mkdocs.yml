@@ -53,6 +53,7 @@ nav:
       - conventions/10-llm-api-inference.md
       - conventions/11-llm-api-providers.md
       - conventions/12-docs-reference.md
+      - conventions/13-secret-management.md
   - 템플릿:
       - templates/AGENTS.md
       - templates/CLAUDE.md

@@ -21,6 +21,7 @@
 | [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API 추론 모듈: 어댑터 구조, 호출/rate limit, 에러/재시도, 앙상블, 캐싱/resume, 비용/평가 |
 | [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider별 고려사항(OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + 구조화 출력 계층 폴백 |
 | [12-docs-reference.md](conventions/12-docs-reference.md) | 최신 문서 참조 절차(4계층) + provider별 canonical URL 레지스트리 + 스모크 확정 |
+| [13-secret-management.md](conventions/13-secret-management.md) | 시크릿 하드코딩·커밋 금지, 중앙 매니저(Infisical) 주입, 코드에서 env 읽기, 컨테이너·CI 머신 신원, 스캐닝·회전 |
 
 ## 새 프로젝트에 적용하는 법
 
@@ -129,3 +130,8 @@ DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해�
 - CLAUDE.md/AGENTS.md는 간결하게(비대하면 규칙 무시 유발), 모듈별 계층화, 가끔 쓰는 지식은 Skills로.
 - 병렬 작업은 분해 표 작성 후 시작. 파일 소유권 겹치면 순차. 에이전트당 worktree 하나, 공유 계약은 실행 중 동결, lock 파일/마이그레이션은 단일 담당.
 - 브랜치별 테스트 통과 후 머지 + 통합 검증 1회. 모델은 난이도별 라우팅(기계적→경량, 표준→중간, 아키텍처→상위).
+
+### 시크릿 관리
+- 시크릿을 코드·config·로그·이미지에 하드코딩 금지, 평문 `.env` 커밋 금지(`.gitignore`+`.env.example` 키 목록만). 단일 원본은 중앙 시크릿 매니저(Infisical 권장).
+- 로컬·CI·컨테이너 모두 실행 시점 주입(`infisical run -- <cmd>`)으로 공급하고 디스크에 평문 잔존 금지. 코드는 그대로 env로 읽는다(`os.environ[...]`). 코딩 에이전트도 동일 규칙.
+- 컨테이너·CI는 머신 신원(Universal Auth)으로 최소권한·단기 토큰 인증. 환경(dev/staging/prod) 분리 + 회전 + gitleaks 스캐닝(pre-commit/CI). 이미 커밋된 시크릿은 즉시 회전·재발급.
