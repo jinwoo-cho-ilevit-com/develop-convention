@@ -17,7 +17,7 @@
 | [06-testing-verification.md](conventions/06-testing-verification.md) | 최소-의미 테스트, golden file, 허용 오차 밴드, CPU 스모크, 완료 검증 |
 | [07-ml-development.md](conventions/07-ml-development.md) | 시드/재현성, train-serve skew 방지, 실험 추적, 체크포인트/spot pod |
 | [08-llm-development.md](conventions/08-llm-development.md) | 학습 프레임워크 라우팅, FSDP2/bf16, chat template 일관성, 평가 재현성, LLM-as-judge, 데이터 |
-| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | CLAUDE.md/AGENTS.md 작성법, worktree 병렬 개발, 검증 게이트, 모델 라우팅 |
+| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | CLAUDE.md/AGENTS.md 작성법, workflows 우선 병렬 개발(worktree는 파일 격리용), 개발 후 리뷰 게이트(Codex 플러그인/cursor CLI), 모델 라우팅 |
 | [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API 추론 모듈: 어댑터 구조, 호출/rate limit, 에러/재시도, 앙상블, 캐싱/resume, 비용/평가 |
 | [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider별 고려사항(OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + 구조화 출력 계층 폴백 |
 | [12-docs-reference.md](conventions/12-docs-reference.md) | 최신 문서 참조 절차(4계층) + provider별 canonical URL 레지스트리 + 스모크 확정 |
@@ -128,7 +128,8 @@ DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해�
 
 ### 에이전트 워크플로우
 - CLAUDE.md/AGENTS.md는 간결하게(비대하면 규칙 무시 유발), 모듈별 계층화, 가끔 쓰는 지식은 Skills로.
-- 병렬 작업은 분해 표 작성 후 시작. 파일 소유권 겹치면 순차. 에이전트당 worktree 하나, 공유 계약은 실행 중 동결, lock 파일/마이그레이션은 단일 담당.
+- 병렬화는 workflows/subagent 오케스트레이션 우선. git worktree는 파일 격리 수단이라 겹치는 파일을 수정해 충돌할 때만 도입. 분해 표(담당·파일·의존성·통합·리뷰 도구) 작성 후 시작, 공유 계약은 실행 중 동결, lock/마이그레이션은 단일 담당.
+- 각 에이전트는 개발 완료 후 작성자와 분리된 리뷰를 필수로 거친다. 리뷰 도구는 개발 전에 선택 — 경로 A: Codex 플러그인(Stop 게이트 `ALLOW`/`BLOCK` + `/codex:review`, 구성된 기본 모델, 오케스트레이터가 종합·반영) / 경로 B: cursor CLI(`gpt-5.3-codex-xhigh` 깊게 또는 `composer-2.5` 빠르게, 읽기 전용).
 - 브랜치별 테스트 통과 후 머지 + 통합 검증 1회. 모델은 난이도별 라우팅(기계적→경량, 표준→중간, 아키텍처→상위).
 
 ### 시크릿 관리
