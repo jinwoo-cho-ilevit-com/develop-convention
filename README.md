@@ -9,7 +9,7 @@ Each doc starts with `## Core Rules` (imperative rules excerptable into agent in
 | Doc | Contents |
 |---|---|
 | [00-principles.md](conventions/00-principles.md) | Core principles: fresh start, fresh-context, evidence over claims, fact-based judgment, empirical measurement first |
-| [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, flat layout, PEP 8 semantic naming, dead code/duplication removal |
+| [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, structure-follows-design integration, flat layout, PEP 8 semantic naming, dead code/duplication removal |
 | [02-config.md](conventions/02-config.md) | No hardcoding, Hydra config groups + validation, ablation combinations, run snapshots |
 | [03-environment.md](conventions/03-environment.md) | uv/ruff toolchain, local↔RunPod portability, device abstraction (CPU fallback) |
 | [04-pipeline.md](conventions/04-pipeline.md) | Small-sample debugging, atomic save + resume, streaming, progress monitoring |
@@ -88,6 +88,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Structure & Naming
 - Separate by module/feature, with clear input/output contracts. Keep files small and boundaries clear.
+- Fit the structure to the design, not the design to the structure: when integrating a new module, restructuring the surrounding project is preferred over force-fitting — scoped to what the integration touches, behavior pinned by tests, structural moves in separate commits.
 - App/research/pipeline code uses a flat layout (src/ is only for distributed libraries). Use uv workspaces for multiple packages.
 - Semantic naming + PEP 8. No `_v2`/`_new` suffixes — rename in place. Delete dead code immediately, don't relocate unused code, scan for duplicates before completion.
 - Comments should cover only constraints/intent the code itself can't express. No insider-only context, no TMI, no explaining the obvious.
