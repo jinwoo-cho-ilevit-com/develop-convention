@@ -21,9 +21,9 @@ quote-style = "double"
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 
-# --- ML(PyTorch) 프로젝트만: 주석 해제 (conventions/03-environment.md §2) ---
-# macOS는 CPU/MPS, Linux(RunPod)는 CUDA로 자동 라우팅.
-# CUDA 버전은 대상 pod에 맞춰 조정. 임시 GPU 환경은 `uv sync --torch-backend=auto`도 가능.
+# --- ML (PyTorch) projects only: uncomment (conventions/03-environment.md §2) ---
+# macOS routes to CPU/MPS, Linux (RunPod) to CUDA automatically.
+# Match the CUDA version to the target pod. For ad-hoc GPU environments, `uv sync --torch-backend=auto` also works.
 #
 # [tool.uv.sources]
 # torch = [
