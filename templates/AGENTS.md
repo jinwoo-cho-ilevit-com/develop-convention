@@ -30,6 +30,10 @@
 - provider 공식 skill이 있으면 설치해 사용 (예: Gemini `gemini-api-dev`) — SDK 사용법은 공식 skill > ctx7 순, 예외/시그니처는 설치된 SDK 소스가 기준
 - 문서에 없는 동작은 추측하지 말고 provider 스모크 테스트로 확정 (10/11/12)
 
+[docsync 문서 추적을 쓰면 유지, 아니면 삭제]
+- 모듈 문서는 디렉토리별 AGENTS.md의 `docsync:managed` 블록으로 관리 — 코드 변경 후 `.claude/skills/docsync/SKILL.md` 절차로 동기화, 블록 밖 사람 섹션은 수정 금지 (15)
+- managed 블록의 사실 주장은 코드 위치(file:symbol) 인용 가능해야 하고(결정 근거·실패 기록은 ADR·사람 섹션에), ADR은 수정 대신 supersede — 참조 시 체인 끝의 유효 결정만 따름 (15)
+
 ## Verification
 
 완료 전: `uv run pytest` + 위 스모크 명령 실행, 전체 출력 확인. 실행 증거 없이 완료 주장 금지. TODO/스텁/`test.skip`은 완료가 아니라 블로커.

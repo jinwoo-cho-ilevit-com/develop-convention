@@ -55,6 +55,8 @@ nav:
       - conventions/12-docs-reference.md
       - conventions/13-secret-management.md
       - conventions/14-context-management.md
+      - conventions/15-doc-tracking.md
   - 템플릿:
       - templates/AGENTS.md
       - templates/CLAUDE.md
+      - templates/skills/docsync/SKILL.md

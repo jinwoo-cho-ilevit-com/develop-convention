@@ -23,10 +23,11 @@
 | [12-docs-reference.md](conventions/12-docs-reference.md) | 최신 문서 참조 절차(4계층) + provider별 canonical URL 레지스트리 + 스모크 확정 |
 | [13-secret-management.md](conventions/13-secret-management.md) | 시크릿 하드코딩·커밋 금지, 중앙 매니저(Infisical) 주입, 코드에서 env 읽기, 컨테이너·CI 머신 신원, 스캐닝·회전 |
 | [14-context-management.md](conventions/14-context-management.md) | 메인 컨텍스트 최소화(방화벽·위임), compaction/clear 동작 이해, 외부 파일·CLAUDE.md·auto memory로 맥락 손실 방지 |
+| [15-doc-tracking.md](conventions/15-doc-tracking.md) | 문서-코드 동기화: 4계층 추적(계약·모듈·플로우·이력), docsync 스킬(증분 sync + audit), managed/human 마커, blind rebuild·RMA 검증, ADR supersede |
 
 ## 새 프로젝트에 적용하는 법
 
-1. [templates/AGENTS.md](templates/AGENTS.md)·[templates/CLAUDE.md](templates/CLAUDE.md)·[templates/pyproject.toml](templates/pyproject.toml)을 새 프로젝트로 복사하고, placeholder(`[...]`, `PROJECT_NAME`)를 채운 뒤 해당 없는 선택 블록(ML/LLM API)을 삭제하거나 주석 해제한다. 공통 지침의 단일 소스는 AGENTS.md(오픈 표준 — Codex/Cursor 등도 읽음)이고, CLAUDE.md는 `@AGENTS.md`로 이를 임포트한다.
+1. [templates/AGENTS.md](templates/AGENTS.md)·[templates/CLAUDE.md](templates/CLAUDE.md)·[templates/pyproject.toml](templates/pyproject.toml)을 새 프로젝트로 복사하고, placeholder(`[...]`, `PROJECT_NAME`)를 채운 뒤 해당 없는 선택 블록(ML/LLM API/docsync)을 삭제하거나 주석 해제한다. docsync 문서 추적을 쓸 프로젝트는 [templates/skills/docsync/](templates/skills/docsync/SKILL.md)를 `.claude/skills/docsync/`로 추가 복사한다 (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)). 공통 지침의 단일 소스는 AGENTS.md(오픈 표준 — Codex/Cursor 등도 읽음)이고, CLAUDE.md는 `@AGENTS.md`로 이를 임포트한다.
 2. 지시 파일은 간결하게 유지한다 — 전체 문서를 붙여넣지 말고, 그 프로젝트에서 실수를 막는 데 필요한 규칙만 넣는다 (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). 전체 컨벤션은 이 저장소를 clone한 로컬 경로로 참조한다 (템플릿의 `[CONVENTION_PATH]`에 기입).
 
 ### 도구별 동작 방식
@@ -137,6 +138,11 @@ DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해�
 - 시크릿을 코드·config·로그·이미지에 하드코딩 금지, 평문 `.env` 커밋 금지(`.gitignore`+`.env.example` 키 목록만). 단일 원본은 중앙 시크릿 매니저(Infisical 권장).
 - 로컬·CI·컨테이너 모두 실행 시점 주입(`infisical run -- <cmd>`)으로 공급하고 디스크에 평문 잔존 금지. 코드는 그대로 env로 읽는다(`os.environ[...]`). 코딩 에이전트도 동일 규칙.
 - 컨테이너·CI는 머신 신원(Universal Auth)으로 최소권한·단기 토큰 인증. 환경(dev/staging/prod) 분리 + 회전 + gitleaks 스캐닝(pre-commit/CI). 이미 커밋된 시크릿은 즉시 회전·재발급.
+
+### 문서 추적
+- 문서는 4계층 분리: 입출력 계약은 코드가 단일 소스(손문서 금지), 모듈 로직은 디렉토리별 AGENTS.md, 전체 플로우는 ARCHITECTURE.md + Mermaid(의존 그래프는 결정적 도구로 생성), 결정 이력은 구조화 커밋 + append-only ADR(수정 대신 supersede, 뒤집힌 결정·롤백도 기록, 참조 시 유효 결정만).
+- 에이전트는 `docsync:managed` 마커 내부만 재생성(사람 섹션 불가침, 검증 커밋 스탬프). managed 문서의 사실 주장은 코드 위치 인용 가능해야 하며(결정 근거·실패 기록은 ADR·사람 섹션에), 갱신은 변경 시점 증분 sync가 주 메커니즘 — 주기 실행은 audit 전용(dead-man's switch + blind rebuild 환각 감사, 의미 동등 표현은 drift 아님).
+- 사람이 managed 섹션을 고치면 이유 코드를 기록해 이후 생성에 반영(RMA). 리뷰 게이트에 "코드 변경 ↔ 문서 갱신 정합" 확인 포함.
 
 ### 컨텍스트 관리
 - 메인 컨텍스트는 오케스트레이터 — 결론만 보관하고 탐색·검색·대용량 읽기는 subagent(별도 컨텍스트 창)에 위임해 요약만 받는다. 디렉토리 스윕·큰 파일 통독을 메인에서 하지 않는다. 독립 작업은 병렬 디스패치 + 장기 실행은 백그라운드.
