@@ -2,17 +2,17 @@ site_name: Development Conventions
 site_url: https://jinwoo-cho-ilevit-com.github.io/develop-convention/
 repo_url: https://github.com/jinwoo-cho-ilevit-com/develop-convention
 
-# docs/는 빌드 시점에 조립된다 (README.md → docs/index.md, conventions/·templates/ 복사).
-# 로컬 미리보기: .github/workflows/docs.yml의 assemble 스텝과 동일한 명령 실행 후 `uvx --with mkdocs-material mkdocs serve`
+# docs/ is assembled at build time (README.md → docs/index.md; conventions/ and templates/ copied in).
+# Local preview: run the assemble step from .github/workflows/docs.yml, then `uvx --with mkdocs-material mkdocs serve`
 docs_dir: docs
 
-# MkDocs 1.6이 docs 루트의 /templates/를 기본 제외하므로 부정 패턴으로 재포함
+# MkDocs 1.6 excludes /templates/ at the docs root by default; re-include via negation pattern
 exclude_docs: |
   !/templates/
 
 theme:
   name: material
-  language: ko
+  language: en
   features:
     - navigation.sections
     - navigation.top
@@ -23,12 +23,12 @@ theme:
       scheme: default
       toggle:
         icon: material/brightness-7
-        name: 다크 모드로
+        name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       toggle:
         icon: material/brightness-4
-        name: 라이트 모드로
+        name: Switch to light mode
 
 markdown_extensions:
   - tables
@@ -38,8 +38,8 @@ markdown_extensions:
       permalink: true
 
 nav:
-  - 개요: index.md
-  - 컨벤션:
+  - Overview: index.md
+  - Conventions:
       - conventions/00-principles.md
       - conventions/01-structure-naming.md
       - conventions/02-config.md
@@ -58,7 +58,7 @@ nav:
       - conventions/15-doc-tracking.md
       - conventions/16-research-protocol.md
       - conventions/17-commit-protocol.md
-  - 템플릿:
+  - Templates:
       - templates/AGENTS.md
       - templates/CLAUDE.md
       - templates/skills/docsync/SKILL.md

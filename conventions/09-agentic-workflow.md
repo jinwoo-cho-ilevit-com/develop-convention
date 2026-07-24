@@ -1,100 +1,100 @@
-# 09. AI 에이전트 병렬 개발 워크플로우
+# 09. AI Agent Parallel Development Workflow
 
-## 핵심 규칙
+## Core Rules
 
-- CLAUDE.md/AGENTS.md는 간결하게 유지한다. 비대한 지시 파일은 규칙 무시를 유발한다. 각 줄에 "이걸 지우면 에이전트가 실수하는가?"를 물어 아니면 지운다.
-- 모듈별 지시는 해당 디렉토리의 AGENTS.md에 계층화한다(closest wins). 가끔 필요한 지식은 Skills로 분리한다.
-- 병렬 작업은 실행 전에 분해 표(Task | 담당 | 파일 | 의존성 | 통합 지점)를 만든다. 파일 소유권이 겹치는 작업은 병렬 금지 — 순차로 돌린다.
-- 병렬화는 workflows/subagent 오케스트레이션을 우선 고려한다. git worktree는 조정(coordination)이 아니라 파일 격리 수단으로, 여러 에이전트를 독립 브랜치·환경으로 격리할 때 쓴다 — 파일 소유권이 겹치는 작업은 worktree로도 머지 충돌이 남으므로 순차로 돌린다.
-- 공유 인터페이스/스키마는 병렬 실행 중 동결한다. lock 파일과 마이그레이션은 단일 담당만 수정한다.
-- 각 작업 브랜치는 테스트 통과 후 머지하고, 머지 후 통합 검증을 1회 수행한다.
-- 각 에이전트는 개발 완료 후 작성자와 분리된 리뷰를 반드시 거친다. 리뷰 도구(Codex 플러그인 vs cursor CLI)는 개발 시작 전에 선택해 분해 표에 기록한다. 완료는 실행 증거로만 주장한다.
-- 모델은 난이도에 맞게 라우팅한다: 기계적 작업→경량 모델, 표준 구현→중간, 아키텍처/딥 디버깅→상위 모델.
-- 무거운 스펙 문서는 여러 PR/작업자가 공유하는 자산일 때만 작성한다. 소규모·탐색 작업은 경량 반복으로 진행한다.
+- Keep CLAUDE.md/AGENTS.md concise. A bloated instruction file causes rules to be ignored. For each line, ask "would removing this cause the agent to make a mistake?" — if not, delete it.
+- Layer module-specific instructions into that directory's AGENTS.md (closest wins). Split out occasionally-needed knowledge into Skills.
+- Before running parallel work, build a decomposition table (Task | Owner | Files | Dependencies | Integration point). Tasks with overlapping file ownership are not allowed to run in parallel — run them sequentially.
+- For parallelization, prioritize workflows/subagent orchestration first. git worktree is a file isolation mechanism, not a coordination mechanism — use it to isolate multiple agents into independent branches/environments. Tasks with overlapping file ownership still leave merge conflicts even with worktree, so run them sequentially.
+- Freeze shared interfaces/schemas during parallel execution. Only a single owner modifies lock files and migrations.
+- Merge each work branch only after its tests pass, and run one integration verification pass after merging.
+- Every agent must go through a review separated from the author after development is complete. Choose the review tool (Codex plugin vs. cursor CLI) before development starts and record it in the decomposition table. Claim completion only with execution evidence.
+- Route models to match task difficulty: mechanical work → lightweight model, standard implementation → mid-tier, architecture/deep debugging → top-tier model.
+- Write heavyweight spec documents only when they are an asset shared across multiple PRs/workers. For small-scale or exploratory work, proceed with lightweight iteration.
 
-## 상세
+## Details
 
-### 1. 에이전트 지시 파일 (CLAUDE.md / AGENTS.md)
+### 1. Agent Instruction Files (CLAUDE.md / AGENTS.md)
 
-AGENTS.md는 2025년 OpenAI·Google·Cursor 등이 공동 공식화한 오픈 표준("머신용 README")으로, 주요 코딩 에이전트가 네이티브로 읽는다. Claude Code는 CLAUDE.md를 쓰므로, 실무 패턴은 범용 AGENTS.md + 도구별 파일이다.
+AGENTS.md is an open standard (a "README for machines") jointly formalized in 2025 by OpenAI, Google, Cursor, and others, and is read natively by the major coding agents. Since Claude Code uses CLAUDE.md, the practical pattern is a generic AGENTS.md plus tool-specific files.
 
-**넣을 것**: 에이전트가 추측 못 하는 빌드/테스트 명령, 기본값과 다른 코드 스타일, 브랜치/PR 규칙, 프로젝트 고유 아키텍처 결정, 환경 특이사항.
-**빼야 할 것**: 코드에서 유추 가능한 내용, 표준 컨벤션, 상세 API 문서(링크로 대체), 자주 바뀌는 정보, 파일별 설명, 자명한 조언.
+**Include**: build/test commands the agent cannot guess, code style that deviates from defaults, branch/PR rules, project-specific architecture decisions, environment quirks.
+**Exclude**: content inferable from the code, standard conventions, detailed API documentation (replace with links), frequently-changing information, per-file descriptions, and obvious advice.
 
-- **간결이 성능이다**: Anthropic 공식 경고 — "비대한 CLAUDE.md는 실제 지시를 무시하게 만든다." 시작은 20~30줄 수준.
-- **계층화**: 루트가 기본값, 하위 디렉토리 파일이 오버라이드(closest wins). 각 파일은 자기 디렉토리 범위만 다룬다.
-- **Skills 분리**: 항상 필요하지 않은 지식(특정 작업 절차 등)은 항시 로드되는 지시 파일이 아니라 온디맨드 Skill로 뺀다.
+- **Conciseness is performance**: Anthropic's official warning — "a bloated CLAUDE.md causes real instructions to be ignored." Start at around 20-30 lines.
+- **Layering**: the root file is the default, and subdirectory files override it (closest wins). Each file covers only the scope of its own directory.
+- **Split into Skills**: knowledge that isn't always needed (e.g., procedures for specific tasks) belongs in an on-demand Skill, not in an always-loaded instruction file.
 
-출처: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [AGENTS.md 표준화 (InfoQ)](https://infoq.com/news/2025/08/agents-md/)
+Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [AGENTS.md standardization (InfoQ)](https://infoq.com/news/2025/08/agents-md/)
 
-### 2. 병렬 개발: workflows 우선, worktree는 파일 격리용
+### 2. Parallel Development: Workflows First, Worktree for File Isolation
 
-병렬화에는 두 층이 있다 — 일을 나누고 조정하는 **조정(coordination) 층**과, 파일 편집 충돌을 막는 **격리(isolation) 층**. 먼저 조정을 정하고, 격리는 필요할 때만 얹는다.
+Parallelization has two layers — a **coordination layer** that splits and coordinates the work, and an **isolation layer** that prevents file-editing conflicts. Decide coordination first, and layer on isolation only when needed.
 
-**조정: workflows/subagent 오케스트레이션 우선.** Claude Code의 조정 프리미티브를 기본으로 쓴다:
+**Coordination: prioritize workflows/subagent orchestration.** Use Claude Code's coordination primitives as the default:
 
-- **subagents**: 한 세션이 워커를 띄워 결과만 돌려받는다. 격리된 작업 위임의 기본값 — worktree 불필요.
-- **workflows**: 스크립트로 다수 subagent를 파이프라인/팬아웃하고 교차 검증한다. 대규모·반복 분해에 적합.
-- **agent teams**(실험적): 워커끼리 메시지로 조정·논쟁이 필요할 때. 자동 격리가 없으니 파일을 논리적으로 분할한다.
-- **agent view**: 독립 백그라운드 세션을 수동 디스패치할 때 — 세션마다 worktree가 자동 부여된다.
+- **subagents**: one session spawns a worker and receives back only the result. The default for isolated task delegation — no worktree needed.
+- **workflows**: scripts pipeline/fan out multiple subagents and cross-verify them. Suited to large-scale, repeated decomposition.
+- **agent teams** (experimental): for when workers need to coordinate or debate via messages. There is no automatic isolation, so split files logically.
+- **agent view**: for manually dispatching independent background sessions — each session is automatically assigned a worktree.
 
-**격리: worktree는 독립 브랜치가 필요할 때.** git worktree는 조정 수단이 아니라 파일시스템 격리 수단이다. 여러 에이전트에 **서로 다른 파일을 맡겨** 독립 브랜치·환경으로 돌릴 때 쓰고, 그 외에는 같은 작업 트리를 공유하는 subagent가 더 가볍다. 파일 소유권이 겹치는 작업은 worktree로도 머지 충돌이 남으므로(worktree는 실시간 쓰기만 격리한다) 순차로 돌린다. worktree는 fresh checkout·환경 셋업 비용이 있고 `.git`·플러그인·권한 규칙은 공유된다. subagent는 frontmatter `isolation: worktree`로 격리를 켤 수 있다.
+**Isolation: use worktree when independent branches are needed.** git worktree is a filesystem isolation mechanism, not a coordination mechanism. Use it when **assigning different files** to multiple agents to run on independent branches/environments; otherwise, a subagent sharing the same working tree is lighter weight. Tasks with overlapping file ownership still leave merge conflicts even with worktree (worktree only isolates live writes), so run them sequentially. worktree carries the cost of a fresh checkout and environment setup, and `.git`, plugins, and permission rules are shared. subagents can turn on isolation via the frontmatter `isolation: worktree`.
 
-표준 패턴: **계획 → 공유 계약 정의 → 겹치지 않는 소유권 경계로 분할 → (독립 실행은) worktree 격리 → 작업별 테스트 → 머지 후 통합 검증 1회**
+Standard pattern: **plan → define shared contracts → split along non-overlapping ownership boundaries → (for independent execution) worktree isolation → per-task tests → one integration verification pass after merge**
 
-- **분해 표 먼저**: 실행 전에 Task | 담당(subagent/team) | 주요 파일 | 의존성 | 통합 지점 | 리뷰 도구 표를 만든다. 두 작업의 파일 목록이 겹치면 병렬이 아니라 순차다 — worktree로도 머지 충돌은 풀리지 않는다(실시간 쓰기만 격리). 이것이 하드 제약이다.
-- **공유 계약 동결**: API 시그니처, 데이터 스키마, 아키텍처 결정은 병렬 실행 시작 전에 문서로 고정하고 실행 중 변경 금지. 에이전트는 시작 시 읽기만 한다. 중간에 설계가 바뀌면 전체를 멈추고 계약을 갱신한 뒤 재시작한다 (context drift 방지).
-- **단독 소유 자원**: lock 파일(uv.lock 등), DB 마이그레이션은 단일 담당만 수정. 마이그레이션은 항상 순차.
-- **격리 위생**: worktree를 쓸 때 시크릿은 각 worktree에서 런타임 주입으로 공급한다(평문 `.env` 복사 금지 → [13-secret-management.md](13-secret-management.md)). 포트·의존성 디렉토리는 독립으로 둔다.
-- **통합**: 각 브랜치는 lint+테스트 통과가 머지 전제조건. 머지 후 전체 통합 스모크 1회.
-- **경계 인식**: 에이전트/worktree를 늘린다고 자동으로 빨라지지 않는다 — 격리·범위·검증이 안 되면 머지/리뷰 비용이 병렬 이득을 상쇄한다. 실측으로 확인한다 (→ [00-principles.md](00-principles.md)의 METR 사례).
+- **Decomposition table first**: before execution, build a table of Task | Owner (subagent/team) | Main files | Dependencies | Integration point | Review tool. If two tasks' file lists overlap, they run sequentially, not in parallel — worktree does not resolve merge conflicts either (it only isolates live writes). This is a hard constraint.
+- **Freeze shared contracts**: fix API signatures, data schemas, and architecture decisions in a document before parallel execution starts, and do not change them during execution. Agents only read them at the start. If the design changes mid-way, stop everything, update the contract, and restart (to prevent context drift).
+- **Sole-owned resources**: only a single owner modifies lock files (uv.lock, etc.) and DB migrations. Migrations always run sequentially.
+- **Isolation hygiene**: when using worktree, supply secrets to each worktree via runtime injection (do not copy plaintext `.env` files → [13-secret-management.md](13-secret-management.md)). Keep ports and dependency directories independent.
+- **Integration**: each branch requires passing lint + tests as a merge precondition. Run one full integration smoke (test) after merge.
+- **Know the boundaries**: adding more agents/worktrees doesn't automatically make things faster — without isolation, scoping, and verification, merge/review cost offsets the gains from parallelism. Confirm this empirically (→ the METR case in [00-principles.md](00-principles.md)).
 
-출처: [Claude Code — run agents in parallel](https://code.claude.com/docs/en/agents), [subagents](https://code.claude.com/docs/en/sub-agents), [agent teams](https://code.claude.com/docs/en/agent-teams), [worktrees](https://code.claude.com/docs/en/worktrees)
+Sources: [Claude Code — run agents in parallel](https://code.claude.com/docs/en/agents), [subagents](https://code.claude.com/docs/en/sub-agents), [agent teams](https://code.claude.com/docs/en/agent-teams), [worktrees](https://code.claude.com/docs/en/worktrees)
 
-### 3. 검증 게이트
+### 3. Verification Gates
 
-- **작성자 ≠ 검증자**: 리뷰 에이전트는 diff와 기준만 본다(작성 과정의 추론을 보면 앵커링된다). 리뷰어에게는 "정확성/요구사항 격차만 지적"을 명시한다 — 격차를 찾으라고만 하면 멀쩡한 코드에도 지적을 만들어 과잉 설계를 유발한다.
-- **실행 가능한 체크 제공**: 에이전트에게 스스로 돌릴 수 있는 검증(테스트, 빌드, 스모크)을 준다. 없으면 "돼 보인다"가 유일한 신호가 되고 사람이 검증 루프가 된다.
-- **증거 기반 완료**: 완료 보고에는 실행한 명령과 출력이 포함되어야 한다. 프로듀스된 산문이 아니라 실제 툴 실행 결과가 증거다 (→ [06-testing-verification.md](06-testing-verification.md)).
-- **문서 정합 확인**: docsync 문서 추적을 채택한 프로젝트는 리뷰 항목에 "코드 변경 ↔ 문서 갱신 정합"(변경 모듈의 managed 문서가 함께 갱신됐는가)을 포함한다 (→ [15-doc-tracking.md](15-doc-tracking.md)).
-- 무인 실행에는 결정적 게이트(Stop hook, 검증 스크립트 통과 전 종료 차단)를 건다.
-- **개발 완료 후 리뷰는 필수이며, 리뷰 도구는 개발을 시작하기 전에 선택해 분해 표(§2)에 기록한다.** 아래 두 경로 중 하나를 고른다.
+- **Author ≠ verifier**: the review agent looks only at the diff and the criteria (seeing the reasoning behind the authoring process causes anchoring). Explicitly instruct the reviewer to "flag only correctness/requirement gaps" — if you only ask it to find gaps, it will manufacture issues even in sound code, causing over-engineering.
+- **Provide runnable checks**: give the agent verification it can run itself (tests, builds, smoke tests). Without this, "looks right" becomes the only signal, and the human becomes the verification loop.
+- **Evidence-based completion**: a completion report must include the commands run and their output. The evidence is actual tool execution results, not produced prose (→ [06-testing-verification.md](06-testing-verification.md)).
+- **Check doc-code synchronization**: projects that have adopted docsync document tracking should include "code change ↔ doc update alignment" (whether the managed docs for the changed module were updated together) as a review item (→ [15-doc-tracking.md](15-doc-tracking.md)).
+- Attach a deterministic gate (a Stop hook that blocks exit until a verification script passes) to unattended runs.
+- **A post-development review is mandatory, and the review tool must be chosen before development starts and recorded in the decomposition table (§2).** Choose one of the two paths below.
 
-**경로 A — Codex 공식 플러그인 (Claude Code 내부)**: 개발 세션 안에서 리뷰가 돈다.
+**Path A — Official Codex plugin (inside Claude Code)**: the review runs inside the development session.
 
-- Stop 리뷰 게이트를 켜면(`/codex:setup --enable-review-gate`) 코드를 변경한 매 턴의 종료 시점에 자동으로 `ALLOW`/`BLOCK` 리뷰가 실행된다. 리뷰 모델은 Codex CLI에 구성된 기본 모델(`~/.codex/config.toml`의 `model`)을 그대로 쓴다.
-- 작업 완료 후에는 `/codex:review`(표준)와 필요 시 `/codex:adversarial-review`(설계 적대적)를 돌린다. 플러그인은 리뷰를 verbatim으로 반환하고 **자동 수정하지 않으므로**, 오케스트레이터(메인 세션)가 리뷰를 읽고 반영한다. "병렬 리뷰 종합"이 필요하면 메인 세션이 여러 리뷰(표준+적대적 또는 다중 subagent)를 팬아웃해 종합한다 — 플러그인 자체는 단일 리뷰만 실행한다.
+- When you turn on the Stop review gate (`/codex:setup --enable-review-gate`), an automatic `ALLOW`/`BLOCK` review runs at the end of every turn that changed code. The review model is whatever default model is configured in the Codex CLI (`model` in `~/.codex/config.toml`).
+- After work is complete, run `/codex:review` (standard) and, if needed, `/codex:adversarial-review` (design-adversarial). The plugin returns the review verbatim and **does not auto-fix**, so the orchestrator (the main session) reads the review and applies it. If "parallel review synthesis" is needed, the main session fans out multiple reviews (standard + adversarial, or multiple subagents) and synthesizes them — the plugin itself runs only a single review.
 
-**경로 B — cursor CLI (외부 도구)**: 다른 벤더 모델로 교차 검증한다.
+**Path B — cursor CLI (external tool)**: cross-verify with a different vendor's model.
 
-- 깊은 추론: `cursor-agent -p --mode ask --model gpt-5.3-codex-xhigh --output-format text "<변경 diff 리뷰 프롬프트>"` — `--mode ask`(또는 `--plan`)로 읽기 전용을 강제한다(둘 다 분석·읽기 명령은 되고 편집은 차단). reasoning effort는 별도 플래그가 아니라 model id 접미사 `-xhigh`로 인코딩된다.
-- 빠르고 저렴: `--model composer-2.5`(effort 변형 없음). **depth가 필요하면 `gpt-5.3-codex-xhigh`, 속도·비용이 우선이면 `composer-2.5`.**
-- 리뷰는 반드시 읽기 전용 모드(`--mode ask`/`--plan`)로 실행한다. `-p` 단독은 쓰기·셸까지 모두 열려 리뷰어가 검사 대상을 수정할 수 있으므로 그렇게 쓰지 않는다. 결과는 오케스트레이터가 반영한다.
+- Deep reasoning: `cursor-agent -p --mode ask --model gpt-5.3-codex-xhigh --output-format text "<review prompt for the change diff>"` — `--mode ask` (or `--plan`) forces read-only mode (both allow analysis/read commands but block edits). Reasoning effort is encoded in the model id suffix `-xhigh`, not a separate flag.
+- Fast and cheap: `--model composer-2.5` (no effort variants). **Use `gpt-5.3-codex-xhigh` when depth is needed, and `composer-2.5` when speed/cost take priority.**
+- Always run reviews in read-only mode (`--mode ask`/`--plan`). Never use `-p` alone, since it opens up writes and shell access, letting the reviewer modify what it's inspecting. The orchestrator applies the results.
 
-출처: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Cursor — headless CLI](https://cursor.com/docs/cli/headless)
+Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Cursor — headless CLI](https://cursor.com/docs/cli/headless)
 
-### 4. 리서치 도구 활용
+### 4. Using Research Tools
 
-- 라이브러리/SDK 사용 전 context7로 현재 문서를 확인한다. 훈련 데이터 기억으로 API를 쓰지 않는다.
-- 모델/데이터셋 관련 작업은 HuggingFace 도구(hub 조회, hf-cli)로 실제 레지스트리를 조회한다.
-- 방법론 선택 전 web search로 그 시점의 유지보수 상태·대안을 확인한다 (→ [00-principles.md](00-principles.md)).
+- Check current documentation with context7 before using a library/SDK. Do not write APIs from training-data memory.
+- For model/dataset-related work, query the actual registry with HuggingFace tools (hub lookup, hf-cli).
+- Before choosing a methodology, check its current maintenance status and alternatives with web search (→ [00-principles.md](00-principles.md)).
 
-### 5. 모델 라우팅
+### 5. Model Routing
 
-| 작업 난이도 | 모델 |
+| Task difficulty | Model |
 |---|---|
-| 조회, 단순 읽기, 기계적 수정 | 경량 (haiku급) |
-| 표준 구현, 단일 도메인 리팩토링, 일상 리뷰 | 중간 (sonnet급) |
-| 아키텍처, 다중 시스템 추론, 딥 디버깅, 보안 | 상위 (opus급) |
+| Lookups, simple reads, mechanical edits | Lightweight (haiku-class) |
+| Standard implementation, single-domain refactoring, routine review | Mid-tier (sonnet-class) |
+| Architecture, multi-system reasoning, deep debugging, security | Top-tier (opus-class) |
 
-기본은 중간 모델, 난이도의 증거가 있을 때만 상향한다.
+Default to the mid-tier model, and escalate only when there's evidence of difficulty.
 
-### 6. Spec 게이팅 (선택적)
+### 6. Spec Gating (Optional)
 
-Spec-driven development(GitHub Spec Kit, Kiro 등)는 만능이 아니다. 실측 사례에서 소규모 기능에 대한 무거운 spec 파이프라인은 반복 프롬프팅 대비 ~10배의 시간 오버헤드를 냈다.
+Spec-driven development (GitHub Spec Kit, Kiro, etc.) is not a cure-all. In an empirically measured case, a heavyweight spec pipeline for a small feature produced roughly a 10x time overhead compared to iterative prompting.
 
-- **무겁게 갈 때**: 스펙이 여러 PR/서비스/작업자가 공유하는 자산일 때 — 그때 스펙 작성 비용이 회수된다. 병렬 worktree 분해(§2)의 공유 계약이 정확히 이 경우다.
-- **가볍게 갈 때**: 소규모 수정, 탐색적 작업, 프로토타입 — 경량 반복(계획 → 실행 → 검증)으로 충분하다.
-- 버그 발견 시 스펙을 고칠지 코드를 고칠지 기준을 프로젝트에서 미리 정한다 (스펙-코드 드리프트 방지).
+- **When to go heavy**: when the spec is an asset shared across multiple PRs/services/workers — that's when the cost of writing the spec pays off. The shared contract in parallel worktree decomposition (§2) is exactly this case.
+- **When to go light**: small fixes, exploratory work, prototypes — lightweight iteration (plan → execute → verify) is enough.
+- Decide in advance, at the project level, the criteria for whether to fix the spec or the code when a bug is found (to prevent spec-code drift).
 
-출처: [GitHub — spec-driven development](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/), [Spec Kit 실측 비판 (Scott Logic)](https://blog.scottlogic.com/2025/11/26/putting-spec-kit-through-its-paces-radical-idea-or-reinvented-waterfall.html)
+Sources: [GitHub — spec-driven development](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/), [Spec Kit empirical critique (Scott Logic)](https://blog.scottlogic.com/2025/11/26/putting-spec-kit-through-its-paces-radical-idea-or-reinvented-waterfall.html)

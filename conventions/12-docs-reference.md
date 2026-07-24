@@ -1,38 +1,38 @@
-# 12. 최신 문서 참조 절차 + Canonical URL 레지스트리
+# 12. Latest Documentation Reference Procedure + Canonical URL Registry
 
-provider API 지식은 몇 달 단위로 낡는다(`output_format`→`output_config.format` 무경고 마이그레이션, DeepSeek 모델명 deprecation, torchtune 개발 종료). 이 문서는 "기억을 믿는 구조"가 아니라 **"확인을 강제하는 구조"**를 정의한다. 번호 체계를 따르기 위해 레지스트리와 절차를 한 문서로 통합했다.
+Provider API knowledge goes stale on a timescale of months (the silent `output_format`→`output_config.format` migration, DeepSeek model name deprecations, torchtune's development sunset). This document defines not a "structure that trusts memory" but a **"structure that forces verification."** To follow the numbering scheme, the registry and the procedure are consolidated into one document.
 
-## 핵심 규칙
+## Core Rules
 
-- provider API 코드를 작성/수정하기 전, 아래 레지스트리의 해당 provider 공식 문서를 실제로 fetch해 확인한다. 훈련 지식·기억으로 API를 쓰지 않는다.
-- provider가 공식 skill을 제공하면 설치해 사용하고, SDK 사용법 확인 시 ctx7보다 우선한다 (provider가 직접 유지보수하는 1차 출처).
-- SDK 사용법·코드 예시는 context7(`ctx7`)로 확인한다. 예외 클래스·파라미터 시그니처·기본 재시도 횟수는 설치된(lock된) SDK 소스가 로컬 진실이다.
-- 공식 문서가 침묵하는 동작(기능 조합 등)은 추측하지 말고 provider별 1-call 스모크 테스트로 실측 확정한다.
-- 컨벤션/코드 주석의 provider 사실에는 검증 날짜 스탬프를 남긴다. 스탬프가 3개월 이상 지난 사실에 의존하는 코드를 만들 때는 공식 문서를 재확인한다.
-- 개발 중 공식 문서와 컨벤션/코드 주석이 다르면 그냥 넘어가지 않는다 — 공식 문서 기준으로 컨벤션을 갱신하고 커밋한다.
-- SDK 업그레이드는 changelog 확인을 동반한 명시적 작업이다. uv.lock으로 버전을 고정한다.
+- Before writing or modifying provider API code, actually fetch and verify the corresponding provider's official documentation from the registry below. Do not write API code from training knowledge or memory.
+- If a provider offers an official skill, install and use it, and prioritize it over ctx7 when checking SDK usage (it's a primary source the provider maintains directly).
+- Check SDK usage and code examples with context7 (`ctx7`). For exception classes, parameter signatures, and default retry counts, the installed (locked) SDK source is the local source of truth.
+- For behavior the official docs are silent on (e.g., feature combinations), don't guess — confirm it empirically with a provider-specific 1-call smoke test.
+- Leave a verification date stamp on provider facts in conventions/code comments. When writing code that depends on a fact whose stamp is more than 3 months old, re-verify against the official docs.
+- If the official docs and the conventions/code comments diverge during development, don't just move on — update the convention to match the official docs and commit it.
+- An SDK upgrade is an explicit action accompanied by a changelog review. Pin versions with uv.lock.
 
-## 상세
+## Details
 
-### 1. 4계층 참조 체계
+### 1. Four-Tier Reference System
 
-| 계층 | 원천 | 용도 |
+| Tier | Source | Purpose |
 |---|---|---|
-| Tier 1 | 아래 canonical URL 레지스트리 (공식 문서) | API 스펙, 파라미터, 제약, 가격, deprecation — 사실의 원천 |
-| Tier 1.5 | provider 공식 skill (아래 §2.1) | provider가 직접 유지보수하는 온디맨드 지식 번들 — 있으면 Tier 2보다 우선 |
-| Tier 2 | context7 (`ctx7` CLI/MCP) | SDK 사용법, 코드 예시, 버전 마이그레이션 |
-| Tier 3 | 설치된 SDK 소스/타입 정의 | 예외 계층, 시그니처, 기본값 — lock된 버전이 정답 |
-| Tier 4 | provider별 스모크 테스트 | 문서에 없는 동작(기능 조합, 실제 에러 형태)의 실측 확정 |
+| Tier 1 | Canonical URL registry below (official docs) | API specs, parameters, constraints, pricing, deprecations — the source of facts |
+| Tier 1.5 | Provider official skill (§2.1 below) | On-demand knowledge bundle maintained directly by the provider — takes priority over Tier 2 when available |
+| Tier 2 | context7 (`ctx7` CLI/MCP) | SDK usage, code examples, version migration |
+| Tier 3 | Installed SDK source/type definitions | Exception hierarchy, signatures, defaults — the locked version is authoritative |
+| Tier 4 | Provider-specific smoke tests | Empirical confirmation of undocumented behavior (feature combinations, actual error shapes) |
 
-web search는 리드 발굴용이다. 사실 확정은 Tier 1~4로만 한다 (→ [00-principles.md](00-principles.md) 사실 기반 판단).
+Web search is for lead-finding only. Facts are confirmed only through Tiers 1–4 (→ [00-principles.md](00-principles.md), fact-based judgment).
 
-### 2. Canonical URL 레지스트리 (등록 기준: 2026-07)
+### 2. Canonical URL Registry (as of: 2026-07)
 
-provider 관련 작업 시작 시 해당 행의 URL을 fetch한다. provider가 `llms.txt`(에이전트용 문서 인덱스)를 제공하는지 확인해 있으면 이 표에 추가한다.
+When starting work related to a provider, fetch the URL in the corresponding row. Check whether the provider offers an `llms.txt` (a documentation index for agents), and if so, add it to this table.
 
 **OpenAI** — https://developers.openai.com/api/docs/
 - guides/structured-outputs · guides/reasoning · guides/rate-limits · guides/batch · guides/prompt-caching · guides/deprecations
-- 병렬 처리 기준형: https://github.com/openai/openai-cookbook/blob/main/examples/api_request_parallel_processor.py
+- Reference parallel-processing implementation: https://github.com/openai/openai-cookbook/blob/main/examples/api_request_parallel_processor.py
 
 **Anthropic** — https://platform.claude.com/docs/en/
 - build-with-claude/structured-outputs · build-with-claude/effort · build-with-claude/adaptive-thinking · build-with-claude/prompt-caching · build-with-claude/batch-processing · build-with-claude/streaming
@@ -47,35 +47,37 @@ provider 관련 작업 시작 시 해당 행의 URL을 fetch한다. provider가 
 **OpenRouter** — https://openrouter.ai/docs/
 - guides/features/structured-outputs · guides/overview/auth/byok · api_reference/limits
 
-ML/학습 스택(torch, TRL, vLLM 등)의 공식 문서는 [08-llm-development.md](08-llm-development.md)의 출처 링크가 시드다. 새 라이브러리를 채택하면 그 공식 문서 URL을 해당 컨벤션 문서에 출처로 남기는 것이 곧 레지스트리 등록이다.
+For the ML/training stack (torch, TRL, vLLM, etc.), the source links in [08-llm-development.md](08-llm-development.md) are the seed. When a new library is adopted, leaving its official docs URL as a source in the corresponding convention document is itself the registry entry.
 
-### 2.1 Provider 공식 skill (등록 기준: 2026-07)
+### 2.1 Provider Official Skills (as of: 2026-07)
 
-SKILL.md는 오픈 표준으로 Claude Code/Codex CLI/Cursor/Gemini CLI 등 주요 에이전트가 지원한다. provider가 공식 skill을 제공하면 매번 문서를 fetch하는 대신 이것을 설치해 쓰고, SDK 사용법 확인 시 ctx7보다 우선한다.
+SKILL.md is an open standard supported by major agents including Claude Code, Codex CLI, Cursor, and Gemini CLI. If a provider offers an official skill, install and use it instead of fetching docs every time, and prioritize it over ctx7 when checking SDK usage.
 
-| Provider | 공식 skill | 설치 |
+| Provider | Official skill | Install |
 |---|---|---|
-| Google | `gemini-api-dev` (일반 개발), `gemini-live-api-dev` (실시간), `gemini-interactions-api` | `npx skills add google-gemini/gemini-skills --skill <이름> --global` 또는 ctx7 |
-| Anthropic | anthropics/skills 마켓플레이스 (Claude API 개발 skill 포함) | Claude Code: `/plugin marketplace add anthropics/skills` 후 `/plugin install` |
-| OpenAI | API 개발 전용 skill **미확인** (Codex skills 카탈로그는 deprecated → Plugins repo 이전 중) | — Tier 1/2 경로 사용, 주기적 재확인 |
-| DeepSeek / OpenRouter | **미확인** | — Tier 1/2 경로 사용, 주기적 재확인 |
+| Google | `gemini-api-dev` (general development), `gemini-live-api-dev` (real-time), `gemini-interactions-api` | `npx skills add google-gemini/gemini-skills --skill <name> --global` or ctx7 |
+| Anthropic | anthropics/skills marketplace (includes a Claude API development skill) | Claude Code: `/plugin marketplace add anthropics/skills` then `/plugin install` |
+| OpenAI | Dedicated API-development skill **unverified** (the Codex skills catalog is deprecated → migrating to the Plugins repo) | — Use the Tier 1/2 path, re-check periodically |
+| DeepSeek / OpenRouter | **Unverified** | — Use the Tier 1/2 path, re-check periodically |
 
-출처: [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecated 고지)](https://github.com/openai/skills)
+Sources: [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecation notice)](https://github.com/openai/skills)
 
-### 3. Provider 스모크 테스트 (Tier 4)
+### 3. Provider Smoke Tests (Tier 4)
 
-각 provider 어댑터는 최소 스모크 세트를 갖는다: 기본 호출 1건, structured output 1건, thinking/reasoning 조합 1건, 에러 분류 확인(잘못된 파라미터로 typed exception 확인). 실행 시점: 어댑터 신규 작성, SDK 업그레이드, 대상 모델 변경 시. 비용은 태스크당 1~2 호출 수준이다.
+Each provider adapter has a minimum smoke set: one basic call, one structured output call, one thinking/reasoning combination, and error classification verification (confirm a typed exception with an invalid parameter). Run it: when writing a new adapter, upgrading the SDK, or changing the target model. Cost runs about 1–2 calls per task.
 
-문서가 침묵하는 조합(예: 특정 provider의 thinking × structured output 병용)은 이 스모크로 확정하고, 결과를 capability 테이블([11-llm-api-providers.md](11-llm-api-providers.md))에 날짜 스탬프와 함께 기록한다.
+Combinations the docs are silent on (e.g., a given provider's thinking × structured output combined) are confirmed with this smoke test, and the result is recorded in the capability table ([11-llm-api-providers.md](11-llm-api-providers.md)) along with a date stamp.
 
-### 4. 프로젝트에 주입하는 법
+### 4. How to Inject This into a Project
 
-각 프로젝트 CLAUDE.md/AGENTS.md에 다음 세 줄이면 충분하다:
+The following three lines in each project's CLAUDE.md/AGENTS.md are enough:
 
 ```
-- provider API 코드 작성/수정 전: develop-convention conventions/12-docs-reference.md의 해당 provider 공식 문서를 fetch해 확인
-- SDK 사용법은 ctx7, 예외/시그니처는 설치된 SDK 소스가 기준
-- 문서에 없는 동작은 추측하지 말고 provider 스모크 테스트로 확정
+- Before writing/modifying provider API code: fetch and verify the corresponding provider's official docs per develop-convention conventions/12-docs-reference.md
+- For SDK usage use ctx7; for exceptions/signatures, the installed SDK source is authoritative
+- Don't guess at undocumented behavior — confirm it with a provider smoke test
 ```
 
-이 절차가 실제로 반복 사용되는 것이 확인되면 skill로 승격을 검토한다 — 그 전에는 레지스트리 + 세 줄 규칙이 유지비 대비 효과가 크다 (→ [09-agentic-workflow.md](09-agentic-workflow.md)의 Skills 분리 기준).
+Once this procedure is confirmed to be reused in practice, consider promoting it to a skill — until then, the registry + three-line rule delivers more value than its maintenance cost (→ [09-agentic-workflow.md](09-agentic-workflow.md), skill-extraction criteria).
+</content>
+</invoke>

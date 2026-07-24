@@ -1,56 +1,56 @@
-# 00. 핵심 원칙
+# 00. Core Principles
 
-모든 컨벤션 문서의 기반이 되는 원칙. 다른 문서와 충돌하면 이 문서가 우선한다.
+The foundation for all convention documents. When it conflicts with another document, this document takes precedence.
 
-## 핵심 규칙
+## Core Rules
 
-- 새로 개발할 때는 기존 프로젝트의 구조·주석·문서·기억에 의존하지 말고, 요구사항과 동작(스펙)에서 출발한다.
-- 사전 지식으로 판단하지 않는다. 라이브러리/API/모델 관련 사실은 반드시 현재 시점 자료(context7, web search, HuggingFace 등)로 확인한 후 반영한다.
-- 리팩토링·리뷰·재작성은 기존 코드를 만든 컨텍스트와 분리된 새 컨텍스트(별도 subagent/세션)에서 수행한다.
-- 완료 주장은 실행 가능한 증거(테스트 출력, 실행 로그, 실측치)로만 한다. 작성자와 검증자를 분리한다.
-- 재작성 시 기존 구조는 버리되 기존 동작은 보존한다: 재작성 전 characterization test로 기존 동작을 고정하고, 재작성 후 동일 통과를 확인한다.
-- 성능·생산성 개선은 추정하지 말고 측정한다. 측정하지 않았으면 "측정 안 함"이라고 쓴다.
-- 개발 시작 전 최신 방법론을 리서치하고, 더 나은 방법이 확인되면 관성적 선택 대신 그것을 채택한다.
+- When starting new development, don't rely on the existing project's structure, comments, docs, or memory — start from requirements and behavior (the spec).
+- Don't decide from prior knowledge. Verify library/API/model facts against current-point-in-time sources (context7, web search, HuggingFace, etc.) before applying them.
+- Perform refactoring, review, and rewrites in a new context (a separate subagent/session) detached from the context that produced the existing code.
+- Only claim completion with executable evidence (test output, run logs, measured values). Separate the author from the verifier.
+- When rewriting, discard the existing structure but preserve existing behavior: pin down existing behavior with characterization tests before the rewrite, then confirm the same tests pass after the rewrite.
+- Measure performance/productivity improvements — don't estimate them. If you didn't measure, write "not measured."
+- Research current methodology before starting development, and adopt a better method when one is confirmed, instead of defaulting to habit.
 
-## 상세
+## Details
 
-### 1. 독립적 신규 개발 (fresh start)
+### 1. Independent fresh start
 
-새 프로젝트 또는 리팩토링은 기존 코드베이스의 구조를 "참고 대상"이 아니라 "동작 명세의 원천"으로만 취급한다.
+For a new project or a refactor, treat the existing codebase's structure not as a "reference" but only as the origin of the behavioral spec.
 
-- 기존 코드에서 가져올 것: **무엇을 해야 하는가** (입출력 계약, 동작, 엣지 케이스)
-- 기존 코드에서 가져오지 않을 것: 파일 구조, 클래스 계층, 네이밍, 주석 속 설명, "이렇게 했었다"는 기억
-- 기존 프로젝트에서 사용하지 않는 코드·설정·스크립트는 절대 이관하지 않는다 (→ [01-structure-naming.md](01-structure-naming.md))
+- Take from the existing code: **what it must do** (input/output contracts, behavior, edge cases)
+- Don't take from the existing code: file structure, class hierarchy, naming, explanations embedded in comments, memory of "how it used to be done"
+- Never carry over code, config, or scripts that the existing project doesn't use (→ [01-structure-naming.md](01-structure-naming.md))
 
-### 2. Fresh-context 원칙
+### 2. Fresh-context principle
 
-AI 에이전트는 컨텍스트에 이미 들어온 결론에 앵커링된다. 첫 번째 결론이 컨텍스트에 있으면 두 번째 검토는 그것을 검증하는 방향으로 편향된다는 것이 실측된 문제다. 별도 컨텍스트에서 디스패치한 리뷰가 리뷰 행동을 실제로 바꾼다.
+AI agents anchor to conclusions already present in context. It's a measured problem that once a first conclusion is in context, a second review is biased toward validating it. Review dispatched in a separate context actually changes review behavior.
 
-적용:
-- 코드 리뷰는 코드를 작성한 세션이 아닌, diff와 기준만 보는 fresh 리뷰어가 수행한다.
-- 레거시 재작성 시 기존 코드를 통째로 읽으며 시작하지 않는다. 스펙을 먼저 작성하고, 구현은 스펙만 보고 진행한 뒤, 기존 동작과의 대조는 테스트로 한다.
+Application:
+- Code review is done by a fresh reviewer who sees only the diff and the criteria, not the session that wrote the code.
+- When rewriting legacy code, don't start by reading through the entire existing codebase. Write the spec first, implement from the spec alone, and check against existing behavior via tests.
 
-출처: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
+Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
 
 ### 3. Evidence over claims
 
-"완료했다"는 프로그램이 종료됐다는 뜻이지 작업이 성공했다는 뜻이 아니다.
+"Done" means the program terminated, not that the task succeeded.
 
-- 검증은 실행으로 한다: 실제 입력으로 돌리고 실제 출력을 확인한다. 코드를 읽고 "맞아 보인다"는 검증이 아니다.
-- 판정자는 작성자가 아니어야 한다: 완료 여부를 결정하는 주체(테스트, 리뷰 에이전트, 검증 스크립트)는 코드를 쓴 주체와 독립이어야 한다.
-- 주장에는 증거를 첨부한다: 실행한 명령 + 출력/테스트 결과/스크린샷.
+- Verify by running: execute with real inputs and check real outputs. Reading code and saying "looks right" isn't verification.
+- The judge must not be the author: whoever decides whether something is complete (tests, review agent, verification script) must be independent from whoever wrote the code.
+- Attach evidence to claims: the command you ran + output/test results/screenshots.
 
-출처: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
+Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
 
-### 4. 사실 기반 판단 (research-first)
+### 4. Research-first, fact-based judgment
 
-- 라이브러리 사용법, 모델 스펙, 버전, API — 훈련 데이터 기억이 아니라 현재 문서로 확인한다. context7, 공식 docs, web search, HuggingFace Hub 조회를 우선한다.
-- 프레임워크/방법론 선택 전, 그 시점의 유지보수 상태와 대안을 리서치한다 (예: 한때 표준이던 도구가 deprecated된 경우가 실제로 있다 — torchtune, [08-llm-development.md](08-llm-development.md) 참고).
-- 리서치로 확인 안 된 사실은 문서·코드·커밋에 싣지 않고 "미확인"으로 표기한다.
+- Library usage, model specs, versions, APIs — verify against current documentation, not trained memory. Prioritize context7, official docs, web search, and HuggingFace Hub lookups.
+- Before choosing a framework/methodology, research its maintenance status and alternatives at that point in time (e.g., a tool that was once standard can become deprecated — torchtune, see [08-llm-development.md](08-llm-development.md)).
+- Don't put facts unverified by research into docs, code, or commits — mark them "unverified" instead.
 
-### 5. 실측 우선
+### 5. Measure first
 
-AI 도구 사용 효과조차 체감과 실측이 반대일 수 있다. METR의 2025년 RCT에서 숙련 개발자들은 AI 사용 시 20% 빨라졌다고 추정했지만 실측은 19% 느려졌다.
-속도 최적화, 병렬화, 에이전트 병렬 개발 모두 같은 원칙을 적용한다: 개선을 주장하려면 before/after를 측정한다.
+Even the effect of using AI tools can run opposite to felt experience versus measurement. In METR's 2025 RCT, experienced developers estimated they were 20% faster with AI, but the measured result was 19% slower.
+Apply the same principle to speed optimization, parallelization, and parallel agent development: to claim an improvement, measure before/after.
 
-출처: [METR — Early 2025 AI experienced OS dev study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/)
+Sources: [METR — Early 2025 AI experienced OS dev study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/)

@@ -1,161 +1,161 @@
 # Development Conventions
 
-개발 컨벤션 문서 모음. 범용 개발 규칙 + AI/ML·LLM 전용 규칙으로 구성되며, 사람과 AI 에이전트가 함께 소비한다.
+A collection of development convention documents. Composed of general-purpose development rules plus AI/ML and LLM-specific rules, consumed by both humans and AI agents.
 
-각 문서는 최상단 `## 핵심 규칙`(에이전트 지시 파일에 발췌 가능한 명령형 규칙)과 사람용 상세 설명 + 출처로 구성된다. 모든 사실 주장은 2025-2026 시점 리서치로 검증된 출처를 인용한다.
+Each doc starts with `## Core Rules` (imperative rules excerptable into agent instruction files) followed by human-oriented details and sources. Every factual claim cites a source verified by research as of 2025-2026.
 
-## 문서 맵
+## Document Map
 
-| 문서 | 내용 |
+| Doc | Contents |
 |---|---|
-| [00-principles.md](conventions/00-principles.md) | 핵심 원칙: fresh start, fresh-context, evidence over claims, 사실 기반 판단, 실측 우선 |
-| [01-structure-naming.md](conventions/01-structure-naming.md) | 모듈 분리, flat layout, PEP 8 시맨틱 네이밍, dead code/중복 제거 |
-| [02-config.md](conventions/02-config.md) | 하드코딩 금지, Hydra config group + 검증, ablation 조합, run 스냅샷 |
-| [03-environment.md](conventions/03-environment.md) | uv/ruff 툴체인, 로컬↔RunPod 이식성, device 추상화(CPU fallback) |
-| [04-pipeline.md](conventions/04-pipeline.md) | 소수 샘플 디버깅, 원자적 저장 + resume, 스트리밍, 진행 모니터링 |
-| [05-performance.md](conventions/05-performance.md) | 비동기/병렬 선택, DataLoader 튜닝, GPU/RAM 프로파일링, 구조화 로깅 |
-| [06-testing-verification.md](conventions/06-testing-verification.md) | 최소-의미 테스트, golden file, 허용 오차 밴드, CPU 스모크, 완료 검증 |
-| [07-ml-development.md](conventions/07-ml-development.md) | 시드/재현성, train-serve skew 방지, 실험 추적, 체크포인트/spot pod |
-| [08-llm-development.md](conventions/08-llm-development.md) | 학습 프레임워크 라우팅, FSDP2/bf16, chat template 일관성, 평가 재현성, LLM-as-judge, 데이터 |
-| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | CLAUDE.md/AGENTS.md 작성법, workflows 우선 병렬 개발(worktree는 파일 격리용), 개발 후 리뷰 게이트(Codex 플러그인/cursor CLI), 모델 라우팅 |
-| [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API 추론 모듈: 어댑터 구조, 호출/rate limit, 에러/재시도, 앙상블, 캐싱/resume, 비용/평가 |
-| [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider별 고려사항(OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + 구조화 출력 계층 폴백 |
-| [12-docs-reference.md](conventions/12-docs-reference.md) | 최신 문서 참조 절차(4계층) + provider별 canonical URL 레지스트리 + 스모크 확정 |
-| [13-secret-management.md](conventions/13-secret-management.md) | 시크릿 하드코딩·커밋 금지, 중앙 매니저(Infisical) 주입, 코드에서 env 읽기, 컨테이너·CI 머신 신원, 스캐닝·회전 |
-| [14-context-management.md](conventions/14-context-management.md) | 메인 컨텍스트 최소화(방화벽·위임), compaction/clear 동작 이해, 외부 파일·CLAUDE.md·auto memory로 맥락 손실 방지 |
-| [15-doc-tracking.md](conventions/15-doc-tracking.md) | 문서-코드 동기화: 4계층 추적(계약·모듈·플로우·이력), docsync 스킬(증분 sync + audit), managed/human 마커, blind rebuild·RMA 검증, ADR supersede |
-| [16-research-protocol.md](conventions/16-research-protocol.md) | 사실 리서치 프로토콜: 사전 지식은 쿼리용, 모든 주장은 이번 리서치 출처 필수, 소스 티어(공식 레지스트리), 부정/전칭 주장 검증, 커버리지·모순 해소 |
-| [17-commit-protocol.md](conventions/17-commit-protocol.md) | 커밋 프로토콜: Conventional Commits 헤더(영문 type/scope) + 한글 본문(Why/What/How/Result), trailer, 논리 단위 분할 — git log가 연구 노트 |
+| [00-principles.md](conventions/00-principles.md) | Core principles: fresh start, fresh-context, evidence over claims, fact-based judgment, empirical measurement first |
+| [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, flat layout, PEP 8 semantic naming, dead code/duplication removal |
+| [02-config.md](conventions/02-config.md) | No hardcoding, Hydra config groups + validation, ablation combinations, run snapshots |
+| [03-environment.md](conventions/03-environment.md) | uv/ruff toolchain, local↔RunPod portability, device abstraction (CPU fallback) |
+| [04-pipeline.md](conventions/04-pipeline.md) | Small-sample debugging, atomic save + resume, streaming, progress monitoring |
+| [05-performance.md](conventions/05-performance.md) | Async/parallel selection, DataLoader tuning, GPU/RAM profiling, structured logging |
+| [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, golden files, tolerance bands, CPU smoke tests, completion verification |
+| [07-ml-development.md](conventions/07-ml-development.md) | Seed/reproducibility, train-serve skew prevention, experiment tracking, checkpoints/spot pods |
+| [08-llm-development.md](conventions/08-llm-development.md) | Training framework routing, FSDP2/bf16, chat template consistency, evaluation reproducibility, LLM-as-judge, data |
+| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), post-development review gate (Codex plugin/cursor CLI), model routing |
+| [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API inference module: adapter structure, calls/rate limits, errors/retries, ensembles, caching/resume, cost/evaluation |
+| [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider-specific considerations (OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + structured output tiered fallback |
+| [12-docs-reference.md](conventions/12-docs-reference.md) | Latest-docs reference procedure (4 tiers) + per-provider canonical URL registry + smoke-test confirmation |
+| [13-secret-management.md](conventions/13-secret-management.md) | No hardcoding/committing secrets, central manager (Infisical) injection, reading env in code, container/CI machine identity, scanning/rotation |
+| [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
+| [15-doc-tracking.md](conventions/15-doc-tracking.md) | Doc-code synchronization: 4-tier tracking (contract·module·flow·history), docsync skill (incremental sync + audit), managed/human markers, blind rebuild·RMA verification, ADR supersession |
+| [16-research-protocol.md](conventions/16-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim requires a source from this research, source tiers (official registry), verification of negative/universal claims, coverage·contradiction resolution |
+| [17-commit-protocol.md](conventions/17-commit-protocol.md) | Commit protocol: Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting — git log doubles as a research note |
 
-## 새 프로젝트에 적용하는 법
+## How to Apply to a New Project
 
-1. [templates/AGENTS.md](templates/AGENTS.md)·[templates/CLAUDE.md](templates/CLAUDE.md)·[templates/pyproject.toml](templates/pyproject.toml)을 새 프로젝트로 복사하고, placeholder(`[...]`, `PROJECT_NAME`)를 채운 뒤 해당 없는 선택 블록(ML/LLM API/docsync)을 삭제하거나 주석 해제한다. docsync 문서 추적을 쓸 프로젝트는 [templates/skills/docsync/](templates/skills/docsync/SKILL.md)를 `.claude/skills/docsync/`로 추가 복사한다 (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)). 공통 지침의 단일 소스는 AGENTS.md(오픈 표준 — Codex/Cursor 등도 읽음)이고, CLAUDE.md는 `@AGENTS.md`로 이를 임포트한다.
-2. 지시 파일은 간결하게 유지한다 — 전체 문서를 붙여넣지 말고, 그 프로젝트에서 실수를 막는 데 필요한 규칙만 넣는다 (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). 전체 컨벤션은 이 저장소를 clone한 로컬 경로로 참조한다 (템플릿의 `[CONVENTION_PATH]`에 기입).
+1. Copy [templates/AGENTS.md](templates/AGENTS.md), [templates/CLAUDE.md](templates/CLAUDE.md), and [templates/pyproject.toml](templates/pyproject.toml) into the new project, fill in the placeholders (`[...]`, `PROJECT_NAME`), then delete or uncomment the optional blocks (ML/LLM API/docsync) that don't apply. Projects that will use docsync doc tracking additionally copy [templates/skills/docsync/](templates/skills/docsync/SKILL.md) to `.claude/skills/docsync/` (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)). The single source of truth for shared guidance is AGENTS.md (an open standard also read by Codex/Cursor and others), and CLAUDE.md imports it via `@AGENTS.md`.
+2. Keep instruction files concise — don't paste the entire document, only include the rules needed to prevent mistakes in that project (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). Reference the full conventions via the local path where this repo is cloned (fill it in at `[CONVENTION_PATH]` in the template).
 
-### 도구별 동작 방식
+### Tool-by-Tool Behavior
 
-선행 조건: 각 기기에서 이 저장소를 clone하고, 그 경로를 프로젝트 AGENTS.md의 `[CONVENTION_PATH]`에 기입.
+Prerequisite: clone this repo on each machine, and fill in its path at `[CONVENTION_PATH]` in the project's AGENTS.md.
 
-| 도구 | 동작 |
+| Tool | Behavior |
 |---|---|
-| Claude Code | `CLAUDE.md` → `@AGENTS.md` 임포트로 공통 지침 로드. 작업 중 필요한 컨벤션 문서를 경로로 직접 Read. Claude 전용 지침은 CLAUDE.md에만 추가 |
-| Codex CLI | `AGENTS.md`를 네이티브로 읽음(루트→현재 디렉토리 체인, 용량 상한 있음 — 발췌+경로 참조 구조가 이에 맞음). 추가 설정 불필요 |
-| Cursor | AGENTS.md 표준 공동 제정사 — 네이티브로 읽음. 항상 강제할 소수 규칙만 필요 시 `.cursor/rules/`로 승격 |
-| 기타 (Gemini CLI, Windsurf, Aider 등) | AGENTS.md 표준을 읽는 도구는 동일하게 동작. 미지원 도구만 해당 도구의 지시 파일에서 AGENTS.md를 가리키는 한 줄 추가 |
+| Claude Code | Loads shared guidance via `CLAUDE.md` → `@AGENTS.md` import. Reads the needed convention doc directly by path during work. Add Claude-only instructions to CLAUDE.md only |
+| Codex CLI | Reads `AGENTS.md` natively (root→current-directory chain, with a size cap — the excerpt + path-reference structure fits this). No extra setup needed |
+| Cursor | Co-author of the AGENTS.md standard — reads it natively. Promote only the few rules that must always be enforced to `.cursor/rules/` if needed |
+| Other (Gemini CLI, Windsurf, Aider, etc.) | Tools that read the AGENTS.md standard behave the same way. For unsupported tools only, add one line in that tool's instruction file pointing to AGENTS.md |
 
-**클라우드 실행 에이전트 주의**: 로컬 경로 참조는 로컬 실행에만 유효하다. 격리 샌드박스(Codex 클라우드, Cursor 백그라운드 에이전트, Claude Code 웹)에서는 해당 프로젝트에 이 저장소를 git submodule로 포함하거나, AGENTS.md에 규칙 요약을 복사해 self-contained로 만든다. 클라우드 사용이 실제로 시작될 때 submodule 방식 전환을 권장.
+**Note for cloud-executed agents**: Local path references are only valid for local execution. In isolated sandboxes (Codex cloud, Cursor background agents, Claude Code web), either include this repo in the project as a git submodule, or make it self-contained by copying a rule summary into AGENTS.md. Switching to the submodule approach is recommended once cloud usage actually begins.
 
-### AI에게 시키는 법
+### How to Instruct the AI
 
-템플릿이 프로젝트에 있으면 **평소에는 명령이 필요 없다** — AGENTS.md가 자동 로드되어 규칙이 적용된다. 명령이 필요한 경우는 아래뿐이며, 특정 문서를 확실히 적용시키고 싶을 때는 문서 번호로 지칭하면 된다.
+Once the template is in the project, **no command is needed for everyday use** — AGENTS.md loads automatically and the rules apply. The cases below are the only ones that need an explicit command; when you want to make sure a specific doc applies, just refer to it by its number.
 
-새 프로젝트 부트스트랩 (1회):
+Bootstrapping a new project (one-time):
 ```
-<컨벤션 저장소 경로>/templates/의 AGENTS.md, CLAUDE.md, pyproject.toml을
-이 프로젝트에 복사하고 placeholder를 채워줘. [한 줄 설명], [일반/ML/LLM API] 프로젝트야.
-```
-
-특정 규칙 강제:
-```
-전처리 파이프라인 만들어줘. conventions/04의 핵심 규칙(소수 샘플 실행, resume) 지켜서.
-DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해서 확인하고 구현해.
+Copy AGENTS.md, CLAUDE.md, and pyproject.toml from <convention repo path>/templates/
+into this project and fill in the placeholders. It's a [one-line description], [general/ML/LLM API] project.
 ```
 
-리뷰:
+Enforcing a specific rule:
 ```
-이 diff를 <컨벤션 저장소 경로> 컨벤션 기준으로 리뷰해줘.
-위반 사항은 문서 번호와 함께, 작성 세션이 아닌 별도 리뷰 에이전트로.
-```
-
-재작성/리팩토링:
-```
-이 모듈을 재작성해줘. 00 원칙대로: 기존 구조에 얽매이지 말고 스펙에서 출발하되,
-재작성 전에 characterization test로 기존 동작 먼저 고정해.
+Build the preprocessing pipeline. Follow the Core Rules in conventions/04 (small-sample runs, resume).
+Add a DeepSeek adapter. Follow the procedure in doc 12 — fetch the official docs first to confirm, then implement.
 ```
 
-컨벤션 갱신 (낡은 사실 발견 시):
+Review:
 ```
-공식 문서 확인해보니 11 문서의 [X] 내용이 바뀌었어. 컨벤션 갱신하고 커밋해줘.
+Review this diff against the conventions at <convention repo path>.
+Flag violations with their doc number, using a separate review agent, not the authoring session.
 ```
 
-## 전체 규칙 요약 (에이전트 주입용)
+Rewrite/refactor:
+```
+Rewrite this module. Per the principles in doc 00: don't be bound by the existing structure,
+start from the spec, but lock in existing behavior with a characterization test before rewriting.
+```
 
-### 원칙
-- 새 개발/리팩토링은 기존 구조·주석·기억이 아니라 요구사항과 동작(스펙)에서 출발한다.
-- 사전 지식으로 판단하지 않는다. 라이브러리/API/모델 사실은 context7·web search·HuggingFace로 현재 시점 확인 후 반영한다.
-- 리뷰·재작성은 fresh context(별도 subagent/세션)에서 수행하고, 완료는 실행 증거로만 주장한다. 작성자와 검증자를 분리한다.
-- 재작성 전 characterization test로 기존 동작을 고정한다. 성능·생산성 개선은 실측으로만 주장한다.
+Updating conventions (when a stale fact is found):
+```
+I checked the official docs and the [X] content in doc 11 has changed. Update the convention and commit it.
+```
 
-### 구조·네이밍
-- 모듈/기능별 분리, 명확한 입출력 계약. 파일은 작게, 경계는 명확하게.
-- 앱/리서치/파이프라인 코드는 flat layout (src/는 배포 라이브러리만). 다중 패키지는 uv workspaces.
-- 시맨틱 네이밍 + PEP 8. `_v2`/`_new` 금지, rename-in-place. dead code 즉시 삭제, 미사용 코드 이관 금지, 완료 전 중복 스캔.
-- 주석은 코드가 표현 못 하는 제약·의도만. 내부자만 아는 맥락, TMI, 자명한 설명 금지.
+## Full Rule Summary (for Agent Injection)
+
+### Principles
+- New development/refactoring starts from requirements and behavior (the spec), not from existing structure, comments, or memory.
+- Don't judge from prior knowledge. Verify library/API/model facts as of the current time via context7, web search, or HuggingFace before applying them.
+- Perform review/rewrites in a fresh context (a separate subagent/session), and claim completion only with execution evidence. Keep the author separate from the verifier.
+- Lock in existing behavior with a characterization test before rewriting. Claim performance/productivity improvements only with empirical measurement.
+
+### Structure & Naming
+- Separate by module/feature, with clear input/output contracts. Keep files small and boundaries clear.
+- App/research/pipeline code uses a flat layout (src/ is only for distributed libraries). Use uv workspaces for multiple packages.
+- Semantic naming + PEP 8. No `_v2`/`_new` suffixes — rename in place. Delete dead code immediately, don't relocate unused code, scan for duplicates before completion.
+- Comments should cover only constraints/intent the code itself can't express. No insider-only context, no TMI, no explaining the obvious.
 
 ### Config
-- 하드코딩 절대 금지 — 경로/하이퍼파라미터/상수는 전부 중앙 config. Hydra config group으로 조합하고 타입 검증으로 fail-fast.
-- ablation은 코드 수정 없이 config 조합으로만. 모든 run은 resolved config + git hash를 출력 디렉토리에 저장.
+- Absolutely no hardcoding — paths/hyperparameters/constants all live in central config. Compose them with Hydra config groups and fail-fast with type validation.
+- Do ablations via config combinations only, without code changes. Every run saves its resolved config + git hash to the output directory.
 
-### 환경
-- uv(uv.lock 커밋) + ruff + pre-commit/CI. 개발 도구는 `[dependency-groups]`.
-- 로컬(macOS/CPU/MPS)과 RunPod(Linux/CUDA)에서 수정 없이 동일 실행 — uv platform marker 또는 `--torch-backend=auto`.
-- device는 단일 헬퍼로만 선택(`torch.accelerator` 기반), `.cuda()` 인라인 금지. GPU 없으면 CPU로 실행·테스트 가능해야 한다.
+### Environment
+- uv (commit uv.lock) + ruff + pre-commit/CI. Dev tools go in `[dependency-groups]`.
+- Runs identically on local (macOS/CPU/MPS) and RunPod (Linux/CUDA) without modification — via uv platform markers or `--torch-backend=auto`.
+- Select the device only through a single helper (based on `torch.accelerator`) — no inline `.cuda()`. Must be runnable and testable on CPU when no GPU is available.
 
-### 파이프라인
-- 모든 스테이지에 `--limit N` 소수 샘플 실행 + 입출력 덤프. 본 실행 전 소수 샘플 dry-run.
-- 청크 단위 중간 저장 + resume(완료분 스킵). 저장은 temp→`os.replace` 원자적으로. 대용량은 스트리밍, 전체 메모리 적재 금지.
-- 장기 작업은 tqdm/rich 진행 표시 + 처리 속도 로그.
+### Pipeline
+- Every stage supports a `--limit N` small-sample run + input/output dump. Do a small-sample dry-run before the full run.
+- Save intermediate results per chunk + resume (skip completed portions). Save atomically via temp→`os.replace`. Stream large volumes — no loading everything into memory.
+- Long-running tasks show tqdm/rich progress + log processing throughput.
 
-### 성능
-- CPU-bound→multiprocessing, IO-bound→asyncio. 병목은 프로파일링으로 먼저 확인.
-- 스테이지별 GPU util/VRAM/RAM/CPU + throughput을 구조화(JSON) 로그로 기록.
+### Performance
+- CPU-bound → multiprocessing, IO-bound → asyncio. Identify bottlenecks with profiling first.
+- Log per-stage GPU utilization/VRAM/RAM/CPU + throughput as structured (JSON) logs.
 
-### 테스트·검증
-- 불필요한 pytest 최소화: 핵심 로직 단위 테스트 + E2E 스모크 1~3개. 메트릭은 허용 오차 밴드로 단언, golden file은 명시 플래그로만 갱신.
-- CI는 CPU + 소수 샘플로 GPU 코드 경로 스모크. TODO/스텁/skip은 완료가 아니라 블로커.
+### Testing & Verification
+- Minimize unnecessary pytest tests: unit tests for core logic + 1-3 E2E smoke tests. Assert metrics with a tolerance band; update golden files only via an explicit flag.
+- CI smoke-tests the GPU code path with CPU + small samples. TODOs/stubs/skips are blockers, not completion.
 
 ### AI/ML
-- 시드는 단일 헬퍼로 통합 설정. 학습/추론은 동일 전처리 함수를 임포트(복제 금지), 샘플 replay로 skew 검증.
-- 모든 run은 실험 추적 도구에 config+commit과 함께 기록. 체크포인트는 last-N+best+마일스톤을 network volume/HF Hub에 저장. 학습은 중단 전제(resume 가능)로 설계.
+- Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); verify skew with sample replay.
+- Every run is logged to an experiment-tracking tool along with its config + commit. Save last-N + best + milestone checkpoints to a network volume/HF Hub. Design training to assume interruption (resumable).
 
 ### LLM
-- 프레임워크는 용도별 라우팅(단일 GPU→Unsloth/TRL, 멀티 GPU 재현성→Axolotl, RL→TRL+vLLM, 프리트레이닝→torchtitan). torchtune 금지(deprecated). FSDP2 + bf16 기본.
-- chat template은 `apply_chat_template` 단일 소스, 학습/추론 문자열 동일성 golden 테스트, 샘플링 파라미터 config 명시.
-- 평가는 하네스/task 버전·fewshot·template 적용 여부까지 기록. judge는 양방향 순서 + cross-family + 길이 인지 루브릭.
+- Route frameworks by use case (single GPU → Unsloth/TRL, multi-GPU reproducibility → Axolotl, RL → TRL+vLLM, pretraining → torchtitan). torchtune is prohibited (deprecated). FSDP2 + bf16 by default.
+- Chat templates use `apply_chat_template` as the single source; golden-test string identity between training and inference; specify sampling parameters explicitly in config.
+- Evaluation records even the harness/task version, fewshot count, and whether a template was applied. Judges use bidirectional ordering + cross-family + length-aware rubrics.
 
-### LLM API 추론
-- provider 추상화는 얇은 native SDK 어댑터 + 순수 payload builder(네트워크 없이 테스트 가능). "OpenAI 호환"은 wire 포맷만 — capability/스키마/에러/토큰 매핑은 provider별 격리.
-- 모델별 동시성 상한 + rate limit 헤더 기반 적응 제어. 에러는 typed exception으로 분류, 재시도 주인은 한 곳, 앙상블 재시도는 멤버 단위. 실패 태스크는 에러 행으로 기록하고 배치는 계속.
-- 구조화 출력은 최소공통분모 스키마 + 계층 폴백(native schema → json_object+프롬프트 → 파싱 → 검증-재요청 2~3회 상한). 파싱 전 finish_reason 분류 먼저. reasoning 호출에 샘플링 파라미터 금지.
-- 응답 캐시는 개발/디버그 전용. resume은 fingerprint(spec+seed+데이터+프롬프트) 검증 의무. 가격/모델명 하드코딩 금지, dated snapshot 고정, 행 단위 토큰+비용 기록, 예산 상한.
-- provider API 코드 작성 전 canonical URL 레지스트리의 공식 문서를 fetch해 확인. SDK 사용법은 provider 공식 skill > ctx7 순, 예외/시그니처는 설치된 SDK 소스, 문서에 없는 동작은 스모크 테스트로 실측 확정.
+### LLM API Inference
+- Provider abstraction is a thin native SDK adapter + a pure payload builder (testable without network access). "OpenAI-compatible" covers only the wire format — capability/schema/error/token mapping is isolated per provider.
+- Cap concurrency per model + adaptively control it based on rate-limit headers. Classify errors as typed exceptions, keep a single owner for retries, and retry ensembles per member. Log failed tasks as error rows and keep the batch running.
+- Structured output uses a lowest-common-denominator schema + tiered fallback (native schema → json_object+prompt → parsing → validate-and-retry, capped at 2-3 attempts). Classify `finish_reason` before parsing. No sampling parameters on reasoning calls.
+- Response caching is dev/debug-only. Resume must verify a fingerprint (spec+seed+data+prompt). No hardcoding prices/model names — pin dated snapshots, log tokens+cost per row, and cap the budget.
+- Before writing provider API code, fetch and check the official docs from the canonical URL registry. For SDK usage, prefer the provider's official skill over ctx7; for exceptions/signatures, use the installed SDK source; confirm behavior not in the docs with an empirical smoke test.
 
-### 에이전트 워크플로우
-- CLAUDE.md/AGENTS.md는 간결하게(비대하면 규칙 무시 유발), 모듈별 계층화, 가끔 쓰는 지식은 Skills로.
-- 병렬화는 workflows/subagent 오케스트레이션 우선. git worktree는 파일 격리 수단이라 겹치는 파일을 수정해 충돌할 때만 도입. 분해 표(담당·파일·의존성·통합·리뷰 도구) 작성 후 시작, 공유 계약은 실행 중 동결, lock/마이그레이션은 단일 담당.
-- 각 에이전트는 개발 완료 후 작성자와 분리된 리뷰를 필수로 거친다. 리뷰 도구는 개발 전에 선택 — 경로 A: Codex 플러그인(Stop 게이트 `ALLOW`/`BLOCK` + `/codex:review`, 구성된 기본 모델, 오케스트레이터가 종합·반영) / 경로 B: cursor CLI(`gpt-5.3-codex-xhigh` 깊게 또는 `composer-2.5` 빠르게, 읽기 전용).
-- 브랜치별 테스트 통과 후 머지 + 통합 검증 1회. 모델은 난이도별 라우팅(기계적→경량, 표준→중간, 아키텍처→상위).
+### Agentic Workflow
+- Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills.
+- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration, review tool) before starting; freeze shared contracts during execution; assign locks/migrations to a single owner.
+- Every agent must go through a review separate from its author after development. Choose the review tool before development begins — Path A: Codex plugin (Stop gate `ALLOW`/`BLOCK` + `/codex:review`, a configured default model, the orchestrator synthesizes and applies feedback) / Path B: cursor CLI (`gpt-5.3-codex-xhigh` for deep review or `composer-2.5` for fast review, read-only).
+- Merge each branch only after its tests pass, then do one integration verification pass. Route models by difficulty (mechanical → lightweight, standard → mid-tier, architecture → top-tier).
 
-### 시크릿 관리
-- 시크릿을 코드·config·로그·이미지에 하드코딩 금지, 평문 `.env` 커밋 금지(`.gitignore`+`.env.example` 키 목록만). 단일 원본은 중앙 시크릿 매니저(Infisical 권장).
-- 로컬·CI·컨테이너 모두 실행 시점 주입(`infisical run -- <cmd>`)으로 공급하고 디스크에 평문 잔존 금지. 코드는 그대로 env로 읽는다(`os.environ[...]`). 코딩 에이전트도 동일 규칙.
-- 컨테이너·CI는 머신 신원(Universal Auth)으로 최소권한·단기 토큰 인증. 환경(dev/staging/prod) 분리 + 회전 + gitleaks 스캐닝(pre-commit/CI). 이미 커밋된 시크릿은 즉시 회전·재발급.
+### Secret Management
+- Never hardcode secrets in code, config, logs, or images; never commit a plaintext `.env` (`.gitignore` + `.env.example` lists keys only). The single source of truth is a central secret manager (Infisical recommended).
+- Supply secrets to local, CI, and container environments alike via runtime injection (`infisical run -- <cmd>`), with no plaintext left on disk. Code reads them as env vars as usual (`os.environ[...]`). Coding agents follow the same rule.
+- Containers/CI authenticate via machine identity (Universal Auth) with least privilege and short-lived tokens. Separate environments (dev/staging/prod) + rotate + scan with gitleaks (pre-commit/CI). Immediately rotate and reissue any secret that was already committed.
 
-### 문서 추적
-- 문서는 4계층 분리: 입출력 계약은 코드가 단일 소스(손문서 금지), 모듈 로직은 디렉토리별 AGENTS.md, 전체 플로우는 ARCHITECTURE.md + Mermaid(의존 그래프는 결정적 도구로 생성), 결정 이력은 구조화 커밋 + append-only ADR(수정 대신 supersede, 뒤집힌 결정·롤백도 기록, 참조 시 유효 결정만).
-- 에이전트는 `docsync:managed` 마커 내부만 재생성(사람 섹션 불가침, 검증 커밋 스탬프). managed 문서의 사실 주장은 코드 위치 인용 가능해야 하며(결정 근거·실패 기록은 ADR·사람 섹션에), 갱신은 변경 시점 증분 sync가 주 메커니즘 — 주기 실행은 audit 전용(dead-man's switch + blind rebuild 환각 감사, 의미 동등 표현은 drift 아님).
-- 사람이 managed 섹션을 고치면 이유 코드를 기록해 이후 생성에 반영(RMA). 리뷰 게이트에 "코드 변경 ↔ 문서 갱신 정합" 확인 포함.
+### Doc Tracking
+- Docs are split into 4 tiers: for input/output contracts, code is the single source (no hand-written docs); module logic goes in a per-directory AGENTS.md; overall flow goes in ARCHITECTURE.md + Mermaid (generate dependency graphs with a deterministic tool); decision history uses structured commits + append-only ADRs (supersede instead of editing, record reversed decisions/rollbacks too, and reference only currently valid decisions).
+- Agents regenerate only inside `docsync:managed` markers (human sections are off-limits, stamped with a verification commit). Factual claims in managed docs must be citable to a code location (decision rationale/failure history go in ADRs/human sections); the primary update mechanism is incremental sync at change time — periodic runs are audit-only (dead-man's switch + blind-rebuild hallucination audit; semantically equivalent phrasing is not drift).
+- When a human edits a managed section, record a reason code so future generation accounts for it (RMA). Include a "code change ↔ doc update consistency" check in the review gate.
 
-### 컨텍스트 관리
-- 메인 컨텍스트는 오케스트레이터 — 결론만 보관하고 탐색·검색·대용량 읽기는 subagent(별도 컨텍스트 창)에 위임해 요약만 받는다. 디렉토리 스윕·큰 파일 통독을 메인에서 하지 않는다. 독립 작업은 병렬 디스패치 + 장기 실행은 백그라운드.
-- 진실의 원본은 대화가 아니라 파일에 둔다 — 계획·결정·진행상황을 외부 파일에 지속화하고 마일스톤마다 체크포인트. 지속 규칙·사실은 CLAUDE.md(세션마다 로드·compaction 후 재주입)와 auto memory(`/clear`도 견딤)에 둔다.
-- auto-compaction은 기본 켜짐(오래된 tool output 제거 → 요약)이나 `autoCompactEnabled:false`/`DISABLE_AUTO_COMPACT=1`/`/config`로 비활성화 가능. 임박 시 `/compact <focus>`로 남길 것 지시, 무관한 작업 사이·오염 시 `/clear`. resume·compaction 직후 git status·cwd·상태 아티팩트 재확인 후 재개.
+### Context Management
+- The main context is the orchestrator — keep only conclusions, and delegate exploration/search/large reads to subagents (separate context windows), receiving only summaries back. Don't sweep directories or read large files whole in the main context. Dispatch independent work in parallel, and run long-running work in the background.
+- Keep the source of truth in files, not the conversation — persist plans/decisions/progress to external files and checkpoint at every milestone. Keep durable rules/facts in CLAUDE.md (loaded every session, re-injected after compaction) and in auto memory (survives even `/clear`).
+- Auto-compaction is on by default (drops old tool output → summarizes), but can be disabled via `autoCompactEnabled:false`, `DISABLE_AUTO_COMPACT=1`, or `/config`. When it's imminent, use `/compact <focus>` to specify what to keep; use `/clear` between unrelated tasks or when context is polluted. Right after resume/compaction, re-check git status, cwd, and state artifacts before continuing.
 
-### 리서치 프로토콜
-- 사전 지식은 검색 쿼리·가설 형성에만 쓴다 — 후보 집합 확정이나 산출물의 사실 기입에 쓰지 않는다. 모든 사실 주장은 이번 리서치에서 fetch한 출처로 추적 가능해야 하며, 못 찾은 것은 "unverified — needs research"로 표기(기억으로 메꾸기 금지).
-- 열거형 사실(변형·크기·날짜·라이선스)은 공식 레지스트리에서만 확정. 검색 스니펫·리더보드·블로그는 단서일 뿐 증거 아님. 완전성은 검색 랭킹이 아니라 레지스트리 직접 쿼리로. 부정/전칭 주장("없다/전부다/최소가 N")은 1차 출처 열거 없이는 단정 금지.
-- 범위 내 벤더/라이브러리마다 공식 최신 페이지를 1회 이상 fetch, 기존 저장소 인용 URL은 must-fetch로 시딩. 기존 문서와 모순되면 1차 출처로 해소 후 기록.
+### Research Protocol
+- Use prior knowledge only to form search queries and hypotheses — never to fix the candidate set or to populate facts in a deliverable. Every factual claim must be traceable to a source fetched in this research; mark anything not found as "unverified — needs research" (never fill gaps from memory).
+- Confirm enumeration facts (variants, sizes, dates, licenses) only from the official registry. Search snippets, leaderboards, and blogs are leads, not evidence. Establish completeness by querying the registry directly, not by search ranking. Don't assert negative/universal claims ("doesn't exist / all of them / the smallest is N") without primary-source enumeration.
+- Fetch each in-scope vendor's/library's official latest page at least once; seed already-cited repo URLs as must-fetch. If it contradicts an existing doc, resolve via the primary source and record the resolution.
 
-### 커밋
-- 헤더는 Conventional Commits(영문 type/scope, 72자 이내), 요약·본문은 한글 — git log가 한글 연구 노트가 되게. `feat`/`fix`/`refactor`/`perf`는 `## Why/What/How/Result` 본문 필수(commit-msg 훅이 경고).
-- Result·수치 날조 금지("측정 안 함" 표기). 커밋 전 변경을 의도별로 분류해 논리 단위 1개 = 커밋 1개(`git add -p`로 hunk 분리). `Experiment:` trailer로 연구 스레드 연결.
+### Commits
+- Headers use Conventional Commits (English type/scope, ≤72 characters); summaries and bodies are written in Korean — so git log doubles as a Korean research note. `feat`/`fix`/`refactor`/`perf` commits require a `## Why/What/How/Result` body (the commit-msg hook warns otherwise).
+- Never fabricate Result/numbers (write "not measured" instead). Before committing, classify changes by intent so one logical unit = one commit (split hunks with `git add -p`). Link research threads with the `Experiment:` trailer.
