@@ -63,7 +63,7 @@
 
 ### 4. 이력 계층 — 커밋과 ADR
 
-- 커밋 단위 이력은 구조화 커밋 본문(Why/What/How/Result)이 담당한다 — `git log`만으로 개발 노트가 재구성되게 쓴다.
+- 커밋 단위 이력은 구조화 커밋 본문(Why/What/How/Result)이 담당한다 — `git log`만으로 개발 노트가 재구성되게 쓴다 (→ [17-commit-protocol.md](17-commit-protocol.md)).
 - 구조를 바꾼 결정은 ADR(`docs/adr/NNNN-제목.md`)로: 배경·결정·대안·결과를 짧게. 결정이 바뀌면 수정하지 않고 새 ADR로 supersede한다 — Nygard의 원문 그대로 "If a decision is reversed, we will keep the old one around, but mark it as superseded."
 - 실패도 기록한다: 뒤집힌 결정·롤백을 사유와 함께 남긴다. 장애 대응 시 진짜 필요한 것은 "그 방법은 이미 시도됐고 실패했다"는 기록이다.
 - 소비 규칙: 에이전트가 ADR을 검색·참조할 때는 supersession 체인을 끝까지 따라가 유효한 결정만 사용한다. 뒤집힌 옛 결정을 그대로 따르는 사고를 막는다.

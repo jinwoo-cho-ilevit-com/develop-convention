@@ -24,6 +24,8 @@
 | [13-secret-management.md](conventions/13-secret-management.md) | 시크릿 하드코딩·커밋 금지, 중앙 매니저(Infisical) 주입, 코드에서 env 읽기, 컨테이너·CI 머신 신원, 스캐닝·회전 |
 | [14-context-management.md](conventions/14-context-management.md) | 메인 컨텍스트 최소화(방화벽·위임), compaction/clear 동작 이해, 외부 파일·CLAUDE.md·auto memory로 맥락 손실 방지 |
 | [15-doc-tracking.md](conventions/15-doc-tracking.md) | 문서-코드 동기화: 4계층 추적(계약·모듈·플로우·이력), docsync 스킬(증분 sync + audit), managed/human 마커, blind rebuild·RMA 검증, ADR supersede |
+| [16-research-protocol.md](conventions/16-research-protocol.md) | 사실 리서치 프로토콜: 사전 지식은 쿼리용, 모든 주장은 이번 리서치 출처 필수, 소스 티어(공식 레지스트리), 부정/전칭 주장 검증, 커버리지·모순 해소 |
+| [17-commit-protocol.md](conventions/17-commit-protocol.md) | 커밋 프로토콜: Conventional Commits 헤더(영문 type/scope) + 한글 본문(Why/What/How/Result), trailer, 논리 단위 분할 — git log가 연구 노트 |
 
 ## 새 프로젝트에 적용하는 법
 
@@ -148,3 +150,12 @@ DeepSeek 어댑터 추가해줘. 12 절차대로 공식 문서 먼저 fetch해�
 - 메인 컨텍스트는 오케스트레이터 — 결론만 보관하고 탐색·검색·대용량 읽기는 subagent(별도 컨텍스트 창)에 위임해 요약만 받는다. 디렉토리 스윕·큰 파일 통독을 메인에서 하지 않는다. 독립 작업은 병렬 디스패치 + 장기 실행은 백그라운드.
 - 진실의 원본은 대화가 아니라 파일에 둔다 — 계획·결정·진행상황을 외부 파일에 지속화하고 마일스톤마다 체크포인트. 지속 규칙·사실은 CLAUDE.md(세션마다 로드·compaction 후 재주입)와 auto memory(`/clear`도 견딤)에 둔다.
 - auto-compaction은 기본 켜짐(오래된 tool output 제거 → 요약)이나 `autoCompactEnabled:false`/`DISABLE_AUTO_COMPACT=1`/`/config`로 비활성화 가능. 임박 시 `/compact <focus>`로 남길 것 지시, 무관한 작업 사이·오염 시 `/clear`. resume·compaction 직후 git status·cwd·상태 아티팩트 재확인 후 재개.
+
+### 리서치 프로토콜
+- 사전 지식은 검색 쿼리·가설 형성에만 쓴다 — 후보 집합 확정이나 산출물의 사실 기입에 쓰지 않는다. 모든 사실 주장은 이번 리서치에서 fetch한 출처로 추적 가능해야 하며, 못 찾은 것은 "unverified — needs research"로 표기(기억으로 메꾸기 금지).
+- 열거형 사실(변형·크기·날짜·라이선스)은 공식 레지스트리에서만 확정. 검색 스니펫·리더보드·블로그는 단서일 뿐 증거 아님. 완전성은 검색 랭킹이 아니라 레지스트리 직접 쿼리로. 부정/전칭 주장("없다/전부다/최소가 N")은 1차 출처 열거 없이는 단정 금지.
+- 범위 내 벤더/라이브러리마다 공식 최신 페이지를 1회 이상 fetch, 기존 저장소 인용 URL은 must-fetch로 시딩. 기존 문서와 모순되면 1차 출처로 해소 후 기록.
+
+### 커밋
+- 헤더는 Conventional Commits(영문 type/scope, 72자 이내), 요약·본문은 한글 — git log가 한글 연구 노트가 되게. `feat`/`fix`/`refactor`/`perf`는 `## Why/What/How/Result` 본문 필수(commit-msg 훅이 경고).
+- Result·수치 날조 금지("측정 안 함" 표기). 커밋 전 변경을 의도별로 분류해 논리 단위 1개 = 커밋 1개(`git add -p`로 hunk 분리). `Experiment:` trailer로 연구 스레드 연결.

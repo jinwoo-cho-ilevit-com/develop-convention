@@ -56,6 +56,8 @@ nav:
       - conventions/13-secret-management.md
       - conventions/14-context-management.md
       - conventions/15-doc-tracking.md
+      - conventions/16-research-protocol.md
+      - conventions/17-commit-protocol.md
   - 템플릿:
       - templates/AGENTS.md
       - templates/CLAUDE.md
