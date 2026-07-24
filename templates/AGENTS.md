@@ -15,7 +15,7 @@ Instructions for coding agents working in this repository.
 
 ## Conventions
 
-Full conventions: `[CONVENTION_PATH]` (local path where the develop-convention repo is cloned) — follow the "Core Rules" of the doc matching the type of work (doc map is that repo's README.md).
+Full conventions: `[CONVENTION_PATH]` (local path where the develop-convention repo is cloned) — follow the "Core Rules" of the doc matching the type of work (doc map is that repo's README.md). If no local clone is available (e.g. cloud sandbox), reference the published docs instead: https://jinwoo-cho-ilevit-com.github.io/develop-convention/
 
 Especially keep in this project:
 - No hardcoding, all values in central config (02)
