@@ -154,7 +154,7 @@ Judgment results are submitted as a report, not auto-applied (hallucination dele
 
 ### 5. Freshness Banner
 
-Insert a banner at the top of the managed block for any doc whose verification stamp exceeds the threshold (recommended default: 90 days or 100 commits): `> ⚠ This section has not been verified since <date> — may differ from the code`.
+Insert a banner at the top of the managed block for any doc whose verification stamp exceeds the threshold (recommended default: 90 days or 100 commits): `> STALE: this section has not been verified since <date> — may differ from the code`.
 
 ## Cost Cap
 

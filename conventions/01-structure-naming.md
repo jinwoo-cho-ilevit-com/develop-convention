@@ -10,6 +10,7 @@
 - No `_v2`, `_new`, `_old`, `_final` suffixes. When improving, rename in place to change the name itself.
 - Delete dead code as soon as it's found. Don't leave it commented out.
 - Comments should state only constraints/intent that the code itself can't express. No internal context that other AIs/teammates wouldn't know, no unnecessary TMI, no explaining the obvious.
+- Minimize emoji in docs and comments. Use one only when it carries information plain text cannot; never as decoration on headings, bullets, or section dividers, and never inside code comments. For status, write the word (`OK`, `FAILED`, `TODO`), not a symbol — words survive grep, diffs, and terminals that render emoji inconsistently.
 - When refactoring/migrating, don't carry over anything unused in the existing project.
 - Before finishing work, scan for and remove duplicate constants/functions/scripts.
 
@@ -55,6 +56,14 @@ The bar for a comment is: "can a first-time reader (human or model) read it and 
 - Write: constraints not visible from the code alone (e.g., "this order exists because of the external API's rate limit"), known limitations and upgrade paths, reasons for non-obvious choices.
 - Don't write: explaining what the next line does (duplicates the code), history of how it was written (git already covers this), context only insiders know ("as decided in last time's meeting"), personal notes or TMI.
 - Documentation (README/docstrings) follows the same bar: only what a first-time reader needs, kept concise.
+
+**Emoji.** The same "does it inform?" bar applies to emoji, and decorative emoji fail it. Concretely, prefer plain text because:
+
+- Status markers as words (`OK` / `FAILED` / `TODO` / `unverified`) are greppable; symbols are not, and they collapse into unreadable boxes in terminals, log aggregators, and diffs with narrow fonts.
+- Emoji on every heading or bullet costs tokens and adds no signal an agent can act on — the same bloat problem that makes over-long instruction files get skipped (see [09-agentic-workflow.md](09-agentic-workflow.md)).
+- A rare informative case survives the rule: a legend where the symbol *is* the data (e.g. a status column in a compatibility matrix). Use one there, consistently, and define it.
+
+Code comments take no emoji at all — a comment exists to state a constraint, and a symbol cannot state one.
 
 ### 6. Migration/cleanup rules
 

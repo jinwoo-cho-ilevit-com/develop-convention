@@ -8,6 +8,7 @@
 - **type**: `feat` `fix` `refactor` `perf` `docs` `test` `chore` `build` `ci` `style` `revert` `exp` (experiment). **scope**: module/area, optional. Breaking change: append `!` after type/scope.
 - Body is **required** for `feat`/`fix`/`refactor`/`perf`, recommended otherwise, using the Korean markdown sections `## Why` / `## What` / `## How` / `## Result`. Trivial commits (typo, formatting, one-liner) may use header + a one-line `## Why` only.
 - Never fabricate `## Result` or metrics — write "측정 안 함" (not measured) if unverified.
+- No emoji anywhere in the message — header, body, or trailers. `git log` output is scanned and grepped as plain text (→ [01-structure-naming.md](01-structure-naming.md)).
 - One logical change per commit. Before committing, survey the working tree and group changes by intent; never commit a mixed bag (feature + reformatting + incidental refactor).
 - Machine-parseable trailers when relevant: `Intent:` (classification tag), `Impact:` (one-line effect), `Refs:` (files, #issues, doc paths), `Experiment:` (stable research id, reused across a series of related commits).
 - Enforcement is mechanical: the commit-msg git hook (deployed via claude-config) warns — non-blocking — when a `feat`/`fix`/`refactor`/`perf` commit ships without a body.
