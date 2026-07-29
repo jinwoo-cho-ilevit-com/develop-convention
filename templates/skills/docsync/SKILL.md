@@ -122,7 +122,7 @@ If the following are detected in this diff, report **only a list of questions** 
 
 ### 5. Verification
 
-Give only the diff and criteria to a fresh-context review (a separate subagent or session) and confirm: (1) no edits outside the managed block, (2) updated narrative matches the code, (3) no uncitable claims. Do not self-approve in the authoring context.
+Hand the diff and criteria — never the authoring session's reasoning — to a fresh-context review (a separate subagent or session), which may read the referenced code to confirm: (1) no edits outside the managed block, (2) updated narrative matches the code, (3) no uncitable claims. Do not self-approve in the authoring context.
 
 ### 6. Wrap-up
 

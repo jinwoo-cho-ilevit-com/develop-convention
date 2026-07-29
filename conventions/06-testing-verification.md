@@ -42,4 +42,4 @@ Sources: [ML testing — fixtures, seeds, golden files](https://medium.com/@conn
 - To claim completion: actually run the verification command (tests, smoke run) and check the exit code and full output first.
 - Report the following as blockers, not completion: TODO comments, unimplemented branches, stub tests, `test.skip`/`.only`, "probably works" status.
 - Completion judgment for rewrites/refactors includes passing characterization tests (→ [00-principles.md](00-principles.md)).
-- Separate the verifier from the author: review is performed by a fresh-context agent/session that sees only the diff and the criteria (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- Separate the verifier from the author: review is performed by a fresh-context agent/session that starts from the diff and the criteria and never sees the author's reasoning (→ [09-agentic-workflow.md](09-agentic-workflow.md)).

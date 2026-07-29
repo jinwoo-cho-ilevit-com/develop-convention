@@ -17,7 +17,7 @@ A development-conventions documentation repository. The deliverable is documents
 
 ## Verification
 
-- Cross-check before completion: (1) every conventions doc has `## Core Rules`, (2) no contradiction between the README summary and individual docs, (3) no unsourced specific claims. Sizable changes are verified by a fresh-context review agent (given only the diff and criteria) — a rule this repo's 00-principles.md sets for itself.
+- Cross-check before completion: (1) every conventions doc has `## Core Rules`, (2) no contradiction between the README summary and individual docs, (3) no unsourced specific claims. Sizable changes are verified by fresh-context review lanes that start from the diff and criteria and never see the authoring session's reasoning — a rule this repo's 00-principles.md and 09-agentic-workflow.md set for itself.
 
 ## Commits
 

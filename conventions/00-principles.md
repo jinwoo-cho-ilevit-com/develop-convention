@@ -27,7 +27,7 @@ For a new project or a refactor, treat the existing codebase's structure not as 
 AI agents anchor to conclusions already present in context. It's a measured problem that once a first conclusion is in context, a second review is biased toward validating it. Review dispatched in a separate context actually changes review behavior.
 
 Application:
-- Code review is done by a fresh reviewer who sees only the diff and the criteria, not the session that wrote the code.
+- Code review is done by a fresh reviewer who starts from the diff and the criteria, never the session that wrote the code.
 - When rewriting legacy code, don't start by reading through the entire existing codebase. Write the spec first, implement from the spec alone, and check against existing behavior via tests.
 
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
