@@ -977,8 +977,12 @@ def cmd_red(args: argparse.Namespace) -> int:
                         report_path = writer.reserve(f"state/reports/{crit.id}.red.xml")
                         report_path.unlink(missing_ok=True)
                         run = run_argv((*argv, f"--junitxml={report_path}"), cwd=worktree)
-                        report = parse_junit(report_path)
-                        report_path.unlink(missing_ok=True)
+                        try:
+                            report = parse_junit(report_path)
+                        finally:
+                            # The report is not evidence and is not masked, so it does
+                            # not outlive the phase that asked for it.
+                            report_path.unlink(missing_ok=True)
                         record_command(writer, crit.id, "red", run)
                         status, note = red_verdict_pytest(run, report)
                 case CommandCheck(argv):
