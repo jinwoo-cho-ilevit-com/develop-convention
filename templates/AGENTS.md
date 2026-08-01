@@ -37,3 +37,8 @@ Especially keep in this project:
 ## Verification
 
 Before completion: run `uv run pytest` + the smoke command above, check full output. No completion claims without execution evidence. TODOs/stubs/`test.skip` are blockers, not completion.
+
+[Keep if using work contracts, else delete]
+- Work starts from a `contract.md` stating completion criteria, ownership, and `done_level` before any code is written; it is frozen during execution. Three to five lines is a complete contract for small work (18)
+- Every criterion carries an executable `verify:` or an explicit `verify: human`, and every new test is observed failing at the base commit before it passes (06/18)
+- Report completion as artifact paths plus the criteria table, never as a narrative summary (19)

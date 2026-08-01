@@ -10,7 +10,6 @@ The foundation for all convention documents. When it conflicts with another docu
 - Only claim completion with executable evidence (test output, run logs, measured values). Separate the author from the verifier.
 - When rewriting, discard the existing structure but preserve existing behavior: pin down existing behavior with characterization tests before the rewrite, then confirm the same tests pass after the rewrite.
 - Measure performance/productivity improvements — don't estimate them. If you didn't measure, write "not measured."
-- Research current methodology before starting development, and adopt a better method when one is confirmed, instead of defaulting to habit.
 
 ## Details
 

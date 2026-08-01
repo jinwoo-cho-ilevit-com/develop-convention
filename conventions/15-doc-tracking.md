@@ -11,7 +11,7 @@
 - If a human edits a managed section, don't silently revert it — log the reason code to the corrections log and feed it into future generation prompts (RMA loop). If contradictory reasons pile up for the same section, demote that section to human ownership.
 - ADRs are append-only — supersede with a new ADR instead of editing. Record not only adopted decisions but also reversed decisions and rollbacks, with reasons. When agents reference ADRs, they must resolve the supersession chain to the end and follow only the currently valid decision.
 - Standardize visualizations on Mermaid (it's text, so it's diffable/reviewable, GitHub renders it natively, and agents can read and write it). Generate module dependency graphs with deterministic tools (pydeps, madge, etc.) rather than maintaining them by hand.
-- Include a "code change ↔ doc update consistency" check in the review gate (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- Include a "code change ↔ doc update consistency" check in the review gate (→ [20-review-gate.md](20-review-gate.md)).
 
 ## Details
 
@@ -59,12 +59,11 @@ Sources: [dosu — A Claude Code Skill for Auto-Generating Project Docs](https:/
 - **blind rebuild**: because incremental sync regenerates using the previous doc as scaffolding, early hallucinations get laundered into established fact. Break this chain by comparing a version rewritten with the existing doc blocked out against the maintained version, claim by claim. For claims that exist only in the maintained version, attempt a code citation — citation failure = hallucination candidate. Confirmed hallucinations are deleted; genuine tacit knowledge is promoted to a human section or an ADR, ending the pretense of "derived from code."
 - **Tolerance**: don't misjudge same-meaning wording differences as drift and repeatedly rewrite a perfectly fine doc.
 - **RMA loop**: a human edit is a learning signal, not something to discard. A managed section's hash mismatch with no corresponding code diff is detected as human intervention; log the reason code (wrong/stale/unclear/granularity) to `.docsync/corrections.jsonl` and feed it as a negative example into future generation of the same section type.
-- **fitness test (pilot)**: give an agent that has only the docs a task, and check the result against actual execution — measure quality by "does this doc let the work get done," not "were the docs updated." Limit this to cases where execution can establish ground truth, and mark docs that can't be verified this way as "unverified" (if the grading itself becomes an unverified LLM judgment, it's a claim disguised as a measurement — see "evidence over claims" in [00-principles.md](00-principles.md)).
 
 ### 4. The History Layer — Commits and ADRs
 
 - Per-commit history is carried by the structured commit body (Why/What/How/Result) — write it so a dev note can be reconstructed from `git log` alone (→ [17-commit-protocol.md](17-commit-protocol.md)).
-- Decisions that change the structure go into an ADR (`docs/adr/NNNN-title.md`): context, decision, alternatives, consequences, kept brief. When a decision changes, don't edit it — supersede it with a new ADR, per Nygard's original wording: "If a decision is reversed, we will keep the old one around, but mark it as superseded."
+- Decisions that change the structure go into an ADR (`adr/NNNN-title.md`): context, decision, alternatives, consequences, kept brief. Keep the directory in the source tree — a docs site assembled at build time is not one, and an ADR written into the assembled output is not tracked at all. When a decision changes, don't edit it — supersede it with a new ADR, per Nygard's original wording: "If a decision is reversed, we will keep the old one around, but mark it as superseded."
 - Record failures too: keep reversed decisions and rollbacks with their reasons. What's actually needed during incident response is the record that "that approach was already tried and it failed."
 - Consumption rule: when an agent searches or references ADRs, it must follow the supersession chain to the end and use only the currently valid decision. This prevents the mistake of following an old, reversed decision as-is.
 
@@ -76,14 +75,6 @@ Sources: [Michael Nygard — Documenting Architecture Decisions](https://cognite
 - Don't hand off to the LLM anything that can be generated deterministically: generate module dependency graphs from the output of tools like pydeps (Python) or madge (JS/TS). The LLM generates only things that require judgment, like sequence/flow diagrams, and a human reviews them.
 
 Sources: [GitHub — Include diagrams in your Markdown files with Mermaid](https://github.blog/developer-skills/github/include-diagrams-markdown-files-mermaid/)
-
-### 6. Relationship to Existing Tools
-
-- The official Claude Code plugin catalog has no doc-generation or doc-code synchronization plugin (confirmed 2026-07) — this convention and the docsync skill fill that gap.
-- doc-it is a useful precedent for generation plus one-shot auditing (detecting stale references and undocumented code). docsync's symlink resolution, scoped execution (`/docsync <path>`), and final report format were borrowed from doc-it's workflow. The difference is whether a verification layer exists (state-based incremental sync, dead-man's switch, blind rebuild, RMA).
-- Hosted auto-wiki services depend on an external service outside the repository, which conflicts with this repo's tool-neutral, self-contained principle — so they aren't adopted.
-
-Sources: [anthropics/claude-code plugins README](https://github.com/anthropics/claude-code/blob/main/plugins/README.md), [dosu — doc-it](https://dosu.dev/blog/claude-code-skill-doc-it)
 
 ### 7. Applying This to a Project
 

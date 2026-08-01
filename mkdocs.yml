@@ -58,8 +58,15 @@ nav:
       - conventions/15-doc-tracking.md
       - conventions/16-research-protocol.md
       - conventions/17-commit-protocol.md
+      - conventions/18-work-contract.md
+      - conventions/19-evidence.md
+      - conventions/20-review-gate.md
   - Templates:
       - templates/AGENTS.md
       - templates/CLAUDE.md
+      - templates/contract.md
       - templates/skills/docsync/SKILL.md
       - templates/skills/conv-init/SKILL.md
+  - Decisions:
+      - adr/0001-contract-runner.md
+      - adr/0002-invariants-as-tests.md

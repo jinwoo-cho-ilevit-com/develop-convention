@@ -7,9 +7,12 @@
 - Use flat layout for app/research/pipeline code. Use `src/` layout only for distributed libraries.
 - Keep files small and module boundaries clear — both humans and agents should be able to read only the part they need.
 - Name variables/functions/classes/scripts/folders with semantic naming that directly reveals their role. Follow PEP 8.
-- No `_v2`, `_new`, `_old`, `_final` suffixes. When improving, rename in place to change the name itself.
+- No `_v2`, `_new`, `_old`, `_final` suffixes on code identifiers, modules, or scripts. When improving, rename in place to change the name itself. The one exception is an artifact a past evaluation result is pinned to (prompt files, golden sets): those version append-only, because a result stops being reproducible the moment the input it ran against is overwritten (→ [10-llm-api-inference.md](10-llm-api-inference.md)).
 - Delete dead code as soon as it's found. Don't leave it commented out.
-- Comments should state only constraints/intent that the code itself can't express. No internal context that other AIs/teammates wouldn't know, no unnecessary TMI, no explaining the obvious.
+- Comments should state only constraints/intent that the code itself can't express. No internal context that other AIs/teammates wouldn't know, no unnecessary TMI, no explaining the obvious. Cap a comment block at three lines and an inline comment at one; past that the content belongs in a document, or the code needs a better shape.
+- **Edit by rewrite, not by append.** Once a comment block or a document section has grown past about half again its original size through successive edits, rewrite the section instead of extending it. Prose that accumulates keeps every author's leftovers and loses the thread.
+- Comments and documents describe the current state only. Change history — what it used to be, why it was changed, how many attempts it took — lives in git and in ADRs (→ [15-doc-tracking.md](15-doc-tracking.md)). A rule survives; the incident that produced it does not.
+- Before adding a rule or an explanation, find where it already lives. Two copies drift; replace the second with a reference.
 - Minimize emoji in docs and comments. Use one only when it carries information plain text cannot; never as decoration on headings, bullets, or section dividers, and never inside code comments. For status, write the word (`OK`, `FAILED`, `TODO`), not a symbol — words survive grep, diffs, and terminals that render emoji inconsistently.
 - When refactoring/migrating, don't carry over anything unused in the existing project.
 - Before finishing work, scan for and remove duplicate constants/functions/scripts.
@@ -42,9 +45,9 @@ Sources: [PyPA — src layout vs flat layout](https://packaging.python.org/en/la
 
 ### 4. Naming
 
-- PEP 8: `snake_case` for functions/variables/modules, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants. Module names should be short and lowercase.
 - Names must describe the role: `raw_train_samples` over `data`, `normalize_audio()` over `process()`.
-- No version suffixes. Don't create `parse_header_v2()` — safely replace `parse_header()` via LSP rename. Do renames in small units backed by tests.
+- No version suffixes on code. Don't create `parse_header_v2()` — safely replace `parse_header()` via LSP rename. Do renames in small units backed by tests.
+- The rule is about code, not about evaluation inputs. A prompt file or golden set that a recorded result points at is versioned, never overwritten: renaming it in place silently invalidates every result already filed against it. Keep the two apart — code gets renamed, evaluation-pinned artifacts get appended.
 - When refactoring, don't be bound by existing naming. If a name has drifted from its current role, improve it on the spot.
 
 Sources: [PEP 8](https://peps.python.org/pep-0008/)

@@ -17,7 +17,7 @@ Each doc starts with `## Core Rules` (imperative rules excerptable into agent in
 | [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, golden files, tolerance bands, CPU smoke tests, completion verification |
 | [07-ml-development.md](conventions/07-ml-development.md) | Seed/reproducibility, train-serve skew prevention, experiment tracking, checkpoints/spot pods |
 | [08-llm-development.md](conventions/08-llm-development.md) | Training framework routing, FSDP2/bf16, chat template consistency, evaluation reproducibility, LLM-as-judge, data |
-| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), post-development review gate (Codex plugin/cursor CLI), parallel review lanes + fan-in, model routing |
+| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, model routing, spec gating |
 | [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API inference module: adapter structure, calls/rate limits, errors/retries, ensembles, caching/resume, cost/evaluation |
 | [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider-specific considerations (OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + structured output tiered fallback |
 | [12-docs-reference.md](conventions/12-docs-reference.md) | Latest-docs reference procedure (4 tiers) + per-provider canonical URL registry + smoke-test confirmation |
@@ -26,10 +26,13 @@ Each doc starts with `## Core Rules` (imperative rules excerptable into agent in
 | [15-doc-tracking.md](conventions/15-doc-tracking.md) | Doc-code synchronization: 4-tier tracking (contract·module·flow·history), docsync skill (incremental sync + audit), managed/human markers, blind rebuild·RMA verification, ADR supersession |
 | [16-research-protocol.md](conventions/16-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim requires a source from this research, source tiers (official registry), verification of negative/universal claims, coverage·contradiction resolution |
 | [17-commit-protocol.md](conventions/17-commit-protocol.md) | Commit protocol: Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting — git log doubles as a research note |
+| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria (EARS/Given-When-Then + executable verify), lane ownership, done level (auto/reviewed/proven by size × reversibility), field triggers, changing a frozen contract |
+| [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, teed execution records with secret masking, provenance and timestamps, human verdict records, recorded bypasses |
+| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, lanes defined by input (module/project/absence/security), fan-in and severity, review tool paths without pinned model ids |
 
 ## How to Apply to a New Project
 
-1. Copy [templates/AGENTS.md](templates/AGENTS.md), [templates/CLAUDE.md](templates/CLAUDE.md), and [templates/pyproject.toml](templates/pyproject.toml) into the new project, fill in the placeholders (`[...]`, `PROJECT_NAME`), then delete or uncomment the optional blocks (ML/LLM API/docsync) that don't apply. Projects that will use docsync doc tracking additionally copy [templates/skills/docsync/](templates/skills/docsync/SKILL.md) to `.claude/skills/docsync/` (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)). The single source of truth for shared guidance is AGENTS.md (an open standard also read by Codex/Cursor and others), and CLAUDE.md imports it via `@AGENTS.md`. The whole step is automated by the [conv-init skill](templates/skills/conv-init/SKILL.md) — copy it to `.claude/skills/conv-init/` once, then bootstrap any project with a single command.
+1. Copy [templates/AGENTS.md](templates/AGENTS.md), [templates/CLAUDE.md](templates/CLAUDE.md), and [templates/pyproject.toml](templates/pyproject.toml) into the new project — plus [templates/contract.md](templates/contract.md) if the project will use work contracts (→ [18-work-contract.md](conventions/18-work-contract.md)), and [templates/scripts/](templates/scripts/contract.py) with it to run those contracts mechanically — `lint`, `red`, `verify`, `human`, `status`, writing the evidence 19 specifies; the subset it enforces is [18 §4](conventions/18-work-contract.md) and what it records is [19 §6](conventions/19-evidence.md), and running a contract by hand instead remains legitimate — fill in the placeholders (`[...]`, `PROJECT_NAME`), then delete or uncomment the optional blocks (ML/LLM API/docsync) that don't apply. Projects that will use docsync doc tracking additionally copy [templates/skills/docsync/](templates/skills/docsync/SKILL.md) to `.claude/skills/docsync/` (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)). The single source of truth for shared guidance is AGENTS.md (an open standard also read by Codex/Cursor and others), and CLAUDE.md imports it via `@AGENTS.md`. The whole step is automated by the [conv-init skill](templates/skills/conv-init/SKILL.md) — copy it to `.claude/skills/conv-init/` once, then bootstrap any project with a single command.
 2. Keep instruction files concise — don't paste the entire document, only include the rules needed to prevent mistakes in that project (→ [09-agentic-workflow.md](conventions/09-agentic-workflow.md)). Reference the full conventions via the local path where this repo is cloned (fill it in at `[CONVENTION_PATH]` in the template).
 
 ### Tool-by-Tool Behavior
@@ -53,6 +56,7 @@ Bootstrapping a new project (one-time):
 ```
 Copy AGENTS.md, CLAUDE.md, and pyproject.toml from <convention repo path>/templates/
 into this project and fill in the placeholders. It's a [one-line description], [general/ML/LLM API] project.
+Also copy contract.md if we'll use work contracts.
 ```
 
 Enforcing a specific rule:
@@ -90,8 +94,9 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Separate by module/feature, with clear input/output contracts. Keep files small and boundaries clear.
 - Fit the structure to the design, not the design to the structure: when integrating a new module, restructuring the surrounding project is preferred over force-fitting — scoped to what the integration touches, behavior pinned by tests, structural moves in separate commits.
 - App/research/pipeline code uses a flat layout (src/ is only for distributed libraries). Use uv workspaces for multiple packages.
-- Semantic naming + PEP 8. No `_v2`/`_new` suffixes — rename in place. Delete dead code immediately, don't relocate unused code, scan for duplicates before completion.
-- Comments should cover only constraints/intent the code itself can't express. No insider-only context, no TMI, no explaining the obvious.
+- Semantic naming, PEP 8. No `_v2`/`_new` suffixes on code — rename in place; evaluation-pinned artifacts (prompts, golden sets) are the exception and version append-only. Delete dead code immediately, scan for duplicates before completion.
+- Comments cover only constraints/intent the code can't express — no insider-only context, no TMI, no explaining the obvious. Cap a comment block at three lines, an inline comment at one.
+- **Edit by rewrite, not by append.** Once a comment block or document section has grown past about half again its size, rewrite it instead of extending it. Comments and documents describe the current state only — change history lives in git and ADRs. Before adding a rule, find where it already lives; replace the second copy with a reference.
 - Minimize emoji in docs, and use none at all in code comments: allow one only where the symbol is the data (a defined legend), never as decoration on headings or bullets. Write status as words (`OK`/`FAILED`/`TODO`) so it stays greppable.
 
 ### Config
@@ -113,8 +118,12 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Log per-stage GPU utilization/VRAM/RAM/CPU + throughput as structured (JSON) logs.
 
 ### Testing & Verification
-- Minimize unnecessary pytest tests: unit tests for core logic + 1-3 E2E smoke tests. Assert metrics with a tolerance band; update golden files only via an explicit flag.
-- CI smoke-tests the GPU code path with CPU + small samples. TODOs/stubs/skips are blockers, not completion.
+- Three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests through the project's real entry point. Only the third catches integration failures.
+- An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order.
+- Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? A test that has never failed is a deletion candidate.
+- Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
+- Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such.
+- Every fixed bug gains exactly one regression test. Assert ML metrics with a tolerance band; update golden files only via an explicit flag. CI smoke-tests GPU paths on CPU with small samples. TODOs/stubs/skips are blockers, not completion.
 
 ### AI/ML
 - Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); verify skew with sample replay.
@@ -134,11 +143,17 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Agentic Workflow
 - Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills.
-- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration, review tool) before starting; freeze shared contracts during execution; assign locks/migrations to a single owner.
-- Every agent must go through a review separate from its author after development. Choose the review tool before development begins — Path A: Codex plugin (Stop gate `ALLOW`/`BLOCK` + `/codex:review`, a configured default model, the orchestrator synthesizes and applies feedback) / Path B: cursor CLI (`gpt-5.3-codex-xhigh` for deep review or `composer-2.5` for fast review, read-only).
-- Scale review lanes to change risk: a 2+ module or interface/schema change gets three parallel lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), critic (requirement + diff, hunting for what is absent); anything smaller gets one lane, and a security lane is added only when auth/secrets/external input is touched. Lanes never see each other's output, and at least one runs on a different vendor's model.
-- Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered, dedupe by `file:line`, resolve contradictory advice, verify each finding against the code, rank by severity. An unsynthesized merge just amplifies manufactured issues. The review ends when no confirmed blocker remains — not when a findings list exists.
+- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution; assign locks/migrations to a single owner.
 - Merge each branch only after its tests pass, then do one integration verification pass. Route models by difficulty (mechanical → lightweight, standard → mid-tier, architecture → top-tier).
+- Write heavyweight spec documents only when they are an asset shared across PRs or workers; small or exploratory work uses lightweight iteration.
+
+### Review Gate
+- Every change goes through a review its author did not perform, on a tool chosen before development starts. The reviewer gets the diff and the criteria, never the author's reasoning.
+- Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched.
+- Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered, dedupe by `file:line`, resolve contradictions, verify each finding against the code, rank by severity. An unsynthesized merge amplifies manufactured issues once per lane.
+- Severity carries an action: blocker blocks the merge and is re-reviewed by the lane that raised it, major is fixed in the same work, minor becomes a follow-up, nit may be ignored. A finding with no concrete failing scenario is a nit.
+- Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
+- Run at least one lane on a different vendor's family, and don't pin model ids in the docs — resolve them at use time and pick by role. A gate that passes is not evidence the gate works; confirm once that it fails when it should.
 
 ### Secret Management
 - Never hardcode secrets in code, config, logs, or images; never commit a plaintext `.env` (`.gitignore` + `.env.example` lists keys only). The single source of truth is a central secret manager (Infisical recommended).
@@ -153,7 +168,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Context Management
 - The main context is the orchestrator — keep only conclusions, and delegate exploration/search/large reads to subagents (separate context windows), receiving only summaries back. Don't sweep directories or read large files whole in the main context. Dispatch independent work in parallel, and run long-running work in the background.
 - Keep the source of truth in files, not the conversation — persist plans/decisions/progress to external files and checkpoint at every milestone. Keep durable rules/facts in CLAUDE.md (loaded every session, re-injected after compaction) and in auto memory (survives even `/clear`).
-- Auto-compaction is on by default (drops old tool output → summarizes), but can be disabled via `autoCompactEnabled:false`, `DISABLE_AUTO_COMPACT=1`, or `/config`. When it's imminent, use `/compact <focus>` to specify what to keep; use `/clear` between unrelated tasks or when context is polluted. Right after resume/compaction, re-check git status, cwd, and state artifacts before continuing.
+- Only the root CLAUDE.md and auto memory reliably survive a context reset; the conversation does not. Use `/compact <focus>` before it triggers automatically, `/clear` between unrelated tasks, and re-check git status, cwd, and state artifacts right after any resume.
 
 ### Research Protocol
 - Use prior knowledge only to form search queries and hypotheses — never to fix the candidate set or to populate facts in a deliverable. Every factual claim must be traceable to a source fetched in this research; mark anything not found as "unverified — needs research" (never fill gaps from memory).
@@ -164,3 +179,18 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Headers use Conventional Commits (English type/scope, ≤72 characters); summaries and bodies are written in Korean — so git log doubles as a Korean research note. `feat`/`fix`/`refactor`/`perf` commits require a `## Why/What/How/Result` body (the commit-msg hook warns otherwise).
 - Never fabricate Result/numbers (write "not measured" instead). Before committing, classify changes by intent so one logical unit = one commit (split hunks with `git add -p`). Link research threads with the `Experiment:` trailer.
 - No emoji in the message (header, body, or trailers) — `git log` is read and grepped as plain text.
+
+### Work Contract
+- Answer five questions before writing criteria — what problem and what if not done, what alternatives were rejected and why, what unknown blocks progress, where it splits and what stays single-owned, how it most plausibly fails. Start when no criterion reads two ways, every unknown is classified, rejections are recorded, and the next question can only be answered by writing code.
+- Write the contract before development starts and freeze it during execution. Record changes in `revision` with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
+- Write completion criteria in EARS or Given-When-Then with `SHALL`, and apply the judgment test: if two agents could disagree about whether it passed, rewrite it. Every criterion carries an executable `verify:` or an explicit `verify: human`.
+- Cover functional, non-functional, and **negative** criteria (what must not happen), and state what is out of scope. Fill only the fields the work triggers — a three-line contract is complete for small work.
+- Declare `done_level` (`auto`/`reviewed`/`proven`) up front, chosen by size × reversibility. Regardless of level, three things are mandatory: every criterion passes, evidence exists, and each new test was observed failing at the base commit.
+- Restrict `owns` to disjoint directory prefixes; assign lock files, migrations, and generated files to a single owner instead of a lane. Record model tier per lane, never a model id.
+- Make deviation visible rather than forbidding it: a bypassed gate is recorded as `done_level: bypassed` with a reason. An unrecorded bypass is the blocker.
+
+### Evidence
+- Report completion as artifact paths plus the criteria table — no narrative summary. Prose is where a hallucinated completion hides.
+- Write execution records by teeing real runs, and mask secrets in the command line and environment as well as the output. Record status as a word (`PASS`/`FAIL`/`PENDING-HUMAN`/`NO-BASELINE`), never a symbol.
+- Block completion on `PENDING-HUMAN` at every done level; a human criterion passes only once a verdict, its author, and its timestamp are recorded.
+- Record provenance and the timestamps `created_at`, `verify_runs[].at`, `review_rounds` — without them no retrospective measurement of the process is possible at all.

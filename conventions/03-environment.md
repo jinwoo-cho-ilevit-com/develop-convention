@@ -6,7 +6,7 @@
 - Unify lint and format on ruff alone (`ruff check` + `ruff format`).
 - Put development tools in the dev group under `[dependency-groups]`. Do not mix them into runtime `dependencies`.
 - Check lint/format twice: pre-commit (local) + CI (enforced).
-- Code must run identically, without modification, on local (macOS, CPU/MPS) and RunPod (Linux, CUDA).
+- Code must run identically, without modification, on a local machine (macOS, CPU/MPS) and a remote GPU host (Linux, CUDA).
 - Without a GPU, the code must still be runnable and testable on CPU. Select the device only through a single helper function; inline `.cuda()` calls are forbidden.
 - Route PyTorch installation automatically per platform using uv platform markers or `--torch-backend=auto`.
 
@@ -38,7 +38,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 Sources: [uv — projects guide](https://docs.astral.sh/uv/guides/projects/), [ruff](https://docs.astral.sh/ruff/), [ruff-pre-commit](https://github.com/astral-sh/ruff-pre-commit), [type checker comparison](https://pydevtools.com/handbook/explanation/how-do-mypy-pyright-and-ty-compare/)
 
-### 2. Local ↔ RunPod Portability
+### 2. Local ↔ Remote GPU Portability
 
 A single pyproject.toml must cover both environments. PyTorch has no CUDA build for macOS, so platform-specific index routing is required.
 
@@ -62,7 +62,7 @@ url = "https://download.pytorch.org/whl/cu130"  # Match the CUDA version to the 
 explicit = true
 ```
 
-Method B — `--torch-backend=auto` (or `UV_TORCH_BACKEND=auto`): detects the CUDA driver at install time to pick the index, falling back to CPU if none is found. Suited to ephemeral environments with changing GPU configurations, like RunPod.
+Method B — `--torch-backend=auto` (or `UV_TORCH_BACKEND=auto`): detects the CUDA driver at install time to pick the index, falling back to CPU if none is found. Suited to ephemeral environments with changing GPU configurations.
 
 Sources: [uv — PyTorch integration](https://docs.astral.sh/uv/guides/integration/pytorch/)
 

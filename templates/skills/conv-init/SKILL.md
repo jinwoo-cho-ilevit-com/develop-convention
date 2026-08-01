@@ -9,9 +9,10 @@ One-command application of the convention templates to the current project. Tool
 
 ## Inputs (ask if not provided)
 
-1. **One-line project description** (fills `[one-line: what this project is]`).
+1. **One-line project description** (fills `[One line: what this project is]`).
 2. **Project type**: `general` / `ML` / `LLM API` (multiple allowed) — decides which optional blocks survive.
 3. **Adopt docsync doc tracking?** yes/no.
+4. **Adopt work contracts?** yes/no — copies `contract.md` and the contract runner.
 
 ## Procedure
 
@@ -26,25 +27,34 @@ Copy from `<CONVENTION_PATH>/templates/` into the project root:
 
 - `AGENTS.md`, `CLAUDE.md` — if the project already has either, do NOT overwrite: show a diff and merge only the missing convention sections after confirmation.
 - `pyproject.toml` — only for new Python projects; for existing projects, merge the relevant tool sections (`[tool.ruff]`, `[dependency-groups]`) instead.
+- `.pre-commit-config.yaml` — required by doc 03's two-stage check. Tell the user to add the CI half (`uvx pre-commit run --all-files`) to their pipeline.
 
 ### 3. Fill placeholders
 
 | Placeholder | Fill with |
 |---|---|
-| `[one-line: what this project is]` | user's description |
+| `[One line: what this project is]` | user's description |
 | `PROJECT_NAME` | directory name or existing pyproject name |
 | `[CONVENTION_PATH]` | the path from step 1 |
 | `[ENTRY]` / smoke command | actual entrypoint if known, else leave a TODO comment for the user |
 
 ### 4. Prune optional blocks
 
-In the copied AGENTS.md, keep only the blocks matching the project type (`ML`, `LLM API`, `docsync`); delete the others including their marker lines. No empty leftover markers.
+In the copied AGENTS.md, keep only the blocks matching the project type (`ML`, `LLM API`, `docsync`, `work contracts`); delete the others including their marker lines. No empty leftover markers.
 
-### 5. docsync (if adopted)
+### 5. Work contracts (if adopted)
+
+Copy `<CONVENTION_PATH>/templates/contract.md` to the project root.
+
+Point out that `contract.md` is a per-work file: the copied one is a template to fill in, not a
+contract for the project as a whole. There is no runner yet — criteria are executed and recorded
+by hand against the rules in conventions 18 and 19.
+
+### 6. docsync (if adopted)
 
 Copy `<CONVENTION_PATH>/templates/skills/docsync/` → `.claude/skills/docsync/`. Mention that the first `/docsync` run bootstraps module docs (no separate init).
 
-### 6. Report
+### 7. Report
 
 List: files created/merged, placeholders filled (and any left as TODO), blocks kept/removed, and next steps — e.g. "run `/docsync` to bootstrap module docs", "fill the smoke command in AGENTS.md".
 

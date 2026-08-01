@@ -1,0 +1,69 @@
+# 20. Review Gate
+
+Every change goes through a review that its author did not perform. This document covers what the reviewer reads, how many reviewers to run, how their findings are merged, and which tools to run them on. How the work was split and executed in the first place is [09-agentic-workflow.md](09-agentic-workflow.md).
+
+## Core Rules
+
+- Every agent goes through a review separated from its author after development. Choose the review tool before development starts and record it alongside the decomposition (→ [09-agentic-workflow.md](09-agentic-workflow.md)). Claim completion only with execution evidence.
+- The reviewer starts from the diff and the criteria and never receives the author's reasoning. Reference context it needs to judge the diff — callers, schemas, convention docs — is fair game; the chain of thought that produced the diff is not.
+- Scale review lanes to change risk: a change spanning 2+ modules or touching an interface/schema gets three parallel lanes, each defined by its input — module (diff + changed files), project (diff + callers/callees + convention docs), absence (requirement/plan + diff, hunting for what the diff omits); anything smaller gets one lane. Add a security lane (diff + trust boundaries + input-validation points) only when auth, secrets, or external input is touched.
+- Lanes are independent — no lane sees another's output — and the dispatching orchestrator must fan them back in: confirm every lane answered, dedupe by `file:line`, resolve conflicting advice, verify each finding against the code, and rank by severity. Unsynthesized parallel output is noise, not a review.
+- Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. Read the change with `git diff <base>..<branch>` and `git show <ref>:<path>`, or take a separate worktree.
+- A finding that depends on a tool's behaviour names the version you tested with, and that version must be the one the project pins. A refutation produced by a different version refutes nothing.
+- A review terminates on evidence, not on output: confirmed blocker-severity findings are fixed and re-reviewed by the lane that raised them, and the remainder is reported with the completion evidence. Producing a findings list is not completing a review.
+- Run at least one lane on a different vendor's model family. Where only one family is reachable, record that in the review report rather than dropping the lane.
+
+## Details
+
+### 1. What makes a gate work
+
+- **Author is not verifier.** Anchoring is the reason: once a conclusion is in context, a second pass over the same context tends to validate it. Instruct the reviewer to flag correctness and requirement gaps only — asked merely to "find problems", a reviewer manufactures them in sound code and drives over-engineering.
+- **Provide runnable checks.** Give the reviewer verification it can execute itself (tests, builds, smoke runs). Without them "looks right" becomes the only signal and the human becomes the verification loop.
+- **Evidence-based completion.** A completion report carries the commands run and their output. Evidence is tool execution, not produced prose (→ [06-testing-verification.md](06-testing-verification.md), [19-evidence.md](19-evidence.md)).
+- **A gate that passes is not evidence the gate works.** Confirm at least once that it fails when it should. A green gate over a broken check is indistinguishable from a green gate over correct work.
+- **Check doc-code synchronization** where docsync tracking is adopted: were the managed docs for the changed module updated with it (→ [15-doc-tracking.md](15-doc-tracking.md))?
+- Attach a deterministic gate — a Stop hook that blocks exit until a verification script passes — to unattended runs.
+
+### 2. Parallel review lanes
+
+A lane is defined by its **input**, not by its attitude. Telling three reviewers to "be critical" over the same input yields three copies of the same findings; the value of parallelism comes from context isolation, which is wasted when the contexts are identical.
+
+| Lane | Input | Looks for |
+|---|---|---|
+| Module | diff + changed files only | correctness, edge cases, error handling, missing tests |
+| Project | diff + callers/callees + convention docs | duplicate implementations, layer violations, contract drift, doc-code sync, naming/structure consistency |
+| Absence | **requirement/plan + diff** | negative space — whether the stated problem was actually solved, and what is missing (rollback path, failure modes, observability) |
+| Security *(conditional)* | diff + trust boundaries + input-validation points + [13-secret-management.md](13-secret-management.md) | unvalidated external input, secret handling, authorization gaps on newly reachable paths |
+
+- **The absence lane's job is what is missing.** Scope it away from re-reading the changed lines, or it degrades into a second module lane. It needs a stated requirement to measure absence against; when the work carried no written plan, write the task statement down before dispatching.
+- **Lanes stay independent.** No lane receives another lane's output, and none receives the author's reasoning.
+- **Diversify the vendor, not the persona.** Personas layered on one model share that model's blind spots. Give the different-vendor lane the module role by default — its input is just the diff, which carries across tools cleanly.
+
+### 3. Fan-in
+
+Fan-out without fan-in is not a review, and the orchestrator that dispatched the lanes owns the merge:
+
+0. Confirm every dispatched lane actually answered. Zero findings is a valid result; a lane that died is not, so re-run it rather than merging a short review.
+1. Dedupe by `file:line`.
+2. Resolve contradictory advice into one recommendation, weighting the lane whose input covers the disputed ground — structure and duplication belong to the project lane, edge cases to the module lane.
+3. **Check each finding against the actual code** and mark it confirmed or unverified.
+4. Rank by severity.
+
+Step 3 matters most. The "reviewers manufacture issues" failure mode is amplified once per lane, so an unfiltered merge hands the noise to the human. The merge may downgrade a finding but never silently drops one — unverified findings are reported as unverified.
+
+Severity carries an action, not just a label: **blocker** blocks the merge and is re-reviewed by the lane that raised it, **major** is fixed in the same work, **minor** becomes a follow-up, **nit** may be ignored. A finding with no concrete failing scenario is a nit regardless of how it was filed.
+
+### 4. Review tools
+
+Choose before development starts. A single-lane review uses one path; a multi-lane review mixes both so not every lane shares a vendor.
+
+**Path A — Codex plugin (inside the development session).** With the Stop review gate on (`/codex:setup --enable-review-gate`), an automatic `ALLOW`/`BLOCK` review runs at the end of every turn that changed code, using whatever model the Codex CLI is configured with. After the work is complete, `/codex:review` (standard) and `/codex:adversarial-review` (design-adversarial) are available. The plugin returns the review verbatim and does not auto-fix, so the orchestrator reads and applies it.
+
+**Path B — cursor CLI (external tool).** Shape: `cursor-agent -p --mode ask --model <id> --output-format text "<review prompt for the diff>"`. `--mode ask` (or `--plan`) forces read-only — both allow analysis and read commands but block edits.
+
+- **Do not pin a model id in this document.** Lineups turn over faster than the doc is revised, and a pinned id fails closed: the command errors and the lane simply does not run. Resolve the id at use time with `cursor-agent models` (also `--list-models`, or `/models` interactively), then pick by role — the highest reasoning tier for depth, the cheapest tier that still reads a diff for speed, and a family *different* from Path A's for diversity.
+- Always run reviews read-only. Never use `-p` alone: it opens writes and shell access, letting the reviewer modify what it is inspecting.
+
+The two paths draw on separate quotas, so give them separate jobs rather than ranking them — Path A as the frequent cheap gate during development, Path B as the deeper pass at the end. When one is exhausted, the other keeps its own role rather than absorbing both.
+
+Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Cursor — headless CLI](https://cursor.com/docs/cli/headless)

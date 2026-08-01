@@ -1,5 +1,19 @@
+# Operational artifacts, never committed (→ CLAUDE.md). A negation under an excluded
+# directory does nothing in git, so listing one only stated an intent the rule denies.
 .omc/
-!.omc/skills/
 .claude/
+.omx/
+.code-review-graph/
 docs/
 site/
+
+# Evidence artifacts (→ conventions/19-evidence.md). Execution records carry command
+# lines and environment values, and 19 states as a premise that they are gitignored —
+# the pre-commit secret scan never sees them.
+artifacts/
+
+# Python toolchain artifacts. `uv.lock` is committed; the environment it builds is not.
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

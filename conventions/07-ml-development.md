@@ -54,7 +54,7 @@ Sources: [Trackio](https://huggingface.co/blog/trackio), [W&B experiment trackin
 
 - **Saving**: save only from the main process, unwrap DDP/FSDP wrappers, include optimizer state. For large models, use DCP `async_save` (background save) + safetensors (→ [04-pipeline.md](04-pipeline.md)).
 - **Retention policy**: `latest` (for resume) + step-based last-N + best-by-metric + major milestones. Set the specific N via the project config.
-- **Storage location**: RunPod pod local disk disappears with the pod. Store on a network volume or HF Hub/bucket.
+- **Storage location**: an ephemeral GPU host's local disk disappears with the host. Store on a network volume or HF Hub/bucket.
 - **Cost optimization**: use spot/interruptible pods for interruption-tolerant work (sweeps, non-urgent experiments) — which is why all training must be resumable. Use reserved only for long-running training that needs guarantees.
 
 Sources: [RunPod — reproducible training/checkpoint guide](https://www.runpod.io/articles/guides/reproducible-ai-made-easy-versioning-data-and-tracking-experiments)

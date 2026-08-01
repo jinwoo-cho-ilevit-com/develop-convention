@@ -6,10 +6,12 @@
 - Compose config as Hydra config groups so they can be combined. Build experiment variants (ablation) purely from config composition/overrides, without code changes.
 - Validate config values' types and ranges (Pydantic or a typed dataclass). Invalid values must fail fast before the run starts.
 - Every run automatically saves its full resolved config, as of that point, to the output directory.
-- Name runs identifiably as `{experiment-name}-{key-condition}-{date}`.
 - Externalize LLM prompts into dedicated `.md` files instead of inline string literals — prompts should be editable and reviewable without code changes.
 
 ## Details
+
+Name runs identifiably (`{experiment-name}-{key-condition}-{date}`) so a directory listing is readable months later.
+
 
 ### 1. Scope of the no-hardcoding rule
 

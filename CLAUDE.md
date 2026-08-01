@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A development-conventions documentation repository. The deliverable is documents, not code — there are no build/test commands.
-`README.md` is the doc map + full rules summary; the actual rules live in `conventions/NN-*.md`, split by topic. Other projects consume these docs by excerpting the "Core Rules" sections into their CLAUDE.md/AGENTS.md, and `templates/` (AGENTS.md, CLAUDE.md, pyproject.toml) is the starting point for new projects. When changing a convention rule, also check consistency with templates/.
+A development-conventions documentation repository. The deliverable is documents, and the only code is the work-contract toolkit under `templates/scripts/`, which projects copy out — so there is a test suite, and `uv run --group dev pytest` runs both it and the repository invariants under `tests/`.
+`README.md` is the doc map + full rules summary; the actual rules live in `conventions/NN-*.md`, split by topic. Other projects consume these docs by excerpting the "Core Rules" sections into their CLAUDE.md/AGENTS.md, and `templates/` (AGENTS.md, CLAUDE.md, pyproject.toml, contract.md, `.pre-commit-config.yaml`, `.python-version`, `scripts/`, `skills/`) is the starting point for new projects. When changing a convention rule, also check consistency with templates/.
 
 ## Document format (must follow when editing/adding docs)
 
@@ -17,7 +17,9 @@ A development-conventions documentation repository. The deliverable is documents
 
 ## Verification
 
-- Cross-check before completion: (1) every conventions doc has `## Core Rules`, (2) no contradiction between the README summary and individual docs, (3) no unsourced specific claims. Sizable changes are verified by fresh-context review lanes that start from the diff and criteria and never see the authoring session's reasoning — a rule this repo's 00-principles.md and 09-agentic-workflow.md set for itself.
+- Cross-check before completion: (1) every conventions doc has `## Core Rules` as its first body heading, (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) no tool-call residue and every doc-map link resolves.
+- A claim that two rules conflict, or that a rule lives somewhere, quotes the actual file. The same holds for refuting one: name the tool version you tested with, and make it the version this repo pins.
+- Sizable changes go through fresh-context review lanes (→ `conventions/20-review-gate.md`), which this repo applies to itself.
 
 ## Commits
 
