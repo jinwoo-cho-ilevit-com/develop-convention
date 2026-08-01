@@ -44,10 +44,17 @@ SCHEMA_VERSION = 1
 
 FEATURE_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 CRITERION_ID_RE = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+# An id becomes `<id>.<phase>.json`, so it has to fit a filename. Without a bound a
+# slug-legal 300-character id passed validation and then raised OSError, which exit 3
+# reports as the runner having broken rather than the contract being unusable.
+MAX_CRITERION_ID_LEN = 64
 
 RUNNER_KINDS = ("pytest", "command")
 KINDS = ("functional", "nonfunctional", "negative")
 DONE_LEVELS = ("auto", "reviewed", "proven")
+# 18's marker for a gate that was skipped. Kept out of DONE_LEVELS because it is not a
+# level of rigour but a record that one was not reached.
+BYPASSED = "bypassed"
 RED_MODES = ("required", "guard")
 REQUIRED_FIELDS = ("feature", "done_level", "criteria", "out_of_scope")
 
@@ -57,7 +64,16 @@ REQUIRED_FIELDS = ("feature", "done_level", "criteria", "out_of_scope")
 # which 19 tells authors to write, would be the same defect wearing a different name.
 UNSUPPORTED_FIELDS = ("lanes", "sequential_owner", "integration", "checkpoints")
 KNOWN_FIELDS = frozenset(
-    {"schema_version", "feature", "done_level", "base", "criteria", "out_of_scope", "revision"}
+    {
+        "schema_version",
+        "feature",
+        "done_level",
+        "base",
+        "criteria",
+        "out_of_scope",
+        "revision",
+        "bypass",
+    }
 )
 KNOWN_CRITERION_FIELDS = frozenset({"id", "text", "verify", "runner", "kind", "red", "hermetic"})
 
@@ -78,6 +94,9 @@ EXIT_OK = 0
 EXIT_GATE = 1  # the runner answered, and the answer is no
 EXIT_CONTRACT = 2  # the runner could not answer
 EXIT_INTERNAL = 3  # the runner broke
+
+# pytest's exit code for "collection ran and found nothing", as distinct from an error.
+PYTEST_EXIT_NO_TESTS = 5
 
 COMMAND_TIMEOUT_SEC = 1800
 COLLECT_TIMEOUT_SEC = 300
@@ -198,9 +217,35 @@ class Contract:
     criteria: tuple[Criterion, ...]
     out_of_scope: tuple[str, ...]
     base: str | None
+    bypass: dict | None
 
 
 # --- parsing -------------------------------------------------------------------------
+
+
+class StrictLoader(yaml.SafeLoader):
+    """SafeLoader that refuses a repeated key instead of keeping the last one.
+
+    YAML resolves a duplicate silently, so a contract could state one `verify` and run
+    another with nothing reporting the difference — the same shape as every other defect
+    this runner exists to prevent, arriving through the parser rather than the gate.
+    """
+
+
+def _no_duplicate_keys(loader: StrictLoader, node: yaml.MappingNode, deep: bool = False) -> dict:
+    seen: set = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise ContractError(f"contract repeats the key {key!r}; one of the two is ignored")
+        seen.add(key)
+    return yaml.SafeLoader.construct_mapping(loader, node, deep)
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    lambda loader, node: _no_duplicate_keys(loader, node),
+)
 
 
 def split_front_matter(text: str) -> str:
@@ -269,9 +314,35 @@ def shell_operators(argv: list[str]) -> list[str]:
     return sorted({token for token in argv if token and not token.strip(SHELL_PUNCTUATION)})
 
 
+def _argv_of_list(raw: list, cid: str) -> tuple[str, ...]:
+    """A list `verify` is the argument vector, verbatim.
+
+    Nothing is split and no operator is refused, because there is nothing to parse and
+    nothing that could act as an operator. This is the form for a command that needs a
+    literal `;` or `|` as an argument — the string form cannot express one, since after
+    splitting it cannot tell that author from one expecting a shell.
+    """
+    if not raw:
+        raise ContractError(f"{cid}: verify is an empty list")
+    for entry in raw:
+        if not isinstance(entry, str):
+            raise ContractError(
+                f"{cid}: verify list holds {type(entry).__name__}; every argument is a string"
+            )
+    return tuple(raw)
+
+
 def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: bool) -> Check:
+    if isinstance(raw_verify, list):
+        if raw_runner is None:
+            raise ContractError(f"{cid}: runner is required unless verify is `human`")
+        if raw_runner not in RUNNER_KINDS:
+            raise ContractError(f"{cid}: runner {raw_runner!r} is not one of {RUNNER_KINDS}")
+        argv = _argv_of_list(raw_verify, cid)
+        return PytestCheck(argv) if raw_runner == "pytest" else CommandCheck(argv)
+
     if not isinstance(raw_verify, str) or not raw_verify.strip():
-        raise ContractError(f"{cid}: verify must be a non-empty string, or `human`")
+        raise ContractError(f"{cid}: verify must be a non-empty string or list, or `human`")
     verify = raw_verify.strip()
 
     if verify == "human":
@@ -323,6 +394,11 @@ def _criterion_of(raw: object, seen: set[str]) -> Criterion:
     cid = raw.get("id")
     if not isinstance(cid, str) or not CRITERION_ID_RE.fullmatch(cid):
         raise ContractError(f"criterion id {cid!r} is not a plain slug — ids become filenames")
+    if len(cid) > MAX_CRITERION_ID_LEN:
+        raise ContractError(
+            f"criterion id {cid[:20]!r}… is {len(cid)} characters; ids become filenames and "
+            f"the limit is {MAX_CRITERION_ID_LEN}"
+        )
     if cid in seen:
         raise ContractError(f"duplicate criterion id {cid!r}")
     seen.add(cid)
@@ -367,7 +443,9 @@ def load_contract(path: Path | str) -> Contract:
         raise ContractError(f"contract not found: {path}")
 
     try:
-        data = yaml.safe_load(split_front_matter(path.read_text(encoding="utf-8")))
+        data = yaml.load(  # noqa: S506 - StrictLoader is SafeLoader plus a duplicate check
+            split_front_matter(path.read_text(encoding="utf-8")), Loader=StrictLoader
+        )
     except yaml.YAMLError as exc:
         raise ContractError(f"contract front matter is not valid YAML: {exc}") from exc
 
@@ -398,15 +476,21 @@ def load_contract(path: Path | str) -> Contract:
         )
 
     done_level = data["done_level"]
-    if done_level not in DONE_LEVELS:
-        # 18 defines `bypassed`, and 18/19 both require the bypass to carry a reason.
-        # Recording one is out of this runner's scope, so accepting the level would put
-        # the reason nowhere and still return OK — the state 18 calls the blocker.
-        extra = " — recording a bypass and its reason is out of this runner's scope"
-        raise ContractError(
-            f"done_level {done_level!r} is not one of {DONE_LEVELS}"
-            f"{extra if done_level == 'bypassed' else ''}"
-        )
+    if done_level not in DONE_LEVELS + (BYPASSED,):
+        raise ContractError(f"done_level {done_level!r} is not one of {DONE_LEVELS + (BYPASSED,)}")
+
+    # 18 and 19 both require a bypass to carry a reason, and 19 calls one that leaves no
+    # trace the blocker. The level is accepted only together with the record, so the two
+    # cannot come apart; the reason reaches manifest.json and the report.
+    bypass = data.get("bypass")
+    if done_level == BYPASSED:
+        if not isinstance(bypass, dict) or not str(bypass.get("reason", "")).strip():
+            raise ContractError(
+                "done_level `bypassed` needs a `bypass` mapping carrying a non-empty "
+                "`reason` — an unrecorded bypass is the blocker, not the bypass"
+            )
+    elif bypass is not None:
+        raise ContractError("`bypass` is only meaningful with done_level `bypassed`")
 
     raw_criteria = data["criteria"]
     if not isinstance(raw_criteria, list) or not raw_criteria:
@@ -430,6 +514,7 @@ def load_contract(path: Path | str) -> Contract:
         criteria=criteria,
         out_of_scope=tuple(str(entry) for entry in raw_scope),
         base=base,
+        bypass=dict(bypass) if isinstance(bypass, dict) else None,
     )
 
 
@@ -666,6 +751,26 @@ def state_rel(criterion_id: str, phase: str) -> str:
     return f"state/{criterion_id}.{phase}.json"
 
 
+# 19 §4 names `verify_runs[].at` as one of the fields without which lead time per contract
+# cannot be derived at all. It has to accumulate across runs, and a per-criterion record
+# holds only the latest, so the phase appends here and `render` reads it back — which
+# keeps manifest.json derived from the state directory rather than merged into.
+RUNS_REL = "state/verify-runs.jsonl"
+
+
+def append_run(writer: ArtifactWriter, phase: str) -> None:
+    writer.append_line(RUNS_REL, json.dumps({"phase": phase, "at": now_iso()}))
+
+
+def read_runs(artifacts_root: Path) -> list[dict]:
+    path = artifacts_root / RUNS_REL
+    if not path.is_file():
+        return []
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+
+
 def write_state(writer: ArtifactWriter, criterion_id: str, phase: str, payload: dict) -> Path:
     """Write one phase's record. The path comes from the record, never from the caller."""
     document = {"criterion": criterion_id, "phase": phase, "at": now_iso(), **payload}
@@ -765,6 +870,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     root = repo_root(contract_path)
     writer = ArtifactWriter(artifacts_dir(root, contract.feature))
 
+    append_run(writer, "verify")
     failed = False
     for crit in contract.criteria:
         if crit.is_human:
@@ -931,6 +1037,8 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
                     if crit.is_human
                     and (record := read_state(writer.root, crit.id, "human")) is not None
                 ],
+                "verify_runs": read_runs(writer.root),
+                "bypass": contract.bypass,
                 "environment": {"python": sys.version.split()[0], "platform": sys.platform},
                 "masked_env_names": list(writer.masker.names),
             },
@@ -989,6 +1097,11 @@ def pytest_selection(
     run = run_argv(probe, cwd=cwd, timeout=COLLECT_TIMEOUT_SEC)
     record_command(writer, criterion_id, "red-collect", run)
     if run.spawn_error is not None or run.timed_out:
+        return None
+    # pytest exits 5 for "collected nothing" and non-zero otherwise for an error. Without
+    # that split a test file that fails to import was recorded as a criterion selecting no
+    # test, which names a different cause and sends a reader to the wrong place.
+    if run.exit_code not in (0, PYTEST_EXIT_NO_TESTS):
         return None
     # Quiet collection prints `path::name`, and a command that already carried -q makes
     # it `-qq`, which prints `path: count` instead. Both are read for the path, and

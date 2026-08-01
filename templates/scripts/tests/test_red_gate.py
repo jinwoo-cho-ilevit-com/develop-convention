@@ -198,3 +198,21 @@ def test_red_passes_at_base_blocks_status(repo, base_sha):
     run(repo, "red")
     run(repo, "verify")
     assert run(repo, "status") != 0
+
+
+def test_collection_failure_note_names_the_real_cause(repo, base_sha):
+    """A test file that does not import is not a criterion that selects no test.
+
+    The two produce the same empty selection, and the note said the second — which names
+    a different cause and sends a reader looking in the wrong place.
+    """
+    (repo / "tests").mkdir(exist_ok=True)
+    broken = repo / "tests" / "test_broken.py"
+    broken.write_text("import a_module_that_is_absent\n", encoding="utf-8")
+    cmd = f"{sys.executable} -m pytest tests/test_broken.py -q -p no:cacheprovider"
+    write_contract(repo, [criterion("C-01", verify=cmd, runner="pytest")], base=base_sha)
+    run(repo, "red")
+    record = json.loads(state_path(repo, "sample", "C-01", "red").read_text())
+    assert record["status"] == "NO-BASELINE"
+    assert "selects no test" not in record["note"], record
+    assert "collect" in record["note"], record

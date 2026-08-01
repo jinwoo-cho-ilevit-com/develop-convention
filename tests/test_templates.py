@@ -160,14 +160,17 @@ def test_sandbox_guidance_is_the_same_in_both_places():
 # --- the negative criterion --------------------------------------------------------------------
 
 
-def test_no_runner_change_and_no_new_runtime_dependency():
-    """The template is what is out of step, not the tool."""
+def test_no_new_runtime_dependency():
+    """The repository ships documents and a toolkit that reads files; nothing else.
+
+    This began as a pin of the runner's exact field set, written to express "the contract
+    that changed the templates did not change the tool". That is true of one contract and
+    not an invariant of the repository, so the pin failed the first time the runner was
+    legitimately extended. A negative criterion belongs to its contract; what outlives it
+    is the part that is still true afterwards.
+    """
     declared = tomllib.loads(read(ROOT / "pyproject.toml"))
     assert declared["project"]["dependencies"] == []
-    assert runner.KNOWN_FIELDS == frozenset(
-        {"schema_version", "feature", "done_level", "base", "criteria", "out_of_scope", "revision"}
-    )
-    assert runner.DONE_LEVELS == ("auto", "reviewed", "proven")
 
 
 @pytest.mark.parametrize("name", ["contract.py", "secrets.toml"])

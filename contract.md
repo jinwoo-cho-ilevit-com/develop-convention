@@ -1,111 +1,109 @@
 ---
 schema_version: 1
-feature: conventions-coherence
-done_level: reviewed
-base: 0cb565d
+feature: runner-followup
+done_level: proven
+base: 7d67041
 criteria:
   - id: C-01
     text: >-
-      EVERY section cross-reference between conventions docs SHALL point at a section that
-      exists — `18` sent readers to `09 §5` while 09 has four sections.
-    verify: uv run --group dev pytest tests/test_conventions.py -k cross_references -q
+      A `verify` written as a list SHALL be executed verbatim as the argument vector, with
+      no splitting and no operator check, so that a command needing a literal `;` or `|`
+      can be stated at all.
+    verify: uv run --group dev pytest templates/scripts/tests -k verify_list -q
     runner: pytest
     kind: functional
 
   - id: C-02
     text: >-
-      EVERY conventions doc's section numbering SHALL be contiguous. `15` ran 1,2,3,4,5,7,
-      and a reader looking for §6 finds nothing and cannot tell whether it was removed.
-    verify: uv run --group dev pytest tests/test_conventions.py -k numbering -q
+      WHEN a contract repeats a key, THE runner SHALL refuse it. PyYAML resolves a
+      duplicate to the last occurrence, so a contract can state one `verify` and run
+      another with nothing reporting the difference.
+    verify: uv run --group dev pytest templates/scripts/tests -k duplicate_key -q
     runner: pytest
     kind: functional
 
   - id: C-03
     text: >-
-      NO factual stamp SHALL sit outside the re-verification window `12` itself sets, so
-      that the rule governing stamps is enforced rather than remembered.
-    verify: uv run --group dev pytest tests/test_conventions.py -k stamps -q
+      THE runner SHALL refuse a criterion id too long to become a filename, rather than
+      accepting it and failing later with an unhandled OSError, which exit code 3 reports
+      as the runner having broken.
+    verify: uv run --group dev pytest templates/scripts/tests -k id_length -q
     runner: pytest
     kind: functional
-    red: guard
 
   - id: C-04
     text: >-
-      THE repository's own invariants and the toolkit suite SHALL keep passing across a
-      change that touches fourteen documents in parallel.
-    verify: uv run --group dev pytest -q
+      WHEN collection fails at head, THE recorded note SHALL say so, rather than
+      "the criterion selects no test" — which describes a different cause and sends a
+      reader looking in the wrong place.
+    verify: uv run --group dev pytest templates/scripts/tests -k collection_failure_note -q
     runner: pytest
     kind: functional
-    red: guard
 
   - id: C-05
     text: >-
-      THE contradiction between `09` and `18` on what stops when a frozen contract changes
-      SHALL be gone, with one document stating the rule and the other pointing at it, and
-      README SHALL carry that one version rather than both.
-    verify: human
+      THE manifest SHALL carry `verify_runs[].at`, which 19 §4 requires and names as the
+      field without which lead time per contract cannot be derived at all.
+    verify: uv run --group dev pytest templates/scripts/tests -k verify_runs -q
+    runner: pytest
     kind: functional
 
   - id: C-06
     text: >-
-      EVERY factual claim re-verified in this work SHALL trace to a source fetched during
-      it, and every claim that could not SHALL be marked rather than dropped or filled in
-      from memory, judged against the lane reports by someone who did not run the lanes.
-    verify: human
-    kind: nonfunctional
+      THE runner SHALL accept `done_level: bypassed` together with a recorded reason, and
+      SHALL keep refusing it without one — 18 and 19 both require a bypass to carry a
+      reason, and refusing the level outright was a stand-in for having nowhere to put it.
+    verify: uv run --group dev pytest templates/scripts/tests -k bypass -q
+    runner: pytest
+    kind: functional
 
   - id: C-07
     text: >-
-      THE rules added from this session's measurements SHALL be rules a reader can act on,
-      and SHALL NOT have made `18` heavier than the work it governs.
+      THE documents describing the runner SHALL describe what it now does — the list form,
+      the duplicate-key refusal, the id bound, `verify_runs[].at`, and the bypass record —
+      judged by someone who wrote neither the runner nor those documents.
     verify: human
     kind: nonfunctional
 
   - id: C-08
     text: >-
-      THIS work SHALL NOT delete a claim merely because a source could not be found — the
-      recorded decision is to mark and keep, so that a true claim is not lost to a failed
-      search.
-    verify: uv run --group dev pytest tests/test_conventions.py -k stamp_check_would_catch -q
+      THE runner SHALL NOT lose a behaviour this work does not name: the existing suite
+      passes unchanged except where a criterion above requires a change, and this
+      repository's own contracts still run.
+    verify: uv run --group dev pytest -q
     runner: pytest
     kind: negative
     red: guard
 
 out_of_scope:
-  - the runner follow-up recorded in adr/0001
-  - hook, skill and plugin hygiene beyond what the excerpt work already closed
-  - templates/, closed by the template-coherence contract
-  - third-party blog citations that back general engineering advice rather than a version,
-    date or status claim — 16 exempts those, and removing them is a separate judgment
+  - "the `lanes` subcommand, and any handling of lanes/sequential_owner/integration"
+  - a configuration surface, concurrency, resumption, and artifact retention
+  - "`review_rounds`, which belongs to a review subcommand this runner does not have"
+  - making `created_at` a creation time rather than a render time — it is disclosed in
+    19 §6 and fixing it needs a run log this contract does not add
+  - the pytest criterion pointing outside the repository root, contrived enough that
+    round 11 declined to count it
 ---
 
-# conventions-coherence
+# runner-followup
 
 ## Background
 
-Two audits over the conventions found twenty-six items: contradictions between documents,
-references to sections that do not exist, duplicated rules, stale factual claims and
-claims with no source at all. This contract closes them, together with the rules this
-session's own work produced evidence for.
+`adr/0001-contract-runner.md` records what the runner contract deferred and why. This
+takes the part of that list which closes a defect or satisfies a rule 19 already states,
+and leaves the part that adds a feature.
 
-The parallel decomposition is the part worth recording. Three kinds of change — coherence,
-fact re-verification, and new rules from measurement — all land in the same documents, so
-slicing by kind would have put three lanes in `18`, `20` and `README` at once. Sliced by
-file instead, with every kind of edit for a document belonging to whoever owns it, the
-lanes cannot collide. That constraint is now written into `18` as a rule, because arriving
-at it by nearly getting it wrong is the only reason it is stated.
-
-## Deviation to record
-
-The contract was written after the work began rather than before it, which `18` forbids.
-The base commit and the red checks are unaffected — they run against `0cb565d` either way
-— but the criteria were chosen with the changes in hand, which is exactly the bias the
-rule exists to prevent. Recorded here rather than quietly fixed.
+The list form for `verify` is the reason to do this now. Five separate defects in the
+first contract came from one decision — that a command is stored as a shell-ish string the
+runner has to parse: reading the runner kind from a substring, an operator list that
+missed the merged forms, an over-refusal that blocked `find … -exec … ';'`, a `#` that
+silently truncated the command, and a quoting rule that needed two parsers which then
+disagreed. A list has nothing to parse. The string form stays, because most commands are
+better read as one.
 
 ## Notes
 
-C-03, C-04 and C-08 are `red: guard`. The stamps were inside `12`'s three-month window at
-base — the audit called them expiring, and by the letter of the rule they were not — so
-the check is a standing invariant that stops the next one from slipping, not a failure
-being repaired. C-05 through C-07 are `verify: human` because whether a rule reads as
-actionable, and whether a re-verification was honest, are judgments a test cannot make.
+C-08 is `red: guard`: the suite passes at base and must keep passing, which is a standing
+invariant rather than a thing to be seen failing. `done_level: proven` because the runner
+is what every other contract in this repository is judged by, and the previous contract
+established that its defects are found by running it rather than reading it.

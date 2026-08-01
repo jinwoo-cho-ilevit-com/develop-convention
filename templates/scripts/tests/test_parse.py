@@ -315,3 +315,104 @@ def test_parse_accepts_a_verify_folded_across_lines(repo):
     assert run(repo, "lint") == 0
     loaded = contract.load_contract(repo / "contract.md")
     assert contract.display_command(loaded.criteria[0].check) == "echo one two"
+
+
+# --- the list form ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["find", ".", "-maxdepth", "0", "-exec", "true", "{}", ";"],
+        ["echo", "a && b"],
+        ["echo", "|"],
+        ["echo", "one\ntwo"],
+    ],
+)
+def test_verify_list_is_taken_verbatim(repo, argv):
+    """A list has nothing to parse, so none of the string form's rules apply to it.
+
+    Five defects in the first runner came from storing a command as a shell-ish string
+    the runner had to split. An author who needs a literal `;` writes a list instead.
+    """
+    write_contract(repo, [criterion("C-01", verify=argv), criterion("C-02", kind="negative")])
+    assert run(repo, "lint") == 0
+    loaded = contract.load_contract(repo / "contract.md")
+    assert loaded.criteria[0].check.argv == tuple(argv)
+
+
+def test_verify_list_must_hold_strings(repo):
+    write_contract(repo, [criterion("C-01", verify=["echo", 3])])
+    assert run(repo, "lint") == 2
+
+
+def test_verify_list_must_not_be_empty(repo):
+    write_contract(repo, [criterion("C-01", verify=[])])
+    assert run(repo, "lint") == 2
+
+
+def test_verify_list_still_requires_a_runner(repo):
+    write_contract(repo, [{"id": "C-01", "text": "x", "verify": ["true"], "kind": "negative"}])
+    assert run(repo, "lint") == 2
+
+
+# --- a repeated key is a contract that says one thing and runs another --------------------
+
+
+def test_duplicate_key_in_the_contract_is_refused(repo):
+    """PyYAML resolves a duplicate to the last occurrence, in silence."""
+    write_raw(
+        repo,
+        "---\nschema_version: 1\nfeature: sample\ndone_level: reviewed\n"
+        "criteria:\n  - id: C-01\n    text: x\n    verify: 'true'\n    verify: 'false'\n"
+        "    runner: command\n    kind: negative\nout_of_scope: [x]\n---\n",
+    )
+    assert run(repo, "lint") == 2
+
+
+def test_duplicate_key_at_the_top_level_is_refused(repo):
+    write_raw(
+        repo,
+        "---\nschema_version: 1\nfeature: sample\nfeature: other\ndone_level: reviewed\n"
+        "criteria:\n  - id: C-01\n    text: x\n    verify: 'true'\n"
+        "    runner: command\n    kind: negative\nout_of_scope: [x]\n---\n",
+    )
+    assert run(repo, "lint") == 2
+
+
+# --- an id that cannot become a filename ---------------------------------------------------
+
+
+def test_id_length_is_bounded(repo):
+    """A slug-legal 300-character id passed validation and then raised OSError.
+
+    Exit 3 means the runner itself broke; refusing the contract is exit 2, and that is
+    what an unusable id deserves.
+    """
+    write_contract(repo, [criterion("C" * 300)])
+    assert run(repo, "lint") == 2
+
+
+def test_id_length_bound_leaves_ordinary_ids_alone(repo):
+    write_contract(repo, [criterion("C-01"), criterion("C-02", kind="negative")])
+    assert run(repo, "lint") == 0
+
+
+# --- a bypass carries its reason -------------------------------------------------------------
+
+
+def test_bypass_without_a_reason_is_refused(repo):
+    write_contract(
+        repo, [criterion("C-01"), criterion("C-02", kind="negative")], done_level="bypassed"
+    )
+    assert run(repo, "lint") == 2
+
+
+def test_bypass_with_a_reason_is_accepted(repo):
+    write_contract(
+        repo,
+        [criterion("C-01"), criterion("C-02", kind="negative")],
+        done_level="bypassed",
+        bypass={"reason": "the deploy window closed", "author": "someone"},
+    )
+    assert run(repo, "lint") == 0

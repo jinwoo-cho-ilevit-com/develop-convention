@@ -19,8 +19,8 @@ feature: "[short-slug]"
 # auto      = criteria pass only (docs, formatting, behaviour-preserving refactor)
 # reviewed  = + zero confirmed blockers from a non-authoring review   <- default
 # proven    = + integration smoke + one run on real data
-# bypassed  = a gate was skipped; the reason is required, and scripts/contract.py
-#             refuses this level because it has nowhere to record one
+# bypassed  = a gate was skipped; requires the `bypass` block below, and is refused
+#             without it — an unrecorded bypass is the blocker, not the bypass
 # Choose by size x reversibility, not size alone.
 done_level: reviewed
 
@@ -33,6 +33,11 @@ criteria:
     # or Given-When-Then. Judgment test: could two agents disagree? Then rewrite.
     text: "WHEN [trigger], THE [system] SHALL [observable response]."
     verify: "[executable command]"
+                              # A string is split into arguments, and one made only of
+                              # shell punctuation is refused. Write a list instead when an
+                              # argument has to be a literal `;` or `|`:
+                              #   verify: [find, ., -exec, echo, "{}", ";"]
+                              # A list is the argument vector, taken verbatim.
     runner: pytest            # pytest | command -- declared, never guessed from the command
                               # text. Required unless `verify: human`.
     kind: functional          # functional | nonfunctional | negative
@@ -53,6 +58,11 @@ criteria:
     text: "[judgment a machine cannot make]"
     verify: human             # blocks completion until a verdict is recorded
     kind: nonfunctional
+
+# Only with done_level: bypassed. Reaches manifest.json, so the decision has a record.
+# bypass:
+#   reason: "[why the gate was skipped]"
+#   author: "[who decided]"
 
 out_of_scope:
   - [what this work deliberately does not do]
