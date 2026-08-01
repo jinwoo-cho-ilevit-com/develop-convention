@@ -67,7 +67,6 @@ KNOWN_CRITERION_FIELDS = frozenset({"id", "text", "verify", "runner", "kind", "r
 # is one. Listing the operators instead let the merged forms — `>&`, `&>`, `<>`, `|&` —
 # through, and a redirect that silently did nothing still let its criterion pass.
 SHELL_PUNCTUATION = "();<>|&"
-SHELL_FRAGMENTS = ("`", "$(")
 
 EXIT_OK = 0
 EXIT_GATE = 1  # the runner answered, and the answer is no
@@ -229,24 +228,18 @@ def lex(verify: str) -> list[str]:
 
 
 def shell_operators(argv: list[str]) -> list[str]:
-    """Arguments that read as shell operators, whether or not the author quoted one.
+    """Arguments made only of operator punctuation, whether or not the author quoted one.
 
-    An argument made only of operator punctuation, or carrying a substitution form, is
-    refused. The runner cannot tell an author who wanted a literal `;` from one who
-    expected a shell — after splitting they are the same argument — so it refuses both
-    and says so. A command that genuinely needs such an argument goes in a script.
+    One criterion, and it is the whole rule. The runner cannot tell an author who wanted
+    a literal `;` from one who expected a shell — after splitting they are the same
+    argument — so it refuses both and says so; a command that needs such an argument goes
+    in a script. A second criterion for `` ` `` and `$(` used to sit here unmentioned by
+    any document, and it refused `awk '{print $(NF)}'` and ``grep -c '```' README.md``.
+    An unquoted `$(…)` is caught by this rule anyway — the `(` is an argument of its own —
+    and a backtick reaches the program as the ordinary argument it is, there being no
+    shell here to substitute anything.
     """
-    return sorted(
-        {
-            token
-            for token in argv
-            if token
-            and (
-                not token.strip(SHELL_PUNCTUATION)
-                or any(fragment in token for fragment in SHELL_FRAGMENTS)
-            )
-        }
-    )
+    return sorted({token for token in argv if token and not token.strip(SHELL_PUNCTUATION)})
 
 
 def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: bool) -> Check:
@@ -266,6 +259,15 @@ def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: 
     if raw_runner not in RUNNER_KINDS:
         raise ContractError(f"{cid}: runner {raw_runner!r} is not one of {RUNNER_KINDS}")
 
+    # POSIX counts a newline among the control operators, but shlex counts it as
+    # whitespace, so a YAML block scalar holding two commands was fused into one argv
+    # and passed — running a command the contract never states, which is the outcome
+    # this whole check exists to prevent.
+    if "\n" in verify:
+        raise ContractError(
+            f"{cid}: verify spans more than one line; a criterion runs one command, "
+            "so write two criteria or put the sequence in a script"
+        )
     try:
         argv = lex(verify)
     except ValueError as exc:

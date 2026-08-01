@@ -99,7 +99,7 @@ def test_parse_refuses_a_bypassed_done_level(repo):
 # --- verify strings the runner refuses to execute ------------------------------------
 
 
-@pytest.mark.parametrize("verify", ["a && b", "a | b", "a; b", "a > out", "a `b`", "a $(b)"])
+@pytest.mark.parametrize("verify", ["a && b", "a | b", "a; b", "a > out", "a $(b)"])
 def test_parse_rejects_a_verify_command_that_needs_a_shell(repo, verify):
     """C-02 runs an argument vector, so a shell operator would become a literal argument."""
     write_contract(repo, [criterion("C-01", verify=verify)])
@@ -125,6 +125,8 @@ def test_parse_rejects_a_redirect_whose_operator_is_two_characters(repo, verify)
         "awk '{print}' f",
         "pytest -k 'a; b'",
         "ruff check --select='E,F'",
+        "awk '{print $(NF)}' f",
+        "grep -c '```' README.md",
     ],
 )
 def test_parse_accepts_an_argument_that_merely_contains_punctuation(repo, verify):
@@ -145,8 +147,7 @@ def test_parse_accepts_an_argument_that_merely_contains_punctuation(repo, verify
         "rm -rf tmpdir ; echo a'|'b",
         "find . -exec echo {} ';'",
         r"find . -exec echo {} \;",
-        "grep -F '`' f",
-        "echo 'cost $(1) usd'",
+        "echo 'cost $(1) usd' && true",
     ],
 )
 def test_parse_refuses_an_operator_argument_however_it_was_written(repo, verify):
@@ -155,6 +156,31 @@ def test_parse_refuses_an_operator_argument_however_it_was_written(repo, verify)
     Reading the quoted form to grant one needed a second lex, and on the first input
     that lex raised where the real one did not. The `except ValueError: return []` then
     skipped the check entirely and an unquoted `&&` reached the program as an argument.
+    """
+    write_contract(repo, [criterion("C-01", verify=verify), criterion("C-02", kind="negative")])
+    assert run(repo, "lint") == 2
+
+
+def test_parse_accepts_a_backtick_as_an_ordinary_argument(repo):
+    """There is no shell to substitute anything, and refusing it cost real commands.
+
+    The rule that refused a backtick also refused ``grep -c '```' README.md`` — a
+    criterion this repository would write — and appeared in no document.
+    """
+    write_contract(
+        repo,
+        [criterion("C-01", verify="grep -c '```' README.md"), criterion("C-02", kind="negative")],
+    )
+    assert run(repo, "lint") == 0
+
+
+@pytest.mark.parametrize("verify", ["/bin/echo a\n/bin/echo b", "/bin/echo a\n\n/bin/echo b"])
+def test_parse_refuses_a_verify_that_spans_more_than_one_line(repo, verify):
+    """POSIX counts a newline among the control operators; shlex counts it as whitespace.
+
+    A YAML block scalar holding two commands was fused into one argv and the criterion
+    passed on a command the contract never states — the same failure the operator check
+    exists to prevent, arriving through a character the check never looked at.
     """
     write_contract(repo, [criterion("C-01", verify=verify), criterion("C-02", kind="negative")])
     assert run(repo, "lint") == 2
