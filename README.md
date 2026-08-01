@@ -26,6 +26,8 @@ Each doc starts with `## Core Rules` (imperative rules excerptable into agent in
 | [15-doc-tracking.md](conventions/15-doc-tracking.md) | Doc-code synchronization: 4-tier tracking (contract·module·flow·history), docsync skill (incremental sync + audit), managed/human markers, blind rebuild·RMA verification, ADR supersession |
 | [16-research-protocol.md](conventions/16-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim requires a source from this research, source tiers (official registry), verification of negative/universal claims, coverage·contradiction resolution |
 | [17-commit-protocol.md](conventions/17-commit-protocol.md) | Commit protocol: Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting — git log doubles as a research note |
+| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria (EARS/Given-When-Then + executable verify), lane ownership, done level (auto/reviewed/proven by size × reversibility), field triggers, changing a frozen contract |
+| [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, teed execution records with secret masking, provenance and timestamps, human verdict records, recorded bypasses |
 
 ## How to Apply to a New Project
 
