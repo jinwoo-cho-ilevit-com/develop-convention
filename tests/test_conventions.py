@@ -92,3 +92,56 @@ def test_the_stamp_check_would_catch_an_old_stamp():
 # and the version that tried needed a list of exempt filenames — the same enumerate-the-
 # exceptions shape these documents warn against. Three checks that mean something beat
 # four where one cries wolf.
+
+
+# --- a doc must not tell an author to do what the runner rejects ---------------------------
+
+import sys  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "templates" / "scripts"))
+import contract as runner  # noqa: E402
+
+REFUSED = set(runner.UNSUPPORTED_FIELDS) | {"evidence_todo"}
+
+
+@pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)
+def test_no_doc_instructs_writing_fields_the_runner_refuses(doc):
+    """19 §7 told authors to use `evidence_todo`; 18 §4 says the runner refuses it.
+
+    Following one document made the other's tool reject the contract, which is the worst
+    kind of disagreement between two rules — both are readable, and doing as told fails.
+    """
+    body = read(doc)
+    told = [
+        field
+        for field in REFUSED
+        if re.search(
+            rf"records? .{{0,40}}`{re.escape(field)}`|write .{{0,20}}`{re.escape(field)}`", body
+        )
+    ]
+    assert not told, f"{doc.name} instructs writing {told}, which the runner refuses"
+
+
+# --- a convention resting on an optional mechanism says what happens without it ------------
+
+
+def test_optional_mechanism_names_its_fallback():
+    """Auto memory is a setting, and it is switched off on the machine this was written on.
+
+    A persistence strategy with half of it unavailable and no stated alternative leaves
+    the reader following a rule that silently does nothing.
+    """
+    body = read(BY_NAME["14-context-management.md"])
+    assert "auto memory" in body
+    assert "disabled" in body or "switched off" in body or "turned off" in body, (
+        "14 rests on auto memory without naming the case where it is unavailable"
+    )
+
+
+# --- the visualization format stays unspecified, on purpose --------------------------------
+
+
+def test_evidence_visualization_is_still_unspecified():
+    """The absence is the decision. Inventing a format with no evidence is what 19 warns of."""
+    body = read(BY_NAME["19-evidence.md"])
+    assert "not specified here yet" in body
