@@ -852,7 +852,12 @@ def pytest_selection(argv: tuple[str, ...], cwd: Path) -> list[str] | None:
     Guessing test paths from a name pattern is the same species of mistake as reading
     the runner kind out of the command string: it works for one project's layout.
     """
-    run = run_argv((*argv, "--collect-only", "-q"), cwd=cwd, timeout=COLLECT_TIMEOUT_SEC)
+    # --rootdir pins what the printed paths are relative to. Without it pytest reports
+    # against its own discovered rootdir — the nearest pyproject.toml above the test
+    # paths — and a repository with a nested one hands back paths that resolve to
+    # nothing here. It changes no test selection, only the reporting base.
+    probe = (*argv, "--collect-only", "-q", f"--rootdir={cwd}")
+    run = run_argv(probe, cwd=cwd, timeout=COLLECT_TIMEOUT_SEC)
     if run.spawn_error is not None or run.timed_out:
         return None
     # Quiet collection prints `path::name`, and a command that already carried -q makes

@@ -6,9 +6,10 @@ way and the withdrawn version got two of the three wrong.
 """
 
 import json
+import sys
 
 import contract
-from conftest import criterion, passing_at_head_only, write_contract
+from conftest import criterion, git, passing_at_head_only, write_contract
 
 
 def state_path(repo, feature, cid, phase):
@@ -99,6 +100,32 @@ def test_red_base_reports_no_baseline_when_the_command_cannot_run(repo, base_sha
     run(repo, "red")
     record = json.loads(state_path(repo, "sample", "C-01", "red").read_text())
     assert record["status"] == "NO-BASELINE"
+
+
+def test_red_base_finds_tests_when_rootdir_differs_from_the_repo_root(repo, base_sha):
+    """A nested pyproject.toml moves pytest's rootdir, and with it the printed paths.
+
+    This repository has exactly that shape (`templates/pyproject.toml`), and it made
+    every criterion report NO-TEST until the collection probe pinned its rootdir.
+    """
+    nested = repo / "pkg"
+    (nested / "tests").mkdir(parents=True)
+    (nested / "pyproject.toml").write_text(
+        '[project]\nname = "nested"\nversion = "0"\n', encoding="utf-8"
+    )
+    (nested / "tests" / "mod.py").write_text("def v():\n    return 1\n", encoding="utf-8")
+    (nested / "tests" / "test_mod.py").write_text(
+        "from mod import v\n\n\ndef test_v():\n    assert v() == 1\n", encoding="utf-8"
+    )
+    git("add", "-A", cwd=repo)
+    git("commit", "--quiet", "-m", "nested project", cwd=repo)
+
+    cmd = f"{sys.executable} -m pytest pkg/tests/test_mod.py -q -p no:cacheprovider"
+    write_contract(repo, [criterion("C-01", verify=cmd, runner="pytest")], base=base_sha)
+    run(repo, "red")
+    record = json.loads(state_path(repo, "sample", "C-01", "red").read_text())
+    assert record["status"] == "RED", record
+    assert record["brought_forward"] == ["pkg/tests/test_mod.py"]
 
 
 def test_red_base_records_red_when_the_command_fails_at_base(repo, base_sha):
