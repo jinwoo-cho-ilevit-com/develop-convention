@@ -168,3 +168,17 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Headers use Conventional Commits (English type/scope, ≤72 characters); summaries and bodies are written in Korean — so git log doubles as a Korean research note. `feat`/`fix`/`refactor`/`perf` commits require a `## Why/What/How/Result` body (the commit-msg hook warns otherwise).
 - Never fabricate Result/numbers (write "not measured" instead). Before committing, classify changes by intent so one logical unit = one commit (split hunks with `git add -p`). Link research threads with the `Experiment:` trailer.
 - No emoji in the message (header, body, or trailers) — `git log` is read and grepped as plain text.
+
+### Work Contract
+- Write the contract before development starts and freeze it during execution. Record changes in `revision` with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
+- Write completion criteria in EARS or Given-When-Then with `SHALL`, and apply the judgment test: if two agents could disagree about whether it passed, rewrite it. Every criterion carries an executable `verify:` or an explicit `verify: human`.
+- Cover functional, non-functional, and **negative** criteria (what must not happen), and state what is out of scope. Fill only the fields the work triggers — a three-line contract is complete for small work.
+- Declare `done_level` (`auto`/`reviewed`/`proven`) up front, chosen by size × reversibility. Regardless of level, three things are mandatory: every criterion passes, evidence exists, and each new test was observed failing at the base commit.
+- Restrict `owns` to disjoint directory prefixes; assign lock files, migrations, and generated files to a single owner instead of a lane. Record model tier per lane, never a model id.
+- Make deviation visible rather than forbidding it: a bypassed gate is recorded as `done_level: bypassed` with a reason. An unrecorded bypass is the blocker.
+
+### Evidence
+- Report completion as artifact paths plus the criteria table — no narrative summary. Prose is where a hallucinated completion hides.
+- Write execution records by teeing real runs, and mask secrets in the command line and environment as well as the output. Record status as a word (`PASS`/`FAIL`/`PENDING-HUMAN`/`NO-BASELINE`), never a symbol.
+- Block completion on `PENDING-HUMAN` at every done level; a human criterion passes only once a verdict, its author, and its timestamp are recorded.
+- Record provenance and the timestamps `created_at`, `verify_runs[].at`, `review_rounds` — without them no retrospective measurement of the process is possible at all.
