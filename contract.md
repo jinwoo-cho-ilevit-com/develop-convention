@@ -5,8 +5,12 @@ done_level: proven
 base: 95c1f81
 
 revision:
-  kind: breaking
+  kind: additive
   reason: >-
+    Latest change is additive and touches no criterion: the Background cited `170aa61` for the
+    withdrawn code and its tests, but the tests are not at that commit and the runner there
+    predates the `red: guard` field C-05 now depends on. Both references corrected to
+    `a078b30^`, measured. The revision before it was breaking, for the reason below.
     The third gate returned one blocker, reached by all three lanes from different directions:
     the schema of record did not document the `runner` field, and out_of_scope forbade adding it.
     That is settled at base 95c1f81, before execution, rather than by wording. This revision also
@@ -130,9 +134,9 @@ overwrote the red phase's record, and status accepted a criterion that had never
 red-checked. Its own evidence pack was the proof — five criteria with no red key, and status
 exited zero.
 
-The withdrawn code and its 46 tests are readable at `170aa61:templates/scripts/contract.py` and
-`170aa61:templates/scripts/tests/`. Read it as a catalogue of failure modes and of capabilities
-this contract deliberately leaves out, not as a design to copy.
+The withdrawn code and its tests are readable at `a078b30^:templates/scripts/contract.py` (811
+lines) and `a078b30^:templates/scripts/tests/` (46 collected cases). Read it as a catalogue of
+failure modes and of capabilities this contract deliberately leaves out, not as a design to copy.
 
 The rules the runner must enforce are [18-work-contract.md](conventions/18-work-contract.md) and
 [19-evidence.md](conventions/19-evidence.md); the red-check definitions it must follow are in
