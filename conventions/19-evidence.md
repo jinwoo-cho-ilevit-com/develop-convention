@@ -9,10 +9,9 @@ Evidence is produced by execution, not by writing. A file the model composed to 
 - Report completion as artifact paths plus the criteria table. **No narrative summary.** Prose is where a hallucinated completion hides; a table with a FAIL row cannot hide one.
 - Write `commands.jsonl` (machine-readable) and `commands.log` (human-readable) by teeing real execution: the command, exit code, and full output. Never author them by hand.
 - **Mask secrets in both.** Command lines and environment variables are recorded verbatim otherwise, and evidence is meant to be shared (→ [13-secret-management.md](13-secret-management.md)).
-- Record status as a word — `PASS`, `FAIL`, `PENDING-HUMAN`, `NO-BASELINE` — never a symbol or emoji, so status survives grep and diff (→ [01-structure-naming.md](01-structure-naming.md)).
-- Distinguish `NO-BASELINE` from `FAIL`. A verification that could not run is not a verification that ran and failed, and collapsing the two is how "no tests exist" passes for "tests fail at base".
+- Record status as a word — `PASS`, `FAIL`, `PENDING-HUMAN`, `NO-BASELINE` — never a symbol or emoji, so status survives grep and diff. The four are not interchangeable; `NO-BASELINE` in particular is defined in [06-testing-verification.md](06-testing-verification.md) §3.
 - Block completion on `PENDING-HUMAN` regardless of done level. A criterion marked `verify: human` passes only once a verdict, its author, and its timestamp are recorded — an unanswered human check is a TODO, and TODOs are blockers (→ [06-testing-verification.md](06-testing-verification.md)).
-- Record in `manifest.json`: commit hash, environment, toolkit version, human verdicts, bypass history, and the timestamps `created_at`, `verify_runs[].at`, `review_rounds`.
+- Record in `manifest.json`: the commit the run was made against, human verdicts, bypass history, and the timestamps `created_at`, `verify_runs[].at`, `review_rounds`.
 - Record every gate bypass with its reason. A bypass that leaves no trace is a blocker; a recorded one is a decision.
 
 ## Details
@@ -45,16 +44,15 @@ A human reading this looks at the non-`PASS` rows and stops. That is the entire 
 
 ### 3. Execution records
 
-`commands.jsonl` holds one object per executed command: criterion id, command, exit code, duration, output (truncated with the truncation marked), and the masked flag. `commands.log` is the same content laid out for reading.
+`commands.jsonl` holds one object per executed command: criterion id, command, exit code, and output, marked where truncated. `commands.log` is the same content laid out for reading.
 
-Masking applies to the command line and the environment, not only to output. A `verify:` command that passes a token as an argument leaks it into the record otherwise. Mask by pattern before writing, and run secret scanning over the artifacts directory before it is committed — scanning at commit time is required anyway (→ [13-secret-management.md](13-secret-management.md)), and evidence files are a path that is easy to forget.
+Masking applies to the command line and the environment, not only to output. A `verify:` command that passes a token as an argument leaks it into the record otherwise. Mask by pattern before writing, and scan the artifacts directory before the evidence leaves the machine. Artifacts are gitignored, so the pre-commit scan (→ [13-secret-management.md](13-secret-management.md)) never sees them — pasting a report into a review is the path that leaks.
 
 ### 4. Provenance and timestamps
 
 `manifest.json` answers "what produced this":
 
-- commit hash, working-tree cleanliness, environment (Python version, OS, whether a GPU was present)
-- toolkit version, so a contract written against an older schema is recognizable
+- the commit the run was made against, and whether the tree was clean at the time
 - `created_at`, `verify_runs[].at`, `review_rounds`
 
 The three timestamp fields exist so the process can be measured later. Lead time per contract, review rounds, and blockers that escaped review are all derivable from them and from nothing else — without them, no retrospective calculation is possible at all. The cost of recording them is close to zero, and the alternative is claiming an improvement without measuring it, which is not allowed (→ [00-principles.md](00-principles.md)).

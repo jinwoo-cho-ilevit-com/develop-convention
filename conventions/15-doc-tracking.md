@@ -59,7 +59,6 @@ Sources: [dosu — A Claude Code Skill for Auto-Generating Project Docs](https:/
 - **blind rebuild**: because incremental sync regenerates using the previous doc as scaffolding, early hallucinations get laundered into established fact. Break this chain by comparing a version rewritten with the existing doc blocked out against the maintained version, claim by claim. For claims that exist only in the maintained version, attempt a code citation — citation failure = hallucination candidate. Confirmed hallucinations are deleted; genuine tacit knowledge is promoted to a human section or an ADR, ending the pretense of "derived from code."
 - **Tolerance**: don't misjudge same-meaning wording differences as drift and repeatedly rewrite a perfectly fine doc.
 - **RMA loop**: a human edit is a learning signal, not something to discard. A managed section's hash mismatch with no corresponding code diff is detected as human intervention; log the reason code (wrong/stale/unclear/granularity) to `.docsync/corrections.jsonl` and feed it as a negative example into future generation of the same section type.
-- **fitness test (pilot)**: give an agent that has only the docs a task, and check the result against actual execution — measure quality by "does this doc let the work get done," not "were the docs updated." Limit this to cases where execution can establish ground truth, and mark docs that can't be verified this way as "unverified" (if the grading itself becomes an unverified LLM judgment, it's a claim disguised as a measurement — see "evidence over claims" in [00-principles.md](00-principles.md)).
 
 ### 4. The History Layer — Commits and ADRs
 
@@ -76,14 +75,6 @@ Sources: [Michael Nygard — Documenting Architecture Decisions](https://cognite
 - Don't hand off to the LLM anything that can be generated deterministically: generate module dependency graphs from the output of tools like pydeps (Python) or madge (JS/TS). The LLM generates only things that require judgment, like sequence/flow diagrams, and a human reviews them.
 
 Sources: [GitHub — Include diagrams in your Markdown files with Mermaid](https://github.blog/developer-skills/github/include-diagrams-markdown-files-mermaid/)
-
-### 6. Relationship to Existing Tools
-
-- The official Claude Code plugin catalog has no doc-generation or doc-code synchronization plugin (confirmed 2026-07) — this convention and the docsync skill fill that gap.
-- doc-it is a useful precedent for generation plus one-shot auditing (detecting stale references and undocumented code). docsync's symlink resolution, scoped execution (`/docsync <path>`), and final report format were borrowed from doc-it's workflow. The difference is whether a verification layer exists (state-based incremental sync, dead-man's switch, blind rebuild, RMA).
-- Hosted auto-wiki services depend on an external service outside the repository, which conflicts with this repo's tool-neutral, self-contained principle — so they aren't adopted.
-
-Sources: [anthropics/claude-code plugins README](https://github.com/anthropics/claude-code/blob/main/plugins/README.md), [dosu — doc-it](https://dosu.dev/blog/claude-code-skill-doc-it)
 
 ### 7. Applying This to a Project
 

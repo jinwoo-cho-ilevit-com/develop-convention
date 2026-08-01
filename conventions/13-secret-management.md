@@ -42,14 +42,7 @@ Sources: [Infisical CLI — overview](https://infisical.com/docs/cli/overview), 
 
 ### 3. Reading Secrets from Code
 
-Injected secrets are ordinary environment variables, so no code changes are needed. Existing `dotenv`-based code works as-is. The only change is running `infisical run --env=dev -- python app.py` instead of `python app.py`.
-
-```python
-import os
-key = os.environ["OPENAI_API_KEY"]   # os.getenv("OPENAI_API_KEY")
-```
-
-There's also an approach of querying secrets directly from code via a dedicated SDK, but the default is the injection approach that requires no code changes.
+Injected secrets are ordinary environment variables, so no code change is needed — `os.environ[...]` as usual. Only the launch command changes: `infisical run --env=dev -- python app.py`.
 
 ### 4. Containers/CI: Machine Identity
 

@@ -12,6 +12,8 @@
 - Scale review lanes to change risk: a change spanning 2+ modules or touching an interface/schema gets three parallel lanes, each defined by its input — module (diff + changed files), project (diff + callers/callees + convention docs), critic (requirement/plan + diff, hunting for what the diff omits); anything smaller gets one lane. Add a security lane (diff + trust boundaries + input-validation points) only when auth, secrets, or external input is touched.
 - Parallel lanes are independent — no lane sees another's output — and the dispatching orchestrator must fan them back in: confirm every lane answered, dedupe by `file:line`, resolve conflicting advice, verify each finding against the code, and rank by severity. Unsynthesized parallel output is noise, not a review.
 - A review terminates on evidence, not on output: confirmed blocker-severity findings are fixed and re-reviewed by the lane that raised them, and the remainder is reported with the completion evidence. Producing a findings list is not completing a review.
+- Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. Read the change with `git diff <base>..<branch>` and `git show <ref>:<path>`, or take a separate worktree.
+- A finding that depends on a tool's behaviour names the version you tested with, and that version must be the one the project pins. A refutation produced by a different version refutes nothing.
 - Route models to match task difficulty: mechanical work → lightweight model, standard implementation → mid-tier, architecture/deep debugging → top-tier model.
 - Write heavyweight spec documents only when they are an asset shared across multiple PRs/workers. For small-scale or exploratory work, proceed with lightweight iteration.
 
@@ -95,13 +97,7 @@ A lane is defined by its **input**, not by its attitude. Telling three reviewers
 
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Cursor — headless CLI](https://cursor.com/docs/cli/headless)
 
-### 4. Using Research Tools
-
-- Check current documentation with context7 before using a library/SDK. Do not write APIs from training-data memory.
-- For model/dataset-related work, query the actual registry with HuggingFace tools (hub lookup, hf-cli).
-- Before choosing a methodology, check its current maintenance status and alternatives with web search (→ [00-principles.md](00-principles.md)).
-
-### 5. Model Routing
+### 4. Model Routing
 
 | Task difficulty | Model |
 |---|---|
@@ -111,7 +107,7 @@ Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs
 
 Default to the mid-tier model, and escalate only when there's evidence of difficulty.
 
-### 6. Spec Gating (Optional)
+### 5. Spec Gating (Optional)
 
 Spec-driven development (GitHub Spec Kit, Kiro, etc.) is not a cure-all. In an empirically measured case, a heavyweight spec pipeline for a small feature produced roughly a 10x time overhead compared to iterative prompting.
 

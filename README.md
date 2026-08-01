@@ -93,8 +93,9 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Separate by module/feature, with clear input/output contracts. Keep files small and boundaries clear.
 - Fit the structure to the design, not the design to the structure: when integrating a new module, restructuring the surrounding project is preferred over force-fitting — scoped to what the integration touches, behavior pinned by tests, structural moves in separate commits.
 - App/research/pipeline code uses a flat layout (src/ is only for distributed libraries). Use uv workspaces for multiple packages.
-- Semantic naming + PEP 8. No `_v2`/`_new` suffixes on code — rename in place; evaluation-pinned artifacts (prompts, golden sets) are the exception and version append-only. Delete dead code immediately, don't relocate unused code, scan for duplicates before completion.
-- Comments should cover only constraints/intent the code itself can't express. No insider-only context, no TMI, no explaining the obvious.
+- Semantic naming, PEP 8. No `_v2`/`_new` suffixes on code — rename in place; evaluation-pinned artifacts (prompts, golden sets) are the exception and version append-only. Delete dead code immediately, scan for duplicates before completion.
+- Comments cover only constraints/intent the code can't express — no insider-only context, no TMI, no explaining the obvious. Cap a comment block at three lines, an inline comment at one.
+- **Edit by rewrite, not by append.** Once a comment block or document section has grown past about half again its size, rewrite it instead of extending it. Comments and documents describe the current state only — change history lives in git and ADRs. Before adding a rule, find where it already lives; replace the second copy with a reference.
 - Minimize emoji in docs, and use none at all in code comments: allow one only where the symbol is the data (a defined legend), never as decoration on headings or bullets. Write status as words (`OK`/`FAILED`/`TODO`) so it stays greppable.
 
 ### Config
@@ -116,10 +117,12 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Log per-stage GPU utilization/VRAM/RAM/CPU + throughput as structured (JSON) logs.
 
 ### Testing & Verification
-- Minimize unnecessary pytest tests: unit tests for core logic + 1-3 E2E smoke tests. Assert metrics with a tolerance band; update golden files only via an explicit flag.
-- Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%, line coverage is a different measure and is not the target.
-- Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed" — a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check.
-- Every fixed bug gains exactly one regression test. CI smoke-tests the GPU code path with CPU + small samples. TODOs/stubs/skips are blockers, not completion.
+- Three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests through the project's real entry point. Only the third catches integration failures.
+- An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order.
+- Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? A test that has never failed is a deletion candidate.
+- Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
+- Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such.
+- Every fixed bug gains exactly one regression test. Assert ML metrics with a tolerance band; update golden files only via an explicit flag. CI smoke-tests GPU paths on CPU with small samples. TODOs/stubs/skips are blockers, not completion.
 
 ### AI/ML
 - Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); verify skew with sample replay.
@@ -143,6 +146,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Every agent must go through a review separate from its author after development. Choose the review tool before development begins — Path A: Codex plugin (Stop gate `ALLOW`/`BLOCK` + `/codex:review`, a configured default model, the orchestrator synthesizes and applies feedback) / Path B: cursor CLI (read-only `--mode ask`; resolve the model id at use time with `cursor-agent models` and pick by role — depth, speed/cost, or a family different from Path A's — rather than pinning an id in the docs).
 - Scale review lanes to change risk: a 2+ module or interface/schema change gets three parallel lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), critic (requirement + diff, hunting for what is absent); anything smaller gets one lane, and a security lane is added only when auth/secrets/external input is touched. Lanes never see each other's output, and at least one runs on a different vendor's model.
 - Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered, dedupe by `file:line`, resolve contradictory advice, verify each finding against the code, rank by severity. An unsynthesized merge just amplifies manufactured issues. The review ends when no confirmed blocker remains — not when a findings list exists.
+- Review lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
 - Merge each branch only after its tests pass, then do one integration verification pass. Route models by difficulty (mechanical → lightweight, standard → mid-tier, architecture → top-tier).
 
 ### Secret Management
@@ -158,7 +162,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Context Management
 - The main context is the orchestrator — keep only conclusions, and delegate exploration/search/large reads to subagents (separate context windows), receiving only summaries back. Don't sweep directories or read large files whole in the main context. Dispatch independent work in parallel, and run long-running work in the background.
 - Keep the source of truth in files, not the conversation — persist plans/decisions/progress to external files and checkpoint at every milestone. Keep durable rules/facts in CLAUDE.md (loaded every session, re-injected after compaction) and in auto memory (survives even `/clear`).
-- Auto-compaction is on by default (drops old tool output → summarizes), but can be disabled via `autoCompactEnabled:false`, `DISABLE_AUTO_COMPACT=1`, or `/config`. When it's imminent, use `/compact <focus>` to specify what to keep; use `/clear` between unrelated tasks or when context is polluted. Right after resume/compaction, re-check git status, cwd, and state artifacts before continuing.
+- Only the root CLAUDE.md and auto memory reliably survive a context reset; the conversation does not. Use `/compact <focus>` before it triggers automatically, `/clear` between unrelated tasks, and re-check git status, cwd, and state artifacts right after any resume.
 
 ### Research Protocol
 - Use prior knowledge only to form search queries and hypotheses — never to fix the candidate set or to populate facts in a deliverable. Every factual claim must be traceable to a source fetched in this research; mark anything not found as "unverified — needs research" (never fill gaps from memory).
@@ -171,6 +175,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - No emoji in the message (header, body, or trailers) — `git log` is read and grepped as plain text.
 
 ### Work Contract
+- Answer five questions before writing criteria — what problem and what if not done, what alternatives were rejected and why, what unknown blocks progress, where it splits and what stays single-owned, how it most plausibly fails. Start when no criterion reads two ways, every unknown is classified, rejections are recorded, and the next question can only be answered by writing code.
 - Write the contract before development starts and freeze it during execution. Record changes in `revision` with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
 - Write completion criteria in EARS or Given-When-Then with `SHALL`, and apply the judgment test: if two agents could disagree about whether it passed, rewrite it. Every criterion carries an executable `verify:` or an explicit `verify: human`.
 - Cover functional, non-functional, and **negative** criteria (what must not happen), and state what is out of scope. Fill only the fields the work triggers — a three-line contract is complete for small work.

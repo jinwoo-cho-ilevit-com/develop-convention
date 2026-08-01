@@ -28,23 +28,16 @@ Sources: [Claude Code — best practices](https://code.claude.com/docs/en/best-p
 
 Sources: [Claude Code — best practices](https://code.claude.com/docs/en/best-practices), [subagents](https://code.claude.com/docs/en/sub-agents)
 
-### 2. Understanding compaction / clear Behavior
+### 2. What survives a context reset
 
-Knowing what survives and what disappears is how you decide what to externalize.
+Only two things reliably come back: the project root `CLAUDE.md`, re-injected from disk, and auto
+memory. Subdirectory `CLAUDE.md` files return only when a file in that directory is read, and the
+conversation itself does not return at all — `/compact` replaces it with a summary and `/clear`
+discards it. That asymmetry is the whole argument for externalizing state to files.
 
-- **auto-compaction**: Runs automatically when context nears its limit — it first clears old tool output, then replaces the conversation with a summary, and continues the session. It's on by default but can be disabled via `autoCompactEnabled: false` (settings.json), `DISABLE_AUTO_COMPACT=1` (env), or `/config`. If a single output is so large that context fills up again right after every summarization, it stops with a thrashing error after a few attempts.
-- **`/compact [focus]`**: Manual summarization while keeping the session. The `focus` argument lets you specify what to emphasize (e.g., `/compact focus on the API changes`).
-- **`/clear [name]`**: Completely clears the conversation history and starts with a fresh context (session restart). Aliases: `/reset`, `/new`. If you give it a name, you can retrieve it later with `/resume`.
-
-| Aspect | `/compact` | `/clear` |
-|---|---|---|
-| Conversation | Kept (summarized) | Reset |
-| Project memory | Kept | Kept |
-| Use case | Freeing up space mid-task | Starting new work |
-
-- **What survives compaction**: The project root CLAUDE.md is re-injected from disk. Auto memory (MEMORY.md's first 200 lines / 25KB) is also reloaded. CLAUDE.md files in subdirectories are not automatically re-injected — they load when a file in that directory is read.
-
-Sources: [Claude Code — how it works](https://code.claude.com/docs/en/how-claude-code-works), [commands](https://code.claude.com/docs/en/commands), [settings](https://code.claude.com/docs/en/settings), [memory](https://code.claude.com/docs/en/memory)
+Compaction settings, command flags, and their exact behaviour belong to the vendor and change
+faster than this document: [memory](https://code.claude.com/docs/en/memory),
+[commands](https://code.claude.com/docs/en/commands), [settings](https://code.claude.com/docs/en/settings).
 
 ### 3. Preventing Context Loss (Externalization + Persistent Memory)
 

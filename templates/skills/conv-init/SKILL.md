@@ -27,6 +27,7 @@ Copy from `<CONVENTION_PATH>/templates/` into the project root:
 
 - `AGENTS.md`, `CLAUDE.md` — if the project already has either, do NOT overwrite: show a diff and merge only the missing convention sections after confirmation.
 - `pyproject.toml` — only for new Python projects; for existing projects, merge the relevant tool sections (`[tool.ruff]`, `[dependency-groups]`) instead.
+- `.pre-commit-config.yaml` — required by doc 03's two-stage check. Tell the user to add the CI half (`uvx pre-commit run --all-files`) to their pipeline.
 
 ### 3. Fill placeholders
 

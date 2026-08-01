@@ -2,78 +2,88 @@
 
 ## Core Rules
 
-- Don't create unnecessary pytest tests. Don't chase line-coverage numbers.
-- Test composition: unit tests for core logic + 1-3 E2E smoke tests for the full pipeline. Don't write a test for every function.
-- Cover every completion criterion with an executable check, but do not pair them one-to-one with tests — one test may satisfy several criteria. What must reach 100% is criteria coverage, which is a different measure from line coverage and does not replace the rule above (→ [18-work-contract.md](18-work-contract.md)).
-- Observe every new test failing before it passes. Run it at the base commit and keep the output; a test that was never seen red proves nothing about the change it claims to cover.
+- Write the smallest set of tests that catches real regressions. Don't chase line-coverage numbers, and don't write a test per function.
+- Use three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests that exercise the assembled project through its real entry point.
+- Justify each test by three questions: is there a realistic change that would break it, does another test already catch that, and could it ever fail? A test that answers no to any of them should not exist.
+- Cover every completion criterion with an executable check, but not one test per criterion — one test may satisfy several. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
+- Observe every new test failing before it passes: run it at the base commit and keep the output. A test that was never seen red is indistinguishable from one that asserts nothing.
 - Distinguish "the check could not run" from "the check ran and failed". A missing test file, an uncollectable suite, or an unavailable command is a missing baseline, not a red result.
+- Exempt standing invariants from the red check explicitly. A regression guard holding at the base commit is the correct outcome, not a defect.
 - Every fixed bug gains exactly one regression test that reproduces it.
-- ML tests assert against a tolerance band instead of exact float comparison.
-- Test data uses a small number of realistic sample fixtures (including NaN, mixed types, edge cases).
-- Seeds are centrally managed in a single session-scoped fixture.
+- ML tests assert against a tolerance band, not exact float comparison. Fixtures are a small number of realistic samples including NaN, mixed types, and edge cases. Seeds live in a single session-scoped fixture.
 - CI verifies GPU code paths with small-sample smoke tests on CPU, without a GPU.
-- Before declaring completion, actually run the verification command and check the full output. TODOs/stubs/`test.skip` are blockers, not completion.
+- Before declaring completion, run the verification command and read the full output. TODOs, stubs, and skipped tests are blockers, not completion.
 
 ## Details
 
-### 1. Minimal-but-meaningful test philosophy
+### 1. Three layers, and what each is for
 
-Tests are "the minimal set that catches real regressions." The trend line is also minimal-but-meaningful.
+| Layer | Subject | How many | Catches |
+|---|---|---|---|
+| Unit | branches, loops, parsers, boundaries | per module, only the non-trivial ones | logic errors |
+| Contract | the input/output schema at a module boundary | one per boundary | interface drift between modules |
+| End-to-end smoke | the assembled project | 1-3 per project | integration failures nothing else sees |
 
-- Do write: unit tests for non-trivial logic such as branches/loops/parsers, and 1-3 smoke tests that run the full pipeline through a small sample.
-- Don't write: trivial one-liner tests, getter/setter tests, tests that re-verify framework behavior, mechanical per-function test suites.
-- Keep pytest config in pyproject.toml with `--strict-markers`, put shared fixtures in `conftest.py`, and remove duplication with `parametrize`.
+The layers are not redundant. Unit tests pass while the pieces fail to fit; a contract test pins the shape of a boundary but not the behaviour across it. Only the third layer answers "does the thing work when it is all connected".
+
+**What makes a test end-to-end.** All four, or it is a unit test wearing the name:
+
+- It enters where a user or CI enters. Calling an internal function directly is not end-to-end.
+- It does not mock your own modules. Mock external services only.
+- It runs on a small sample (`--limit N` → [04-pipeline.md](04-pipeline.md)), so it is cheap enough to run every time.
+- It follows the real sequence of stateful commands. Testing each command alone hides defects in their order — a later step overwriting what an earlier one recorded is invisible until they run together.
+
+An end-to-end failure does not have to say which module broke. Detection is its job; diagnosis belongs to the unit tests.
+
+Don't write: trivial one-liner tests, getter/setter tests, tests that re-verify framework behaviour, mechanical per-function suites. Keep pytest config in pyproject.toml with `--strict-markers`, shared fixtures in `conftest.py`, and remove duplication with `parametrize`.
 
 Sources: [pytest best practices 2026](https://qaskills.sh/blog/pytest-best-practices-2026)
 
-### 2. Criteria coverage, and why it is not line coverage
+### 2. Criteria coverage is not line coverage
 
-A work contract states what "done" means as a list of completion criteria; each one carries a command that decides it (→ [18-work-contract.md](18-work-contract.md)). The target is that **every criterion is decided by something executable** — not that every line is exercised.
+A work contract states what "done" means as completion criteria, each carrying a command that decides it (→ [18-work-contract.md](18-work-contract.md)). The target is that every criterion is decided by something executable — not that every line is exercised.
 
-The two pull in opposite directions, which is why they are named separately. Line coverage rewards adding tests; criteria coverage rewards stating the goal precisely. A criterion like "the loader drops NaN rows and warns" is usually one test. Three criteria about the same parser may share one parametrized test. Splitting them apart to hit a one-to-one count reintroduces exactly the mechanical per-function suite the previous section forbids.
+The two measures pull in opposite directions. Line coverage rewards adding tests; criteria coverage rewards stating the goal precisely. One criterion is usually one test, but three criteria about the same parser may share one parametrized test. Splitting them to hit a one-to-one count rebuilds the mechanical per-function suite this document forbids.
 
-Name tests after the criterion they decide (`test_c01_drops_nan_rows`) when the mapping is one-to-one. When one test covers several, say so in the contract rather than in the test name.
+Name a test after the criterion it decides (`test_c01_drops_nan_rows`) when the mapping is one-to-one. When one test covers several, say so in the contract, not in the test name.
 
 ### 3. Observing red before green
 
-An agent-written test that has never failed is indistinguishable from a test that asserts nothing. The check is cheap: run it at the commit the work started from and keep the output as evidence (→ [19-evidence.md](19-evidence.md)).
-
-Three outcomes, and they are not interchangeable:
+Run the check at the commit the work started from and keep the output as evidence (→ [19-evidence.md](19-evidence.md)). Three outcomes, not interchangeable:
 
 | At the base commit | Meaning |
 |---|---|
-| the check fails | the intended red. The test detects the absence of the change |
+| the check fails | the intended red — the test detects the absence of the change |
 | the check passes | the test proves nothing about this change. Fix the test, not the record |
-| the check cannot run | no baseline — a missing test file, an uncollectable suite, a command that is not installed |
+| the check cannot run | no baseline: a missing test file, an uncollectable suite, a command that is not installed |
 
-The third row is the one that gets mishandled. Treating any non-zero exit as "red" makes *writing no test at all* look like a passing red check, because a missing test path also exits non-zero. Separate collection from execution: if nothing was collected, the answer is "no baseline", not "red".
+The third row is the one that gets mishandled. Treating any non-zero exit as red makes *writing no test at all* look like a passing check, because a missing test path also exits non-zero. Separate collection from execution: if nothing was collected, the answer is no baseline.
 
-A collection error is itself ambiguous and needs one more split. A test that cannot import the module it is about is the ordinary case when that module does not exist yet, and counts as red. A test file that does not parse is a broken test and counts as no baseline.
+A collection error needs one more split. A test that cannot import the module it is about is the ordinary case when that module does not exist yet, and counts as red. A test file that does not parse is a broken test and counts as no baseline.
 
-Not every check is a change-detector. A **standing invariant** — "every module exports a schema", "no secret pattern appears in the tree" — is a regression guard, and it holding at the base commit is the correct outcome, not a defect. Mark those explicitly (`red: guard` in a work contract) rather than letting the gate fail them. Requiring red of a guard makes the gate unusable; leaving guards implicit makes it meaningless, so the distinction is written down per criterion.
+Standing invariants are the exception. "Every module exports a schema", "no secret pattern appears in the tree" — these are guards, and they hold at the base commit by design. Mark them (`red: guard` in a contract) rather than letting the gate fail them. Requiring red of a guard makes the gate unusable; leaving guards implicit makes it meaningless.
 
-### 4. Test budget per module
+### 4. Budget
 
-State the budget instead of discovering it. For one module: unit tests for the non-trivial branches only, one contract test that pins the input/output schema, and one smoke test that runs it end to end on a small sample. Anything beyond that needs a reason — usually a bug that escaped, which arrives with its own regression test.
+State the budget rather than discovering it. Per module: unit tests for the non-trivial branches, one contract test, one smoke test on a small sample. Beyond that needs a reason — usually a bug that escaped, arriving with its own regression test.
 
-### 5. ML code test patterns
+A test that has never failed, in any run, is a deletion candidate. Either it guards something no change can break, or it does not assert what its name claims.
 
-- **Small-sample fixtures**: build a realistic ~100-row sample (including NaN, skew, mixed types) as a fixture factory, not a toy dict.
-- **Tolerance bands**: use `assert 0.85 <= auc <= 0.90`, not `assert auc == 0.874`. Bit-exact reproducibility is not guaranteed across hardware (→ [07-ml-development.md](07-ml-development.md)).
-- **Golden files**: store reference outputs (preprocessing results, sample predictions) and compare with a tolerant diff. Update only via an explicit flag (`--update-golden`) — no silent updates.
-- **Centralized seed fixture**: set `PYTHONHASHSEED`/numpy/torch seeds and CUDA determinism in a single session-scoped fixture. Non-deterministic code cannot be tested.
-- **Schema contract tests**: pin the schema match between training input and inference input with a test (prevents train-serve skew).
+### 5. ML test patterns
+
+- **Small-sample fixtures**: a realistic ~100-row sample (NaN, skew, mixed types) built by a fixture factory, not a toy dict.
+- **Tolerance bands**: `assert 0.85 <= auc <= 0.90`, not `assert auc == 0.874`. Bit-exact reproducibility is not guaranteed across hardware (→ [07-ml-development.md](07-ml-development.md)).
+- **Golden files**: store reference outputs and compare with a tolerant diff. Update only via an explicit flag (`--update-golden`).
+- **Seeds**: `PYTHONHASHSEED`, numpy, torch, and CUDA determinism in one session-scoped fixture. Non-deterministic code cannot be tested.
+- **Schema contract tests**: pin the match between training input and inference input to prevent train-serve skew.
+- **GPU paths on CPU**: all GPU code goes through the device helper (→ [03-environment.md](03-environment.md)), so CI runs the smoke tests with `device: cpu` and `--limit 10`. These verify behaviour, not performance: shape errors, device mismatches, config errors.
 
 Sources: [ML testing — fixtures, seeds, golden files](https://medium.com/@connect.hashblock/10-ways-to-test-ml-code-fixtures-seeds-golden-files-811310517cae)
 
-### 6. Verifying GPU code paths with CPU smoke tests
+### 6. Completion verification
 
-- Since all GPU code paths go through the device helper (→ [03-environment.md](03-environment.md)), CI should run training/inference smoke tests with `device: cpu` + `--limit 10`.
-- These smoke tests verify "behavior," not "performance": they catch shape errors, device mismatches, and config errors without GPU cost.
-
-### 7. Completion verification (applying the evidence principle)
-
-- To claim completion: actually run the verification command (tests, smoke run) and check the exit code and full output first.
-- Report the following as blockers, not completion: TODO comments, unimplemented branches, stub tests, `test.skip`/`.only`, "probably works" status.
-- Completion judgment for rewrites/refactors includes passing characterization tests (→ [00-principles.md](00-principles.md)).
-- Separate the verifier from the author: review is performed by a fresh-context agent/session that starts from the diff and the criteria and never sees the author's reasoning (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- Run the verification command and check the exit code and full output before claiming completion.
+- Blockers, not completion: TODO comments, unimplemented branches, stub tests, skipped tests, "probably works".
+- For a rewrite or refactor, completion includes passing the characterization tests (→ [00-principles.md](00-principles.md)).
+- The verifier is not the author: review runs in a fresh context that starts from the diff and the criteria and never sees the author's reasoning (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- Integration is verified once after merging the parallel lanes, by the end-to-end layer above. That run is what a contract's `integration` criteria point at (→ [18-work-contract.md](18-work-contract.md)).
