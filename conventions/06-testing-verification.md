@@ -50,6 +50,8 @@ The third row is the one that gets mishandled. Treating any non-zero exit as "re
 
 A collection error is itself ambiguous and needs one more split. A test that cannot import the module it is about is the ordinary case when that module does not exist yet, and counts as red. A test file that does not parse is a broken test and counts as no baseline.
 
+Not every check is a change-detector. A **standing invariant** — "every module exports a schema", "no secret pattern appears in the tree" — is a regression guard, and it holding at the base commit is the correct outcome, not a defect. Mark those explicitly (`red: guard` in a work contract) rather than letting the gate fail them. Requiring red of a guard makes the gate unusable; leaving guards implicit makes it meaningless, so the distinction is written down per criterion.
+
 ### 4. Test budget per module
 
 State the budget instead of discovering it. For one module: unit tests for the non-trivial branches only, one contract test that pins the input/output schema, and one smoke test that runs it end to end on a small sample. Anything beyond that needs a reason — usually a bug that escaped, which arrives with its own regression test.

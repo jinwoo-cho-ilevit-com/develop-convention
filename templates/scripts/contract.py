@@ -42,6 +42,11 @@ VALID_DONE_LEVELS = {"auto", "reviewed", "proven", "bypassed"}
 VALID_KINDS = {"functional", "nonfunctional", "negative"}
 VALID_REVISION_KINDS = {"additive", "narrowing", "breaking"}
 VALID_LANE_STATES = {"active", "abandoned"}
+# "required": the check must fail at base, or it proves nothing about the change.
+# "guard": a standing invariant that legitimately holds at base (a regression
+# guard). Without this distinction any contract containing a guard can never
+# clear the red gate, because the guard passing at base is the correct outcome.
+VALID_RED_MODES = {"required", "guard"}
 
 STATUS_PASS = "PASS"
 STATUS_FAIL = "FAIL"
@@ -78,10 +83,15 @@ class Criterion:
     verify: str
     kind: str = "functional"
     hermetic: bool = True
+    red: str = "required"
 
     @property
     def is_human(self) -> bool:
         return self.verify.strip().lower() == "human"
+
+    @property
+    def is_guard(self) -> bool:
+        return self.red == "guard"
 
 
 @dataclass
@@ -175,6 +185,7 @@ def load_contract(path: Path) -> Contract:
                 verify=str(item["verify"]),
                 kind=str(item.get("kind", "functional")),
                 hermetic=bool(item.get("hermetic", True)),
+                red=str(item.get("red", "required")),
             )
         )
     if not criteria:
@@ -409,6 +420,8 @@ def cmd_lint(args: argparse.Namespace) -> int:
             problems.append(f"{c.id}: kind {c.kind!r} is not one of {sorted(VALID_KINDS)}")
         if not c.verify.strip():
             problems.append(f"{c.id}: verify is empty (use a command or 'human')")
+        if c.red not in VALID_RED_MODES:
+            problems.append(f"{c.id}: red {c.red!r} is not one of {sorted(VALID_RED_MODES)}")
     if not any(c.kind == "negative" for c in contract.criteria):
         problems.append("no negative criterion: nothing states what must NOT happen")
     if not contract.out_of_scope:
@@ -580,10 +593,13 @@ def cmd_red(args: argparse.Namespace) -> int:
     base_sha = git("rev-parse", base).strip()
     head_sha = git("rev-parse", "HEAD").strip()
 
-    targets = [c for c in _select(contract, args) if not c.is_human and c.hermetic]
-    skipped = [c for c in _select(contract, args) if not c.is_human and not c.hermetic]
-    for c in skipped:
-        print(f"SKIP {c.id} (hermetic: false — excluded from red check)")
+    selected = [c for c in _select(contract, args) if not c.is_human]
+    targets = [c for c in selected if c.hermetic and not c.is_guard]
+    for c in selected:
+        if c.is_guard:
+            print(f"SKIP {c.id} (red: guard — a standing invariant, not a change)")
+        elif not c.hermetic:
+            print(f"SKIP {c.id} (hermetic: false — excluded from red check)")
 
     cache = red_cache_dir() if cfg["red_cache_enabled"] else None
     failed = False
@@ -722,7 +738,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"{status:<14} {c.id}" + (f"  red={red}" if red else ""))
         if status != STATUS_PASS:
             blocking.append(f"{c.id}: {status}")
-        elif c.verify.strip().lower() != "human" and red not in (STATUS_PASS, None):
+        elif not c.is_human and not c.is_guard and red not in (STATUS_PASS, None):
             blocking.append(f"{c.id}: red check {red}")
 
     for cp in contract.checkpoints:

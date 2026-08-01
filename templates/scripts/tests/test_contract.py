@@ -409,3 +409,37 @@ def test_status_warns_on_an_unreviewed_checkpoint(repo, capsys):
     run_tool(repo, "verify")
     run_tool(repo, "status")
     assert "checkpoint after C-01" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------- #
+# red: guard criteria
+# --------------------------------------------------------------------------- #
+
+
+def test_red_skips_guard_criteria(repo, capsys):
+    """A standing invariant legitimately holds at base and is not a red candidate.
+
+    Found by running the toolkit against its own work: a regression guard such as
+    "every document opens with Core Rules" passes at base by design, so without
+    this mode any contract containing one could never clear the gate.
+    """
+    base = git(repo, "rev-parse", "HEAD").strip()
+    (repo / "note.txt").write_text("x\n", encoding="utf-8")
+    _commit(repo, "unrelated change")
+
+    write_contract(repo, crit("C-01", "true", red="guard") + NEGATIVE, base=base)
+    assert run_tool(repo, "red", "--id", "C-01") == 0
+    assert "SKIP C-01" in capsys.readouterr().out
+
+
+def test_status_does_not_require_a_red_result_for_a_guard(repo):
+    base = git(repo, "rev-parse", "HEAD").strip()
+    write_contract(repo, crit("C-01", "true", red="guard") + NEGATIVE, base=base)
+    run_tool(repo, "verify")
+    assert run_tool(repo, "status") == 0
+
+
+def test_lint_rejects_an_unknown_red_mode(repo, capsys):
+    write_contract(repo, crit("C-01", "true", red="maybe") + NEGATIVE)
+    assert run_tool(repo, "lint") == 1
+    assert "red 'maybe'" in capsys.readouterr().out

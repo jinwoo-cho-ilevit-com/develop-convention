@@ -31,6 +31,8 @@ criteria:
     verify: "[executable command]"
     kind: functional          # functional | nonfunctional | negative
     hermetic: true            # false = touches network/db/ports; excluded from red check
+    red: required             # required = must fail at base
+                              # guard    = standing invariant that legitimately holds at base
 
   - id: C-02
     text: "THE [system] SHALL NOT [thing that must not happen]."

@@ -42,7 +42,8 @@ The contract is a single `contract.md`: YAML front matter is machine-readable, t
 
 ```
 schema_version, feature, done_level, base
-criteria[]        id, text, verify, kind: functional|nonfunctional|negative, hermetic
+criteria[]        id, text, verify, kind: functional|nonfunctional|negative,
+                  hermetic, red: required|guard
 out_of_scope[]
 lanes[]           id, owns[], criteria[], model_tier: light|mid|top, state: active|abandoned
 sequential_owner[]
