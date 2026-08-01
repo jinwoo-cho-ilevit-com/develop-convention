@@ -150,3 +150,34 @@ def test_evidence_report_keeps_every_row_when_a_note_holds_a_blank_line(repo, ba
     rows = [line for line in report.splitlines() if line.startswith("| C-")]
     assert len(rows) == 2, report
     assert all(len(re.findall(r"(?<!\\)\|", row)) == 5 for row in rows), rows
+
+
+def test_verify_runs_accumulate_across_runs(repo, base_sha):
+    """19 §4 names this as a field without which lead time cannot be derived at all.
+
+    It has to accumulate, and a per-criterion record holds only the latest — so the phase
+    appends to a run log inside the state directory and the manifest is rendered from it,
+    which keeps the manifest derived rather than merged into.
+    """
+    simple(repo, base_sha)
+    run(repo, "verify")
+    run(repo, "verify")
+    manifest = json.loads((art(repo) / "manifest.json").read_text(encoding="utf-8"))
+    runs = manifest["verify_runs"]
+    assert len(runs) == 2, runs
+    assert all(contract.is_iso_utc(entry["at"]) for entry in runs)
+
+
+def test_bypass_reason_reaches_the_manifest(repo, base_sha):
+    """18 calls an unrecorded bypass the blocker; the record is what makes it a decision."""
+    write_contract(
+        repo,
+        [criterion("C-01"), criterion("C-02", kind="negative")],
+        base=base_sha,
+        done_level="bypassed",
+        bypass={"reason": "the deploy window closed", "author": "someone"},
+    )
+    run(repo, "verify")
+    manifest = json.loads((art(repo) / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["done_level"] == "bypassed"
+    assert manifest["bypass"]["reason"] == "the deploy window closed"
