@@ -2,6 +2,7 @@
 schema_version: 1
 feature: contract-runner
 done_level: proven
+base: c8899d7
 
 criteria:
   - id: C-01
@@ -11,7 +12,7 @@ criteria:
     runner: pytest
 
   - id: C-02
-    text: "WHEN a criterion's verify command is executed, THE runner SHALL run it as an argument vector, never through a shell."
+    text: "WHEN a verify command is executed, THE runner SHALL run it as an argument vector and never through a shell, for every command a criterion declares."
     verify: "uv run --group dev pytest templates/scripts/tests -k no_shell -q"
     kind: functional
     runner: pytest
@@ -66,14 +67,17 @@ criteria:
 
   - id: C-11
     text: "THE toolkit SHALL pass lint and format checks."
-    verify: "uv run --group dev ruff check . && uv run --group dev ruff format --check ."
+    verify:
+      - "uv run --group dev ruff check ."
+      - "uv run --group dev ruff format --check ."
     kind: functional
     runner: command
     red: guard
 
   - id: C-12
     text: "THE runner SHALL NOT reintroduce a result cache."
-    verify: "! grep -rq 'conv-cache' templates/scripts/"
+    verify: "grep -rq conv-cache templates/"
+    expect_exit: 1
     kind: negative
     runner: command
     red: guard
@@ -83,28 +87,45 @@ criteria:
     verify: human
     kind: nonfunctional
 
+  - id: C-14
+    text: "THE schema in templates/contract.md SHALL name every field the runner reads from a contract."
+    verify: "uv run --group dev pytest templates/scripts/tests -k schema_documented -q"
+    kind: functional
+    runner: pytest
+
+  - id: C-15
+    text: "WHEN a criterion declares a list of verify commands, THE runner SHALL run them in order and SHALL fail the criterion at the first command whose exit code does not equal its expect_exit, without running the rest."
+    verify: "uv run --group dev pytest templates/scripts/tests -k verify_list -q"
+    kind: functional
+    runner: pytest
+
 out_of_scope:
   - result caching for the red check
   - bypass and review-round subcommands
   - the evidence index page, visualization, and code anchors
   - Windows support
   - generating rule excerpts, and any change to the claude-config repository
+  - changes to the conventions docs beyond the runner schema in 18 and 19
 
 lanes:
   - id: runner
     owns: ["templates/scripts/"]
-    criteria: [C-01, C-02, C-03, C-04, C-05, C-06, C-07, C-08, C-09, C-11, C-12]
+    criteria: [C-01, C-02, C-03, C-04, C-05, C-06, C-07, C-08, C-09, C-11, C-12, C-14, C-15]
     model_tier: top
   - id: ci
     owns: [".github/"]
     criteria: [C-10]
+    model_tier: mid
+  - id: docs
+    owns: ["conventions/", "templates/contract.md"]
+    criteria: [C-13]
     model_tier: mid
 
 sequential_owner: ["pyproject.toml", "uv.lock", ".pre-commit-config.yaml"]
 
 integration:
   owner: runner
-  order: [runner, ci]
+  order: [runner, ci, docs]
   criteria: [C-09]
 ---
 
@@ -137,6 +158,13 @@ The rules the runner must enforce are [18-work-contract.md](conventions/18-work-
 metacharacters stop being an execution path, and the program being run becomes inspectable —
 which is also what makes the next decision possible.
 
+**Shell operators become schema.** Removing the shell removes `&&` and `!` with it, so the two
+jobs they were doing move into the contract instead. `verify:` accepts a list of commands run in
+order, which is what `C-11` needed `&&` for. `expect_exit:` declares the code a command must
+return, defaulting to `0`, which is what `C-12` needed `!` for — `grep` exits `1` when it finds
+nothing, and finding nothing is the pass. Both are declared rather than parsed out of the command
+text, for the same reason `C-03` exists.
+
 **The contract declares the runner kind.** `runner: pytest` or `runner: command`, never inferred
 from the command text. Deciding "this is pytest" by substring made two unrelated blockers: a
 `grep` command containing the word was classified as pytest, and a project not using pytest got
@@ -158,6 +186,20 @@ remember to mask.
 **Containment is checked, not assumed.** `feature` must be a plain slug, and every write path is
 resolved and confirmed to sit inside the artifacts directory.
 
+## Contract fields the runner reads
+
+18 §3 delegates the field list to `templates/contract.md`, so that file is the schema of record and
+the `docs` lane owns it. Four of these fields are new here, and `C-14` is what keeps the list and
+the runner from drifting apart.
+
+| Field | Values | Default | New |
+|---|---|---|---|
+| `verify` | one command, a list of commands, or `human` | required | list form |
+| `runner` | `pytest` or `command` | required per criterion | yes |
+| `expect_exit` | the exit code each command must return | `0` | yes |
+| `record_output` | `true` records command output as evidence | `false` | yes |
+| `red` | `required` or `guard` | `required` | no |
+
 ## Why `done_level: proven`
 
 This introduces a module with external effect — it executes commands and writes files. Under the
@@ -176,3 +218,27 @@ sequence and asserts that each phase's result survives the ones after it.
 `C-13` is a human judgment: whether docs 18 and 19 describe what the runner actually does. The
 previous version's documents specified fields nothing produced, which is the same failure in the
 other direction.
+
+That judgment had nothing to judge when this contract was first written. `runner`, `record_output`
+and the no-shell rule appeared in neither document, so `C-13` could not have passed however well
+the runner was built. The `docs` lane and `C-14` exist to close that gap — the lane writes the
+schema and the prose, `C-14` checks the field list mechanically, and `C-13` stays human because
+whether the prose matches the behaviour is not a string comparison.
+
+The `docs` lane owns `conventions/` plus the single file `templates/contract.md`. 18 restricts
+`owns` to directory prefixes because globs miss files that do not exist yet; a named file has no
+such gap, and it does not overlap `templates/scripts/`. The alternative was to give the lane all of
+`templates/`, which would collide with the runner lane outright, so the deviation is recorded here
+instead of hidden behind a wider prefix.
+
+`base` is `c8899d7`, the commit that added this contract. No implementation exists at it, so every
+test-backed criterion is expected to fail there.
+
+The two `red: guard` criteria differ from each other at base, and the difference was measured, not
+assumed. `C-12` holds: `grep -rq conv-cache templates/` exits `1` there, which is why it scans
+`templates/` rather than the `templates/scripts/` that does not exist yet — a missing directory
+makes `grep` exit `2`, and a guard that errors is not a guard. `C-11` does **not** hold: the
+repository has no root `pyproject.toml`, so `uv run --group dev ruff check .` fails to spawn `ruff`
+at base rather than passing. It stays `red: guard` because there is no meaningful moment at which
+lint should fail first, but it only becomes evaluable once the `pyproject.toml` in
+`sequential_owner` exists. Treat a `C-11` result from before that point as absent, not as a pass.
