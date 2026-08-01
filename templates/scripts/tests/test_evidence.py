@@ -1,0 +1,102 @@
+"""C-08 — the four evidence artifacts, and a status that blocks while one is missing.
+
+19 §1 fixes the layout and 19 §2 fixes the table. The withdrawn runner produced all
+four and its status blocked on a missing `commands.jsonl`; that defence is restored
+here rather than assumed.
+"""
+
+import json
+
+import contract
+import pytest
+from conftest import criterion, write_contract
+
+FOUR = ("REPORT.md", "commands.jsonl", "commands.log", "manifest.json")
+STATUS_WORDS = {"PASS", "FAIL", "PENDING-HUMAN", "NO-BASELINE", "NOT-RUN", "BLOCKED"}
+
+
+def art(repo, feature="sample"):
+    return repo / "artifacts" / feature
+
+
+def run(repo, *argv):
+    return contract.main([*argv, "--contract", str(repo / "contract.md")])
+
+
+def simple(repo, base_sha, **over):
+    write_contract(
+        repo,
+        [criterion("C-01", **over), criterion("C-02", kind="negative")],
+        base=base_sha,
+    )
+
+
+def test_evidence_verify_writes_all_four_artifacts(repo, base_sha):
+    simple(repo, base_sha)
+    run(repo, "verify")
+    for name in FOUR:
+        assert (art(repo) / name).is_file(), name
+
+
+def test_evidence_red_writes_all_four_artifacts(repo, base_sha):
+    simple(repo, base_sha, verify="false")
+    run(repo, "red")
+    for name in FOUR:
+        assert (art(repo) / name).is_file(), name
+
+
+@pytest.mark.parametrize("missing", FOUR)
+def test_evidence_status_blocks_while_an_artifact_is_missing(repo, base_sha, missing):
+    simple(repo, base_sha, verify="false")
+    run(repo, "red")
+    run(repo, "verify")
+    (art(repo) / missing).unlink()
+    assert run(repo, "status") != 0
+
+
+def test_evidence_status_writes_nothing(repo, base_sha):
+    """Otherwise it could never observe the artifact it creates as missing."""
+    simple(repo, base_sha, verify="false")
+    run(repo, "red")
+    run(repo, "verify")
+    before = {p: p.read_bytes() for p in sorted(art(repo).rglob("*")) if p.is_file()}
+    run(repo, "status")
+    after = {p: p.read_bytes() for p in sorted(art(repo).rglob("*")) if p.is_file()}
+    assert after == before
+
+
+def test_evidence_report_is_one_row_per_criterion(repo, base_sha):
+    simple(repo, base_sha)
+    run(repo, "verify")
+    body = (art(repo) / "REPORT.md").read_text(encoding="utf-8")
+    rows = [line for line in body.splitlines() if line.startswith("| C-")]
+    assert len(rows) == 2
+
+
+def test_evidence_status_is_a_word_never_a_symbol(repo, base_sha):
+    """19: status survives grep and diff only if it is spelled out."""
+    simple(repo, base_sha, verify="false")
+    run(repo, "verify")
+    body = (art(repo) / "REPORT.md").read_text(encoding="utf-8")
+    for line in body.splitlines():
+        if line.startswith("| C-"):
+            assert line.split("|")[2].strip() in STATUS_WORDS
+
+
+def test_evidence_commands_jsonl_is_one_object_per_execution(repo, base_sha):
+    simple(repo, base_sha)
+    run(repo, "verify")
+    lines = (art(repo) / "commands.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    records = [json.loads(line) for line in lines]
+    assert {r["criterion"] for r in records} == {"C-01", "C-02"}
+    assert all(r["phase"] == "verify" for r in records)
+
+
+def test_evidence_manifest_records_provenance(repo, base_sha):
+    simple(repo, base_sha)
+    run(repo, "verify")
+    manifest = json.loads((art(repo) / "manifest.json").read_text(encoding="utf-8"))
+    assert contract.is_iso_utc(manifest["created_at"])
+    assert manifest["commit"]
+    assert isinstance(manifest["tree_clean"], bool)
+    assert manifest["base"] == base_sha

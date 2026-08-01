@@ -24,11 +24,15 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
 import traceback
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -62,6 +66,7 @@ EXIT_CONTRACT = 2  # the runner could not answer
 EXIT_INTERNAL = 3  # the runner broke
 
 COMMAND_TIMEOUT_SEC = 1800
+COLLECT_TIMEOUT_SEC = 300
 OUTPUT_CAPTURE_CHARS = 64_000
 MIN_SECRET_VALUE_LEN = 8
 MASK = "***MASKED***"
@@ -812,6 +817,226 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
         writer.ensure(name)
 
 
+# --- the red check ------------------------------------------------------------------------
+
+
+BROKEN_TEST_RE = re.compile(r"\b(?:SyntaxError|IndentationError|TabError)\b")
+
+
+def git_quiet(*args: str, cwd: Path) -> None:
+    subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+
+
+@contextmanager
+def base_worktree(root: Path, base_sha: str) -> Iterator[Path]:
+    """A detached checkout of base, outside the repository and removed afterwards.
+
+    This is C-12's one declared exception. The working tree is never touched, so a
+    crashed run leaves nothing to recover — `remove --force` alone leaves the
+    registration behind, which is why `prune` follows it.
+    """
+    holder = Path(tempfile.mkdtemp(prefix="conv-red-"))
+    worktree = holder / "base"
+    git("worktree", "add", "--detach", "--quiet", str(worktree), base_sha, cwd=root)
+    try:
+        yield worktree
+    finally:
+        git_quiet("worktree", "remove", "--force", str(worktree), cwd=root)
+        git_quiet("worktree", "prune", cwd=root)
+        shutil.rmtree(holder, ignore_errors=True)
+
+
+def pytest_selection(argv: tuple[str, ...], cwd: Path) -> list[str] | None:
+    """The files a pytest criterion selects, asked of pytest rather than guessed.
+
+    Guessing test paths from a name pattern is the same species of mistake as reading
+    the runner kind out of the command string: it works for one project's layout.
+    """
+    run = run_argv((*argv, "--collect-only", "-q"), cwd=cwd, timeout=COLLECT_TIMEOUT_SEC)
+    if run.spawn_error is not None or run.timed_out:
+        return None
+    # Quiet collection prints `path::name`, and a command that already carried -q makes
+    # it `-qq`, which prints `path: count` instead. Both are read for the path, and
+    # `is_file` is what decides — a line that is not a path cannot survive it.
+    files = set()
+    for raw in run.output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        candidate = line.split("::", 1)[0]
+        if candidate == line and ":" in line:
+            candidate = line.rsplit(":", 1)[0]
+        if (cwd / candidate).is_file():
+            files.add(candidate)
+    return sorted(files)
+
+
+def bring_forward(root: Path, worktree: Path, relatives: list[str]) -> list[str]:
+    """Copy the criterion's own test files into the base checkout.
+
+    Copied from the working tree rather than checked out of HEAD, so a test written
+    but not yet committed is what the red check runs — which is the ordinary moment
+    the red check exists for.
+    """
+    wanted: set[str] = set()
+    for relative in relatives:
+        if not (root / relative).is_file():
+            continue
+        wanted.add(relative)
+        parent = PurePosixPath(relative).parent
+        while True:
+            candidate = parent / "conftest.py"
+            if (root / candidate).is_file():
+                wanted.add(str(candidate))
+            if str(parent) in (".", ""):
+                break
+            parent = parent.parent
+    for relative in sorted(wanted):
+        target = worktree / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, target)
+    return sorted(wanted)
+
+
+def red_verdict_command(run: Run) -> tuple[str, str]:
+    if run.spawn_error is not None:
+        return NO_BASELINE, f"could not start at base: {run.spawn_error}"
+    if run.timed_out:
+        return NO_BASELINE, "timed out at base"
+    if run.exit_code == 0:
+        return NOT_RED, "passed at base — this check proves nothing about the change"
+    return RED, f"failed at base (exit {run.exit_code}) as required"
+
+
+def red_verdict_pytest(run: Run, report: dict | None) -> tuple[str, str]:
+    if run.spawn_error is not None:
+        return NO_BASELINE, f"could not start at base: {run.spawn_error}"
+    if run.timed_out:
+        return NO_BASELINE, "timed out at base"
+    if BROKEN_TEST_RE.search(run.output):
+        # 06 §3: a test that cannot import its subject is the ordinary red case, but a
+        # test file that does not parse is a broken test and proves nothing.
+        return NO_BASELINE, "a selected test file does not parse at base"
+    if report is None:
+        return NO_BASELINE, "no test report was produced at base"
+    if report["total"] == 0:
+        return NO_BASELINE, "no test was collected at base"
+    if report["executed"] == 0:
+        return NO_BASELINE, f"every test skipped at base ({report['skipped']})"
+    if report["failures"] or report["errors"]:
+        return RED, f"{report['failures']} failed, {report['errors']} errored at base"
+    return NOT_RED, "passed at base — this test proves nothing about the change"
+
+
+def cmd_red(args: argparse.Namespace) -> int:
+    contract_path = Path(args.contract)
+    contract = load_contract(contract_path)
+    root = repo_root(contract_path)
+    if not contract.base:
+        raise ContractError("contract has no `base`; the red check needs a commit to check against")
+    base_sha = git("rev-parse", "--verify", f"{contract.base}^{{commit}}", cwd=root)
+    writer = ArtifactWriter(artifacts_dir(root, contract.feature))
+
+    failed = False
+    with base_worktree(root, base_sha) as worktree:
+        for crit in contract.criteria:
+            if crit.is_human:
+                continue
+            if crit.is_guard:
+                write_state(
+                    writer,
+                    crit.id,
+                    "red",
+                    {
+                        "status": EXEMPT_GUARD,
+                        "note": "standing invariant: legitimately holds at base",
+                        "base": base_sha,
+                    },
+                )
+                print(f"{EXEMPT_GUARD} {crit.id}")
+                continue
+
+            git_quiet("reset", "--hard", "--quiet", base_sha, cwd=worktree)
+            git_quiet("clean", "-fdq", cwd=worktree)
+
+            brought: list[str] = []
+            match crit.check:
+                case PytestCheck(argv):
+                    selection = pytest_selection(argv, root)
+                    if selection is None:
+                        status, note, report = NO_BASELINE, "could not collect at head", None
+                    elif not selection:
+                        status, note, report = NO_TEST, "the criterion selects no test", None
+                    else:
+                        brought = bring_forward(root, worktree, selection)
+                        report_path = writer.reserve(f"state/reports/{crit.id}.red.xml")
+                        report_path.unlink(missing_ok=True)
+                        run = run_argv((*argv, f"--junitxml={report_path}"), cwd=worktree)
+                        report = parse_junit(report_path)
+                        report_path.unlink(missing_ok=True)
+                        record_command(writer, crit.id, "red", run)
+                        status, note = red_verdict_pytest(run, report)
+                case CommandCheck(argv):
+                    run = run_argv(argv, cwd=worktree)
+                    report = None
+                    record_command(writer, crit.id, "red", run)
+                    status, note = red_verdict_command(run)
+
+            write_state(
+                writer,
+                crit.id,
+                "red",
+                {
+                    "status": status,
+                    "note": note,
+                    "base": base_sha,
+                    "argv": list(crit.check.argv),
+                    "brought_forward": brought,
+                    "report": report,
+                },
+            )
+            print(f"{status} {crit.id}")
+            failed |= status != RED
+
+    render(writer, contract, root)
+    return EXIT_GATE if failed else EXIT_OK
+
+
+# --- the status gate ----------------------------------------------------------------------
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Read-only on purpose.
+
+    A status command that writes REPORT.md can never observe REPORT.md missing, and
+    C-08 requires exactly that observation.
+    """
+    contract_path = Path(args.contract)
+    contract = load_contract(contract_path)
+    root = repo_root(contract_path)
+    artifacts = artifacts_dir(root, contract.feature)
+
+    blocking = []
+    for crit in contract.criteria:
+        status, red_ok, note = criterion_status(artifacts, crit)
+        if status != PASS:
+            blocking.append(f"{crit.id}: {status}" + (f" — {note}" if note else ""))
+        elif not red_ok:
+            blocking.append(f"{crit.id}: PASS but the red check does not back it — {note}")
+    blocking += [
+        f"evidence artifact missing: {name}"
+        for name in EVIDENCE_FILES
+        if not (artifacts / name).is_file()
+    ]
+
+    for problem in blocking:
+        print(f"BLOCK {problem}")
+    if blocking:
+        return EXIT_GATE
+    print(f"OK {contract.feature.value}: {len(contract.criteria)} criteria")
+    return EXIT_OK
+
+
 # --- lint ----------------------------------------------------------------------------
 
 
@@ -852,8 +1077,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("lint", parents=[common], help="validate the contract").set_defaults(
         func=cmd_lint
     )
+    sub.add_parser("red", parents=[common], help="check each test fails at base").set_defaults(
+        func=cmd_red
+    )
     sub.add_parser("verify", parents=[common], help="run every machine check").set_defaults(
         func=cmd_verify
+    )
+    sub.add_parser("status", parents=[common], help="gate on the recorded result").set_defaults(
+        func=cmd_status
     )
 
     human = sub.add_parser("human", parents=[common], help="record a human verdict")

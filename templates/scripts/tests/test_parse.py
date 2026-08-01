@@ -147,13 +147,11 @@ def test_parse_accepts_hermetic_true(repo):
 def test_parse_a_broken_contract_never_reports_success(repo):
     """The withdrawn runner's failure mode: a gate that opens because it cannot read.
 
-    Only `lint` exists yet. Every later phase is added to this loop as it lands, so
-    the property is asserted per entry point rather than once. Asserting an
-    unregistered subcommand here would pass on argparse's own exit 2 — the same code
-    for a different reason.
+    Asserted per entry point, because the failure was that one phase stopped and the
+    next carried on.
     """
     write_raw(repo, "---\nnot: a contract\n---\n")
-    for command in ("lint",):
+    for command in ("lint", "red", "verify", "status"):
         assert run(repo, command) == 2
 
 
