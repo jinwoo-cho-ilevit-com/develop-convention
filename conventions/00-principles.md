@@ -23,13 +23,15 @@ For a new project or a refactor, treat the existing codebase's structure not as 
 
 ### 2. Fresh-context principle
 
-AI agents anchor to conclusions already present in context. It's a measured problem that once a first conclusion is in context, a second review is biased toward validating it. Review dispatched in a separate context actually changes review behavior.
+AI agents anchor to conclusions already present in context, and the anchoring has been measured. On meta-review generation, GPT-4o showed an anchoring coefficient toward the first reviewer of 0.255 against a 0.193 human-committee baseline, and the authors report the bias persists even when later reviews supply contradictory evidence. Separating the review session changes the outcome and not just the wording: in a controlled comparison, cross-context review reached F1 28.6% versus 24.6% for same-session review (p=0.008), while reviewing twice in the same session did not beat reviewing once (p=0.11) — so the gain comes from the context separation itself, not from the extra pass.
+
+Both are single studies (the second an unrefereed preprint). Treat the direction as evidence and the magnitudes as provisional.
 
 Application:
 - Code review is done by a fresh reviewer who starts from the diff and the criteria, never the session that wrote the code.
 - When rewriting legacy code, don't start by reading through the entire existing codebase. Write the spec first, implement from the spec alone, and check against existing behavior via tests.
 
-Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
+Sources: [Conflict-Aware Meta-Review Generation via Cognitive Alignment (arXiv 2503.13879)](https://arxiv.org/abs/2503.13879), [Cross-Context Review: Separating Production and Review Sessions (arXiv 2603.12123)](https://arxiv.org/abs/2603.12123), [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
 
 ### 3. Evidence over claims
 

@@ -16,7 +16,7 @@
 
 - **uv**: a single tool that replaces pip/pipenv/pyenv/virtualenv. `uv.lock` is a cross-platform lockfile — always commit it and never hand-edit it. `uv run` verifies lockfile↔pyproject↔env sync before every run. Core commands: `uv init`, `uv add`, `uv add --dev`, `uv sync`, `uv run`.
 - **ruff**: replaces black/flake8/isort/pyupgrade entirely. A single `[tool.ruff]` config. Recommended lint set: `["E", "F", "I", "UP", "B"]`.
-- **Type checker**: the default recommendation is mypy (safe, maximally compatible). If speed matters, explicitly pick exactly one of pyrefly (stable at 1.0) or ty (native to the uv/ruff ecosystem, still beta) per project. Do not mix them.
+- **Type checker**: the default recommendation is mypy (safe, maximally compatible). If speed matters, explicitly pick exactly one of pyrefly (stable since its 1.0.0 release on 2026-05-12; 1.2.0 as of 2026-08) or ty (native to the uv/ruff ecosystem, still beta on `0.0.x` versioning with no stable API; 0.0.65 as of 2026-08) per project. Do not mix them.
 - **pre-commit**: use the `astral-sh/ruff-pre-commit` hook. Local hooks can be skipped, so enforce them finally in CI with `uvx pre-commit run --all-files`.
 
 Baseline pyproject.toml:
@@ -24,7 +24,7 @@ Baseline pyproject.toml:
 ```toml
 [project]
 name = "my-project"
-requires-python = ">=3.13"
+requires-python = ">=3.13"   # 3.13 is still in bugfix support (EOL scheduled 2029-10)
 dependencies = []
 
 [dependency-groups]
@@ -36,7 +36,7 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B"]
 ```
 
-Sources: [uv — projects guide](https://docs.astral.sh/uv/guides/projects/), [ruff](https://docs.astral.sh/ruff/), [ruff-pre-commit](https://github.com/astral-sh/ruff-pre-commit), [type checker comparison](https://pydevtools.com/handbook/explanation/how-do-mypy-pyright-and-ty-compare/)
+Sources: [uv — projects guide](https://docs.astral.sh/uv/guides/projects/), [ruff](https://docs.astral.sh/ruff/), [ruff-pre-commit](https://github.com/astral-sh/ruff-pre-commit), [pyrefly 1.0.0 release](https://github.com/facebook/pyrefly/releases/tag/1.0.0), [pyrefly releases](https://github.com/facebook/pyrefly/releases), [ty — version policy](https://github.com/astral-sh/ty#version-policy), [Python devguide — version status](https://devguide.python.org/versions/) (as of: 2026-08)
 
 ### 2. Local ↔ Remote GPU Portability
 
@@ -64,7 +64,7 @@ explicit = true
 
 Method B — `--torch-backend=auto` (or `UV_TORCH_BACKEND=auto`): detects the CUDA driver at install time to pick the index, falling back to CPU if none is found. Suited to ephemeral environments with changing GPU configurations.
 
-Sources: [uv — PyTorch integration](https://docs.astral.sh/uv/guides/integration/pytorch/)
+Sources: [uv — PyTorch integration](https://docs.astral.sh/uv/guides/integration/pytorch/) (uses `whl/cu130` in its own example), [PyTorch wheel index listing](https://download.pytorch.org/whl/) (as of: 2026-08)
 
 ### 3. Device Abstraction (CPU Fallback)
 

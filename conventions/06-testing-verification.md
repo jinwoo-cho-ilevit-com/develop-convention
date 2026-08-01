@@ -10,6 +10,7 @@
 - Distinguish "the check could not run" from "the check ran and failed". A missing test file, an uncollectable suite, or an unavailable command is a missing baseline, not a red result.
 - Exempt standing invariants from the red check explicitly. A regression guard holding at the base commit is the correct outcome, not a defect.
 - Every fixed bug gains exactly one regression test that reproduces it.
+- Isolate a fixture from the machine it runs on. A test that builds a repository, spawns a process, or writes a config inherits the developer's environment — global git hooks, signing settings, a proxy — and the failure that produces passes in clean CI and fails only on the machine that wrote it, which is the worst asymmetry a suite can have.
 - ML tests assert against a tolerance band, not exact float comparison. Fixtures are a small number of realistic samples including NaN, mixed types, and edge cases. Seeds live in a single session-scoped fixture.
 - CI verifies GPU code paths with small-sample smoke tests on CPU, without a GPU.
 - Before declaring completion, run the verification command and read the full output. TODOs, stubs, and skipped tests are blockers, not completion.

@@ -25,11 +25,12 @@ def set_seed(seed: int) -> None:
     torch.backends.cudnn.benchmark = False
 ```
 
-- Seed DataLoader workers too, via `worker_init_fn` + `generator`.
-- Document the limits: **bit-exact reproducibility is not guaranteed across different hardware (GPU generation), batch size, parallelism configuration, or framework version** (floating-point non-associativity, kernel selection differences). That's why tests use tolerance bands (→ [06-testing-verification.md](06-testing-verification.md)).
-- Turn on deterministic mode by default. The performance cost is often not large but varies by workload, so only turn it off — and record that — once it's measured to be a bottleneck.
+- Seed DataLoader workers too, via `worker_init_fn` + `generator` — PyTorch documents both as the way to preserve reproducibility with multiple workers.
+- Document the limits: PyTorch states that **"completely reproducible results are not guaranteed across PyTorch releases, individual commits, or different platforms"**, and that results need not be reproducible between CPU and GPU executions even with identical seeds. That's why tests use tolerance bands (→ [06-testing-verification.md](06-testing-verification.md)).
+- Additional bit-exactness risks from GPU generation, batch size, and parallelism configuration (floating-point non-associativity, kernel selection) are plausible but *(unverified — needs research)* — not stated by the PyTorch notes.
+- Turn on deterministic mode by default. PyTorch warns that **"deterministic operations are often slower than nondeterministic operations"**, so measure the cost on your workload and only turn it off — recording that — once it is shown to be a bottleneck.
 
-Sources: [PyTorch — reproducibility notes](https://glaringlee.github.io/notes/randomness.html), [Training reproducibility in PyTorch](https://learnopencv.com/ensuring-training-reproducibility-in-pytorch/)
+Sources: [PyTorch — reproducibility notes](https://docs.pytorch.org/docs/stable/notes/randomness.html)
 
 ### 2. Train/inference consistency (train-serve skew)
 

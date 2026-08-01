@@ -4,8 +4,9 @@
 
 - Keep CLAUDE.md/AGENTS.md concise. A bloated instruction file causes rules to be ignored. For each line, ask "would removing this cause the agent to make a mistake?" — if not, delete it.
 - Layer module-specific instructions into that directory's AGENTS.md (closest wins). Split out occasionally-needed knowledge into Skills.
-- Before running parallel work, build a decomposition table (Task | Owner | Files | Dependencies | Integration point). Tasks with overlapping file ownership are not allowed to run in parallel — run them sequentially.
-- For parallelization, prioritize workflows/subagent orchestration first. git worktree is a file isolation mechanism, not a coordination mechanism — use it to isolate multiple agents into independent branches/environments. Tasks with overlapping file ownership still leave merge conflicts even with worktree, so run them sequentially.
+- Before running parallel work, build a decomposition table (Task | Owner | Files | Dependencies | Integration point). Tasks with overlapping file ownership run sequentially, never in parallel.
+- For parallelization, prioritize workflows/subagent orchestration first. git worktree is a file isolation mechanism, not a coordination mechanism — it isolates live writes and does not resolve merge conflicts, so it does not make overlapping tasks parallelizable. Agents that write concurrently need one each; agents that only read do not.
+- Give a subagent that must report back a way to deliver its result, and confirm it delivered. Depending on the runtime, an agent that finishes may return its final message, or may go idle with the message undelivered — so a fan-in that counts agents as finished rather than as *answered with content* will silently drop one.
 - Freeze shared interfaces/schemas during parallel execution. Only a single owner modifies lock files and migrations.
 - Merge each work branch only after its tests pass, and run one integration verification pass after merging. Every change then goes through a review its author did not perform (→ [20-review-gate.md](20-review-gate.md)).
 - Route models to match task difficulty: mechanical work → lightweight model, standard implementation → mid-tier, architecture/deep debugging → top-tier model.
@@ -24,6 +25,14 @@ AGENTS.md is an open standard (a "README for machines") jointly formalized in 20
 - **Layering**: the root file is the default, and subdirectory files override it (closest wins). Each file covers only the scope of its own directory.
 - **Split into Skills**: knowledge that isn't always needed (e.g., procedures for specific tasks) belongs in an on-demand Skill, not in an always-loaded instruction file.
 
+**Skill extraction criteria.** Move a passage out of an instruction file and into a skill when all three hold, and leave it in place otherwise:
+
+1. It is needed for a minority of sessions. Something every session uses costs more to load on demand than to carry.
+2. It is a *procedure* — steps with an order and a stopping point — rather than a standing rule. A rule has to be in force while work happens; a procedure is looked up when it starts.
+3. It is longer than the instruction file can afford. A three-line rule stays; a page does not.
+
+What remains behind is a pointer of one line, naming the skill and when to reach for it. A skill nothing points at is one nobody invokes.
+
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [AGENTS.md standardization (InfoQ)](https://infoq.com/news/2025/08/agents-md/)
 
 ### 2. Parallel Development: Workflows First, Worktree for File Isolation
@@ -41,8 +50,8 @@ Parallelization has two layers — a **coordination layer** that splits and coor
 
 Standard pattern: **plan → define shared contracts → split along non-overlapping ownership boundaries → (for independent execution) worktree isolation → per-task tests → one integration verification pass after merge**
 
-- **Decomposition table first**: before execution, build a table of Task | Owner (subagent/team) | Main files | Dependencies | Integration point. If two tasks' file lists overlap, they run sequentially, not in parallel — worktree does not resolve merge conflicts either (it only isolates live writes). This is a hard constraint.
-- **Freeze shared contracts**: fix API signatures, data schemas, and architecture decisions in a document before parallel execution starts, and do not change them during execution. Agents only read them at the start. If the design changes mid-way, stop everything, update the contract, and restart (to prevent context drift).
+- **Decomposition table first**: before execution, build a table of Task | Owner (subagent/team) | Main files | Dependencies | Integration point. The ownership constraint is stated once in the Core Rules above and is a hard one; what the table adds is who and in what order.
+- **Freeze shared contracts**: fix API signatures, data schemas, and architecture decisions in a document before parallel execution starts, and do not change them during execution. Agents only read them at the start. When the design changes mid-way, how much stops depends on what changed — [18-work-contract.md](18-work-contract.md) §7 gives the three cases, and only the breaking one restarts everything. A rule that restarts every lane over one added criterion is the rule that gets quietly ignored.
 - **Sole-owned resources**: only a single owner modifies lock files (uv.lock, etc.) and DB migrations. Migrations always run sequentially.
 - **Isolation hygiene**: when using worktree, supply secrets to each worktree via runtime injection (do not copy plaintext `.env` files → [13-secret-management.md](13-secret-management.md)). Keep ports and dependency directories independent.
 - **Integration**: each branch requires passing lint + tests as a merge precondition. Run one full integration smoke (test) after merge.

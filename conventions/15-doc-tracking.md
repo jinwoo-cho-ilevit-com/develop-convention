@@ -12,6 +12,8 @@
 - ADRs are append-only — supersede with a new ADR instead of editing. Record not only adopted decisions but also reversed decisions and rollbacks, with reasons. When agents reference ADRs, they must resolve the supersession chain to the end and follow only the currently valid decision.
 - Standardize visualizations on Mermaid (it's text, so it's diffable/reviewable, GitHub renders it natively, and agents can read and write it). Generate module dependency graphs with deterministic tools (pydeps, madge, etc.) rather than maintaining them by hand.
 - Include a "code change ↔ doc update consistency" check in the review gate (→ [20-review-gate.md](20-review-gate.md)).
+- When something ships, update what distributes it in the same change: the installer or bootstrap script, the getting-started page, the excerpt loaded elsewhere, the navigation of the published site. Docs-follow-code covers the description; nothing covers the delivery path, and it is the one that leaves a working artifact unreachable.
+- Give an excerpt a header naming the document it was taken from and the commit it was taken at, and check the two against each other automatically. An excerpt is a copy, copies drift, and one that drifts is worse than the original being wrong — it is loaded everywhere and matches nothing.
 
 ## Details
 
@@ -76,7 +78,7 @@ Sources: [Michael Nygard — Documenting Architecture Decisions](https://cognite
 
 Sources: [GitHub — Include diagrams in your Markdown files with Mermaid](https://github.blog/developer-skills/github/include-diagrams-markdown-files-mermaid/)
 
-### 7. Applying This to a Project
+### 6. Applying This to a Project
 
 1. Copy [templates/skills/docsync/SKILL.md](../templates/skills/docsync/SKILL.md) to the project's `.claude/skills/docsync/SKILL.md` (for tools other than Claude Code, reference this file's path from AGENTS.md).
 2. Keep the docsync opt-in block in AGENTS.md (→ [templates/AGENTS.md](../templates/AGENTS.md)).
