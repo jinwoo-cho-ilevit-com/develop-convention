@@ -21,6 +21,10 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Snippets inside the convention documents are illustrations, sometimes aligned
+# deliberately for reading. Formatting them rewrites prose-adjacent examples for
+# no gain and makes `format --check` fail on hand-written docs.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
