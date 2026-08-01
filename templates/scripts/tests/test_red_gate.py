@@ -102,6 +102,33 @@ def test_red_base_reports_no_baseline_when_the_command_cannot_run(repo, base_sha
     assert record["status"] == "NO-BASELINE"
 
 
+def test_red_reads_the_report_and_not_the_words_in_the_output(repo):
+    """A test whose subject is an exception type prints that name when it fails.
+
+    Matching `SyntaxError` in pytest's output read this ordinary failure as a file that
+    does not parse, and a criterion whose red record says NO-BASELINE can never pass the
+    status gate — so the criterion became unpassable and the recorded reason was false.
+    """
+    (repo / "describe.py").write_text(
+        'def describe(exc):\n    return "unknown error"\n', encoding="utf-8"
+    )
+    (repo / "test_describe.py").write_text(
+        "from describe import describe\n\n\n"
+        "def test_names_a_syntax_error():\n"
+        '    assert describe(SyntaxError("bad token")) == "syntax problem: bad token"\n',
+        encoding="utf-8",
+    )
+    git("add", "-A", cwd=repo)
+    git("commit", "--quiet", "-m", "describe at base", cwd=repo)
+    base = git("rev-parse", "HEAD", cwd=repo).strip()
+
+    cmd = f"{sys.executable} -m pytest test_describe.py -q -p no:cacheprovider"
+    write_contract(repo, [criterion("C-01", verify=cmd, runner="pytest")], base=base)
+    run(repo, "red")
+    record = json.loads(state_path(repo, "sample", "C-01", "red").read_text())
+    assert record["status"] == "RED", record
+
+
 def test_red_base_finds_tests_when_rootdir_differs_from_the_repo_root(repo, base_sha):
     """A nested pyproject.toml moves pytest's rootdir, and with it the printed paths.
 

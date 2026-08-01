@@ -842,9 +842,6 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
 # --- the red check ------------------------------------------------------------------------
 
 
-BROKEN_TEST_RE = re.compile(r"\b(?:SyntaxError|IndentationError|TabError)\b")
-
-
 def git_quiet(*args: str, cwd: Path) -> None:
     subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
 
@@ -940,10 +937,9 @@ def red_verdict_pytest(run: Run, report: dict | None) -> tuple[str, str]:
         return NO_BASELINE, f"could not start at base: {run.spawn_error}"
     if run.timed_out:
         return NO_BASELINE, "timed out at base"
-    if BROKEN_TEST_RE.search(run.output):
-        # 06 §3: a test that cannot import its subject is the ordinary red case, but a
-        # test file that does not parse is a broken test and proves nothing.
-        return NO_BASELINE, "a selected test file does not parse at base"
+    # The verdict comes from the report, never from matching words in the output: a test
+    # whose own subject is an exception type prints that name when it fails, and reading
+    # it as a broken file turned an ordinary RED into a permanently unpassable criterion.
     if report is None:
         return NO_BASELINE, "no test report was produced at base"
     if report["total"] == 0:
