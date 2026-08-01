@@ -90,7 +90,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Separate by module/feature, with clear input/output contracts. Keep files small and boundaries clear.
 - Fit the structure to the design, not the design to the structure: when integrating a new module, restructuring the surrounding project is preferred over force-fitting — scoped to what the integration touches, behavior pinned by tests, structural moves in separate commits.
 - App/research/pipeline code uses a flat layout (src/ is only for distributed libraries). Use uv workspaces for multiple packages.
-- Semantic naming + PEP 8. No `_v2`/`_new` suffixes — rename in place. Delete dead code immediately, don't relocate unused code, scan for duplicates before completion.
+- Semantic naming + PEP 8. No `_v2`/`_new` suffixes on code — rename in place; evaluation-pinned artifacts (prompts, golden sets) are the exception and version append-only. Delete dead code immediately, don't relocate unused code, scan for duplicates before completion.
 - Comments should cover only constraints/intent the code itself can't express. No insider-only context, no TMI, no explaining the obvious.
 - Minimize emoji in docs, and use none at all in code comments: allow one only where the symbol is the data (a defined legend), never as decoration on headings or bullets. Write status as words (`OK`/`FAILED`/`TODO`) so it stays greppable.
 
