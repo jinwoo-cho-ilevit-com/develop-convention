@@ -208,42 +208,45 @@ def split_front_matter(text: str) -> str:
     raise ContractError("contract front matter is never closed by a `---` line")
 
 
-def lex(verify: str, *, posix: bool) -> list[str]:
-    """Split a verify command. `posix=False` keeps the quotes, which is how quoting is read.
+def lex(verify: str) -> list[str]:
+    """Split a verify command into the arguments that will be executed.
+
+    One lex, and the check below reads its output. A second lex over the quoted form was
+    an attempt to tell a literal `';'` from a bare `;`, which the argv cannot show; it
+    bought that distinction at the price of two parsers that disagreed — on an attached
+    quote (`--format='%h|%s'`), on a backslash escape, and on an input where one raised
+    and the other did not, which let an unquoted `&&` through unchecked.
 
     `commenters` is cleared because shlex otherwise drops an unquoted `#` and everything
     after it. Nothing here runs through a shell, so a `#` is an ordinary argument, and
-    silently executing a shorter command than the contract states is the worst of the
-    three outcomes — worse than refusing it and worse than passing it along.
+    executing a shorter command than the contract states is worse than either refusing
+    it or passing it along.
     """
-    lexer = shlex.shlex(verify, posix=posix, punctuation_chars=True)
+    lexer = shlex.shlex(verify, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     lexer.commenters = ""
     return list(lexer)
 
 
-def unquoted_shell_operators(verify: str) -> list[str]:
-    """Operator tokens the author left unquoted.
+def shell_operators(argv: list[str]) -> list[str]:
+    """Arguments that read as shell operators, whether or not the author quoted one.
 
-    Nothing can act as an operator here — the command is never given a shell — so this
-    is a lint against writing a shell command by mistake, and it has to leave literals
-    alone. Reading the quoted form is what separates the two: `find … -exec … ';'` needs
-    that `;` as an argument, while a bare `;` is someone expecting a shell. Judging the
-    post-quoting argv could not tell them apart and refused both.
+    An argument made only of operator punctuation, or carrying a substitution form, is
+    refused. The runner cannot tell an author who wanted a literal `;` from one who
+    expected a shell — after splitting they are the same argument — so it refuses both
+    and says so. A command that genuinely needs such an argument goes in a script.
     """
-    try:
-        tokens = lex(verify, posix=False)
-    except ValueError:
-        return []  # the posix lex reports the real error
-    found = set()
-    for token in tokens:
-        if not token or token[0] in "'\"":
-            continue
-        if not token.strip(SHELL_PUNCTUATION):
-            found.add(token)
-        elif any(fragment in token for fragment in SHELL_FRAGMENTS):
-            found.add(token)
-    return sorted(found)
+    return sorted(
+        {
+            token
+            for token in argv
+            if token
+            and (
+                not token.strip(SHELL_PUNCTUATION)
+                or any(fragment in token for fragment in SHELL_FRAGMENTS)
+            )
+        }
+    )
 
 
 def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: bool) -> Check:
@@ -263,18 +266,18 @@ def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: 
     if raw_runner not in RUNNER_KINDS:
         raise ContractError(f"{cid}: runner {raw_runner!r} is not one of {RUNNER_KINDS}")
 
-    operators = unquoted_shell_operators(verify)
-    if operators:
-        raise ContractError(
-            f"{cid}: verify contains the shell operator(s) {operators}; "
-            "split it into separate criteria or a script, or quote it to mean it literally"
-        )
     try:
-        argv = lex(verify, posix=True)
+        argv = lex(verify)
     except ValueError as exc:
         raise ContractError(f"{cid}: verify cannot be split into arguments: {exc}") from exc
     if not argv:
         raise ContractError(f"{cid}: verify is empty after splitting")
+    operators = shell_operators(argv)
+    if operators:
+        raise ContractError(
+            f"{cid}: verify contains the shell operator(s) {operators}; quoting one does "
+            "not help — split it into separate criteria, or put the command in a script"
+        )
 
     argv_tuple = tuple(argv)
     return PytestCheck(argv_tuple) if raw_runner == "pytest" else CommandCheck(argv_tuple)

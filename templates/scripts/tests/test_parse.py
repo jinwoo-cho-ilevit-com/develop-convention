@@ -121,23 +121,43 @@ def test_parse_rejects_a_redirect_whose_operator_is_two_characters(repo, verify)
 @pytest.mark.parametrize(
     "verify",
     [
-        "find . -exec echo {} ';'",
-        "myprog --op '>'",
-        "grep -E '(|)' f",
-        "grep -F '`' f",
-        "echo 'cost $(1) usd'",
+        "git log -1 --format='%h|%s'",
+        "awk '{print}' f",
         "pytest -k 'a; b'",
+        "ruff check --select='E,F'",
     ],
 )
-def test_parse_accepts_an_operator_the_author_quoted(repo, verify):
-    """Nothing can act as an operator here, so a quoted one is an ordinary argument.
+def test_parse_accepts_an_argument_that_merely_contains_punctuation(repo, verify):
+    """Only an argument made *only* of operator punctuation is refused.
 
-    Judging the post-quoting argv could not tell `find … -exec … ';'` from someone
-    expecting a shell, and refused both — the contract became unusable for a command
-    that runs correctly as an argument vector.
+    A second lex over the quoted text split `--format='%h|%s'` at the attached quote
+    and scored the `|` as bare, refusing a command that runs correctly. One lex, read
+    once, cannot disagree with itself that way.
     """
     write_contract(repo, [criterion("C-01", verify=verify), criterion("C-02", kind="negative")])
     assert run(repo, "lint") == 0
+
+
+@pytest.mark.parametrize(
+    "verify",
+    [
+        "echo --ignore='a(b)' && echo PWNED",
+        "rm -rf tmpdir ; echo a'|'b",
+        "find . -exec echo {} ';'",
+        r"find . -exec echo {} \;",
+        "grep -F '`' f",
+        "echo 'cost $(1) usd'",
+    ],
+)
+def test_parse_refuses_an_operator_argument_however_it_was_written(repo, verify):
+    """Quoting does not buy an exemption, and the first two show why it cannot.
+
+    Reading the quoted form to grant one needed a second lex, and on the first input
+    that lex raised where the real one did not. The `except ValueError: return []` then
+    skipped the check entirely and an unquoted `&&` reached the program as an argument.
+    """
+    write_contract(repo, [criterion("C-01", verify=verify), criterion("C-02", kind="negative")])
+    assert run(repo, "lint") == 2
 
 
 def test_parse_passes_an_unquoted_hash_through_as_an_argument(repo):
