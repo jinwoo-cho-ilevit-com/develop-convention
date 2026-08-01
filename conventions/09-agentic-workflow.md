@@ -86,8 +86,11 @@ A lane is defined by its **input**, not by its attitude. Telling three reviewers
 
 **Path B — cursor CLI (external tool)**: cross-verify with a different vendor's model.
 
-- Deep reasoning: `cursor-agent -p --mode ask --model gpt-5.3-codex-xhigh --output-format text "<review prompt for the change diff>"` — `--mode ask` (or `--plan`) forces read-only mode (both allow analysis/read commands but block edits). Reasoning effort is encoded in the model id suffix `-xhigh`, not a separate flag.
-- Fast and cheap: `--model composer-2.5` (no effort variants). **Use `gpt-5.3-codex-xhigh` when depth is needed, and `composer-2.5` when speed/cost take priority.**
+- Shape: `cursor-agent -p --mode ask --model <id> --output-format text "<review prompt for the change diff>"`. `--mode ask` (or `--plan`) forces read-only mode — both allow analysis/read commands but block edits.
+- **Do not pin a model id in this document.** Model lineups turn over faster than the doc is revised, and a pinned id fails closed: the command errors out and the review lane simply doesn't run. Resolve the id at use time with `cursor-agent models` (also `--list-models`, or `/models` in the interactive CLI), then pick by role:
+  - **Depth** — the highest reasoning tier available. Where effort is encoded in the id suffix rather than a separate flag, that suffix is part of the id you select.
+  - **Speed/cost** — the cheapest tier that still reads a diff usefully.
+  - **Vendor diversity** — pick a model from a *different* family than the one the Codex path (Path A) is configured with. Running both paths on the same vendor's family satisfies the lane count but not the purpose: shared blind spots survive both reviews. Where only one family is reachable, record that in the review report rather than dropping the lane.
 - Always run reviews in read-only mode (`--mode ask`/`--plan`). Never use `-p` alone, since it opens up writes and shell access, letting the reviewer modify what it's inspecting. The orchestrator applies the results.
 
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Cursor — headless CLI](https://cursor.com/docs/cli/headless)
