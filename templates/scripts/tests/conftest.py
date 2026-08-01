@@ -23,12 +23,23 @@ def git(*args: str, cwd: Path) -> str:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    """An initialised git repository with one commit, usable as a base."""
+    """An initialised git repository with one commit, usable as a base.
+
+    Isolated from the developer's git configuration on purpose. A global
+    `core.hooksPath` carrying a commit-msg hook that enforces Conventional
+    Commits rejects the fixture's own commits, and commit signing blocks on a
+    passphrase prompt. Either turns every test in the suite into a setup error
+    on one machine while a clean CI stays green.
+    """
     root = tmp_path / "repo"
     root.mkdir()
+    hooks = tmp_path / "no-hooks"
+    hooks.mkdir()
     git("init", "--quiet", "--initial-branch", "main", cwd=root)
     git("config", "user.email", "test@example.invalid", cwd=root)
     git("config", "user.name", "test", cwd=root)
+    git("config", "core.hooksPath", str(hooks), cwd=root)
+    git("config", "commit.gpgsign", "false", cwd=root)
     (root / ".gitignore").write_text("artifacts/\n", encoding="utf-8")
     git("add", ".gitignore", cwd=root)
     git("commit", "--quiet", "-m", "base", cwd=root)
