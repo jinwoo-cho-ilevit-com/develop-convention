@@ -15,7 +15,9 @@ Instructions for coding agents working in this repository.
 
 ## Conventions
 
-Full conventions: `[CONVENTION_PATH]` (local path where the develop-convention repo is cloned) — follow the "Core Rules" of the doc matching the type of work (doc map is that repo's README.md). If no local clone is available (e.g. cloud sandbox), reference the published docs instead: https://jinwoo-cho-ilevit-com.github.io/develop-convention/
+Full conventions: `[CONVENTION_PATH]` (local path where the develop-convention repo is cloned) — follow the "Core Rules" of the doc matching the type of work (doc map is that repo's README.md).
+
+If no local clone is available (Codex cloud, Cursor background agents, Claude Code web), read the published docs at https://jinwoo-cho-ilevit-com.github.io/develop-convention/ — or, once cloud runs are routine, add the repo as a git submodule so the path above resolves there too.
 
 Especially keep in this project:
 - No hardcoding, all values in central config (02)

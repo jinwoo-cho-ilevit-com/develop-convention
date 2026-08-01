@@ -36,7 +36,9 @@ criteria:
     runner: pytest            # pytest | command -- declared, never guessed from the command
                               # text. Required unless `verify: human`.
     kind: functional          # functional | nonfunctional | negative
-    hermetic: true            # false = touches network/db/ports; excluded from red check
+    hermetic: true            # the only value scripts/contract.py accepts; it refuses any
+                              # other, because it implements no exemption behind it.
+                              # For an invariant that holds at base, use `red: guard`
     red: required             # required = must fail at base
                               # guard    = standing invariant that legitimately holds at base
 
