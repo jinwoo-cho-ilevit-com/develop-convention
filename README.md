@@ -46,7 +46,7 @@ Prerequisite: clone this repo on each machine, and fill in its path at `[CONVENT
 | Cursor | Co-author of the AGENTS.md standard — reads it natively. Promote only the few rules that must always be enforced to `.cursor/rules/` if needed |
 | Other (Gemini CLI, Windsurf, Aider, etc.) | Tools that read the AGENTS.md standard behave the same way. For unsupported tools only, add one line in that tool's instruction file pointing to AGENTS.md |
 
-**Note for cloud-executed agents**: Local path references are only valid for local execution. In isolated sandboxes (Codex cloud, Cursor background agents, Claude Code web), either include this repo in the project as a git submodule, or make it self-contained by copying a rule summary into AGENTS.md. Switching to the submodule approach is recommended once cloud usage actually begins.
+**Note for cloud-executed agents**: Local path references are only valid for local execution. In isolated sandboxes (Codex cloud, Cursor background agents, Claude Code web), read the published docs at <https://jinwoo-cho-ilevit-com.github.io/develop-convention/> — or, once cloud runs are routine, add this repo as a git submodule so the local path resolves there too. This is the same instruction [templates/AGENTS.md](templates/AGENTS.md) carries, and the two are kept in step by a test.
 
 ### How to Instruct the AI
 
