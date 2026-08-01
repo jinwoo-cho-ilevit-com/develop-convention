@@ -18,13 +18,21 @@ rules must stop instead of opening.
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import functools
+import json
+import os
 import re
 import shlex
 import subprocess
 import sys
+import time
+import tomllib
 import traceback
 from dataclasses import dataclass
-from pathlib import Path
+from datetime import UTC, datetime
+from pathlib import Path, PurePosixPath
+from xml.etree import ElementTree
 
 import yaml
 
@@ -52,6 +60,32 @@ EXIT_OK = 0
 EXIT_GATE = 1  # the runner answered, and the answer is no
 EXIT_CONTRACT = 2  # the runner could not answer
 EXIT_INTERNAL = 3  # the runner broke
+
+COMMAND_TIMEOUT_SEC = 1800
+OUTPUT_CAPTURE_CHARS = 64_000
+MIN_SECRET_VALUE_LEN = 8
+MASK = "***MASKED***"
+SECRETS_PATH = Path(__file__).resolve().parent / "secrets.toml"
+
+EVIDENCE_FILES = ("REPORT.md", "commands.jsonl", "commands.log", "manifest.json")
+
+# 19 fixes these four words for a criterion's status.
+PASS = "PASS"
+FAIL = "FAIL"
+PENDING_HUMAN = "PENDING-HUMAN"
+NO_BASELINE = "NO-BASELINE"
+
+# The red phase has its own vocabulary on purpose. The withdrawn runner wrote
+# `"red": "PASS"` and left it to the reader to remember that a red PASS is not a
+# criterion PASS; keeping the words disjoint makes them non-interchangeable.
+RED = "RED"
+NOT_RED = "NOT-RED"
+NO_TEST = "NO-TEST"
+EXEMPT_GUARD = "EXEMPT-GUARD"
+
+
+def now_iso() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 class ContractError(Exception):
@@ -319,6 +353,465 @@ def artifacts_dir(root: Path, feature: Feature) -> Path:
     return root / "artifacts" / feature.value
 
 
+# --- executing a check -----------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Run:
+    argv: tuple[str, ...]
+    exit_code: int | None
+    output: str
+    truncated: bool
+    timed_out: bool
+    spawn_error: str | None
+    duration_sec: float
+
+
+def run_argv(
+    argv: tuple[str, ...] | list[str],
+    *,
+    cwd: Path,
+    timeout: int = COMMAND_TIMEOUT_SEC,
+    env: dict[str, str] | None = None,
+) -> Run:
+    """Execute an argument vector. There is no shell and no switch to add one.
+
+    A program that cannot be started reports `spawn_error` with no exit code, so
+    "the check could not run" is never inferred from a number the check itself could
+    have returned.
+    """
+    started = time.monotonic()
+    argv = tuple(argv)
+    try:
+        proc = subprocess.run(
+            list(argv),
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
+            env=env,
+        )
+    except (FileNotFoundError, NotADirectoryError, IsADirectoryError, PermissionError) as exc:
+        return Run(argv, None, "", False, False, str(exc), time.monotonic() - started)
+    except subprocess.TimeoutExpired:
+        return Run(argv, None, "", False, True, None, time.monotonic() - started)
+
+    output = (proc.stdout or "") + (proc.stderr or "")
+    truncated = len(output) > OUTPUT_CAPTURE_CHARS
+    if truncated:
+        output = output[:OUTPUT_CAPTURE_CHARS] + "\n...[truncated]"
+    return Run(argv, proc.returncode, output, truncated, False, None, time.monotonic() - started)
+
+
+# --- masking -----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Shape:
+    name: str
+    pattern: str
+    sample: str
+
+
+@functools.cache
+def _secrets_document() -> dict:
+    try:
+        return tomllib.loads(SECRETS_PATH.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ContractError(f"cannot read {SECRETS_PATH}: {exc}") from exc
+
+
+@functools.cache
+def secret_shapes() -> tuple[Shape, ...]:
+    return tuple(
+        Shape(entry["name"], entry["pattern"], entry["sample"])
+        for entry in _secrets_document().get("shape", [])
+    )
+
+
+@functools.cache
+def secret_env_globs() -> tuple[str, ...]:
+    return tuple(_secrets_document().get("env_names", []))
+
+
+class Masker:
+    """Redacts credential shapes and the values of secret-bearing variables."""
+
+    def __init__(self, literals: tuple[str, ...]) -> None:
+        self._literals = literals
+
+    @staticmethod
+    def from_env(env: dict[str, str] | None = None) -> Masker:
+        source = os.environ if env is None else env
+        globs = secret_env_globs()
+        values = {
+            value
+            for name, value in source.items()
+            if isinstance(value, str)
+            and len(value) >= MIN_SECRET_VALUE_LEN
+            and any(fnmatch.fnmatchcase(name, glob) for glob in globs)
+        }
+        # Longest first, so a value that is a prefix of another does not half-redact it.
+        return Masker(tuple(sorted(values, key=len, reverse=True)))
+
+    def mask(self, text: str) -> str:
+        for literal in self._literals:
+            text = text.replace(literal, MASK)
+        for shape in secret_shapes():
+            text = re.sub(shape.pattern, MASK, text)
+        return text
+
+
+# --- writing artifacts ---------------------------------------------------------------------
+
+
+class ArtifactWriter:
+    """The only thing in this module that opens a file for writing.
+
+    Masking and containment live here rather than at the call sites, so neither is
+    something a future writer can forget to do.
+    """
+
+    def __init__(self, root: Path, masker: Masker | None = None) -> None:
+        self.root = Path(root)
+        self._masker = masker if masker is not None else Masker.from_env()
+
+    def _target(self, rel: str) -> Path:
+        relative = PurePosixPath(rel)
+        if relative.is_absolute() or ".." in relative.parts or not relative.parts:
+            raise ContractError(f"refusing to write outside the artifacts directory: {rel}")
+        final = self.root / rel
+        if not final.resolve().is_relative_to(self.root.resolve()):
+            raise ContractError(f"refusing to write outside the artifacts directory: {rel}")
+        final.parent.mkdir(parents=True, exist_ok=True)
+        return final
+
+    def write_text(self, rel: str, text: str) -> Path:
+        target = self._target(rel)
+        temp = target.with_name(f"{target.name}.tmp{os.getpid()}")
+        temp.write_text(self._masker.mask(text), encoding="utf-8")
+        os.replace(temp, target)
+        return target
+
+    def append_line(self, rel: str, text: str) -> Path:
+        target = self._target(rel)
+        with target.open("a", encoding="utf-8") as handle:
+            handle.write(self._masker.mask(text).rstrip("\n") + "\n")
+        return target
+
+    def reserve(self, rel: str) -> Path:
+        """A path a child process may write to. Contained like everything else."""
+        return self._target(rel)
+
+    def ensure(self, rel: str) -> Path:
+        target = self._target(rel)
+        if not target.exists():
+            target.write_text("", encoding="utf-8")
+        return target
+
+
+def record_command(writer: ArtifactWriter, criterion_id: str, phase: str, run: Run) -> None:
+    at = now_iso()
+    writer.append_line(
+        "commands.jsonl",
+        json.dumps(
+            {
+                "at": at,
+                "criterion": criterion_id,
+                "phase": phase,
+                "command": shlex.join(run.argv),
+                "exit_code": run.exit_code,
+                "timed_out": run.timed_out,
+                "spawn_error": run.spawn_error,
+                "truncated": run.truncated,
+                "output": run.output,
+            },
+            ensure_ascii=False,
+        ),
+    )
+    writer.append_line(
+        "commands.log",
+        f"[{at}] {criterion_id} {phase} exit={run.exit_code}\n"
+        f"$ {shlex.join(run.argv)}\n{run.output}\n{'-' * 60}",
+    )
+
+
+# --- phase records -------------------------------------------------------------------------
+
+
+def state_rel(criterion_id: str, phase: str) -> str:
+    return f"state/{criterion_id}.{phase}.json"
+
+
+def write_state(writer: ArtifactWriter, criterion_id: str, phase: str, payload: dict) -> Path:
+    """Write one phase's record. The path comes from the record, never from the caller."""
+    document = {"criterion": criterion_id, "phase": phase, "at": now_iso(), **payload}
+    return writer.write_text(
+        state_rel(criterion_id, phase),
+        json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+    )
+
+
+def read_state(artifacts_root: Path, criterion_id: str, phase: str) -> dict | None:
+    path = artifacts_root / state_rel(criterion_id, phase)
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ContractError(f"state record {path} is not readable: {exc}") from exc
+
+
+def is_iso_utc(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() == UTC.utcoffset(None)
+
+
+# --- pytest reports ------------------------------------------------------------------------
+
+
+def parse_junit(path: Path) -> dict | None:
+    """Counts from a junit report, or None when there is no usable report.
+
+    A pytest exit code cannot separate "every test was skipped" from "the tests
+    passed" — both are 0. C-07 needs that separation, so the verdict is taken from the
+    report and the exit code is only one of the inputs.
+    """
+    if not path.is_file():
+        return None
+    try:
+        root = ElementTree.parse(path).getroot()
+    except (OSError, ElementTree.ParseError):
+        return None
+    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+    counts = {"total": 0, "failures": 0, "errors": 0, "skipped": 0}
+    for suite in suites:
+        for key in ("tests", "failures", "errors", "skipped"):
+            counts["total" if key == "tests" else key] += int(suite.get(key, 0))
+    counts["executed"] = counts["total"] - counts["skipped"]
+    return counts
+
+
+def run_check(
+    crit: Criterion, *, cwd: Path, writer: ArtifactWriter, phase: str
+) -> tuple[Run, dict | None]:
+    """Run a criterion's check, collecting a test report where the kind provides one."""
+    match crit.check:
+        case PytestCheck(argv):
+            report = writer.reserve(f"state/reports/{crit.id}.{phase}.xml")
+            report.unlink(missing_ok=True)
+            run = run_argv((*argv, f"--junitxml={report}"), cwd=cwd)
+            try:
+                return run, parse_junit(report)
+            finally:
+                report.unlink(missing_ok=True)
+        case CommandCheck(argv):
+            return run_argv(argv, cwd=cwd), None
+        case HumanCheck():
+            raise ContractError(f"{crit.id}: a human criterion is not executed")
+
+
+# --- verify ----------------------------------------------------------------------------------
+
+
+def verify_verdict(crit: Criterion, run: Run, report: dict | None) -> tuple[str, str]:
+    if run.spawn_error is not None:
+        return FAIL, f"could not start: {run.spawn_error}"
+    if run.timed_out:
+        return FAIL, f"timed out after {COMMAND_TIMEOUT_SEC}s"
+    if isinstance(crit.check, PytestCheck):
+        if report is None:
+            return FAIL, "no test report was produced"
+        if report["executed"] < 1:
+            return FAIL, f"no test executed ({report['skipped']} skipped)"
+        if report["failures"] or report["errors"]:
+            return FAIL, f"{report['failures']} failed, {report['errors']} errored"
+    if run.exit_code != 0:
+        return FAIL, f"exit {run.exit_code}"
+    return PASS, ""
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    contract_path = Path(args.contract)
+    contract = load_contract(contract_path)
+    root = repo_root(contract_path)
+    writer = ArtifactWriter(artifacts_dir(root, contract.feature))
+
+    failed = False
+    for crit in contract.criteria:
+        if crit.is_human:
+            continue
+        run, report = run_check(crit, cwd=root, writer=writer, phase="verify")
+        status, note = verify_verdict(crit, run, report)
+        record_command(writer, crit.id, "verify", run)
+        write_state(
+            writer,
+            crit.id,
+            "verify",
+            {
+                "status": status,
+                "note": note,
+                "argv": list(run.argv),
+                "exit_code": run.exit_code,
+                "report": report,
+            },
+        )
+        print(f"{status} {crit.id}")
+        failed |= status != PASS
+
+    render(writer, contract, root)
+    return EXIT_GATE if failed else EXIT_OK
+
+
+# --- human verdicts ---------------------------------------------------------------------------
+
+
+def cmd_human(args: argparse.Namespace) -> int:
+    contract_path = Path(args.contract)
+    contract = load_contract(contract_path)
+    root = repo_root(contract_path)
+    writer = ArtifactWriter(artifacts_dir(root, contract.feature))
+
+    matches = [c for c in contract.criteria if c.id == args.id]
+    if not matches:
+        raise ContractError(f"no criterion {args.id!r} in this contract")
+    crit = matches[0]
+    if not crit.is_human:
+        raise ContractError(f"{crit.id} is not a `verify: human` criterion")
+
+    status = PASS if args.verdict == "pass" else FAIL
+    at = now_iso()
+    write_state(
+        writer,
+        crit.id,
+        "human",
+        {
+            "status": status,
+            "verdict": args.verdict,
+            "author": args.author,
+            "note": args.note or "",
+        },
+    )
+    writer.append_line(
+        "commands.jsonl",
+        json.dumps(
+            {
+                "at": at,
+                "criterion": crit.id,
+                "phase": "human",
+                "command": None,
+                "verdict": args.verdict,
+                "author": args.author,
+            },
+            ensure_ascii=False,
+        ),
+    )
+    writer.append_line(
+        "commands.log",
+        f"[{at}] {crit.id} human verdict={args.verdict} by {args.author}\n{'-' * 60}",
+    )
+    print(f"{status} {crit.id} ({args.verdict} by {args.author})")
+    render(writer, contract, root)
+    return EXIT_OK if status == PASS else EXIT_GATE
+
+
+# --- the criterion view shared by report and gate ------------------------------------------------
+
+
+def criterion_status(artifacts_root: Path, crit: Criterion) -> tuple[str, bool, str]:
+    """(status, red requirement satisfied, note) for one criterion.
+
+    `red_ok` starts false for a machine criterion and is only made true by a record
+    that says RED. There is no branch where a missing record counts as satisfied, and
+    that branch is what let the withdrawn runner's gate open.
+    """
+    if crit.is_human:
+        record = read_state(artifacts_root, crit.id, "human")
+        if record is None:
+            return PENDING_HUMAN, True, "awaiting a verdict"
+        if record.get("verdict") == "reject":
+            return FAIL, True, str(record.get("note") or "rejected")
+        if (
+            record.get("verdict") == "pass"
+            and record.get("author")
+            and is_iso_utc(record.get("at"))
+        ):
+            return PASS, True, ""
+        return PENDING_HUMAN, True, "verdict lacks an author or a UTC timestamp"
+
+    verify = read_state(artifacts_root, crit.id, "verify")
+    status = str(verify["status"]) if verify else "NOT-RUN"
+    note = str(verify.get("note", "")) if verify else "verify has not run"
+
+    if crit.is_guard:
+        return status, True, note
+    red = read_state(artifacts_root, crit.id, "red")
+    red_ok = red is not None and red.get("status") == RED
+    if not red_ok:
+        note = (f"{note}; " if note else "") + f"red={red['status'] if red else 'not run'}"
+    return status, red_ok, note
+
+
+# --- report and manifest -----------------------------------------------------------------------
+
+
+def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
+    """Rebuild REPORT.md and manifest.json from the state directory.
+
+    Both are derived, so nothing is merged into them and no phase can lose another's
+    entry by writing its own.
+    """
+    rows = []
+    for crit in contract.criteria:
+        status, red_ok, note = criterion_status(writer.root, crit)
+        if status == PASS and not red_ok:
+            status = "BLOCKED"
+        rows.append(f"| {crit.id} | {status} | `{display_command(crit.check)}` | {note} |")
+
+    writer.write_text(
+        "REPORT.md",
+        "\n".join(
+            [
+                f"# {contract.feature.value}",
+                "",
+                "| id | status | verify | note |",
+                "|---|---|---|---|",
+                *rows,
+                "",
+            ]
+        ),
+    )
+    writer.write_text(
+        "manifest.json",
+        json.dumps(
+            {
+                "created_at": now_iso(),
+                "commit": git("rev-parse", "HEAD", cwd=root),
+                "tree_clean": not git("status", "--porcelain", cwd=root),
+                "base": contract.base,
+                "done_level": contract.done_level,
+                "environment": {"python": sys.version.split()[0], "platform": sys.platform},
+                "masked_env_names": sorted(
+                    name
+                    for name in os.environ
+                    if any(fnmatch.fnmatchcase(name, glob) for glob in secret_env_globs())
+                ),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+    )
+    for name in ("commands.jsonl", "commands.log"):
+        writer.ensure(name)
+
+
 # --- lint ----------------------------------------------------------------------------
 
 
@@ -332,8 +825,8 @@ def quality_problems(contract: Contract) -> list[str]:
     return problems
 
 
-def cmd_lint(contract_path: Path) -> int:
-    contract = load_contract(contract_path)
+def cmd_lint(args: argparse.Namespace) -> int:
+    contract = load_contract(Path(args.contract))
     problems = quality_problems(contract)
     for problem in problems:
         print(f"FAIL {problem}")
@@ -356,8 +849,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--contract", default="contract.md", help="path to contract.md")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    lint = sub.add_parser("lint", parents=[common], help="validate the contract")
-    lint.set_defaults(func=cmd_lint)
+    sub.add_parser("lint", parents=[common], help="validate the contract").set_defaults(
+        func=cmd_lint
+    )
+    sub.add_parser("verify", parents=[common], help="run every machine check").set_defaults(
+        func=cmd_verify
+    )
+
+    human = sub.add_parser("human", parents=[common], help="record a human verdict")
+    human.add_argument("--id", required=True)
+    human.add_argument("--verdict", required=True, choices=("pass", "reject"))
+    human.add_argument("--author", required=True)
+    human.add_argument("--note", default="")
+    human.set_defaults(func=cmd_human)
 
     return parser
 
@@ -365,7 +869,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        return args.func(Path(args.contract))
+        return args.func(args)
     except ContractError as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return EXIT_CONTRACT
