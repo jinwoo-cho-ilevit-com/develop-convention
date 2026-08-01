@@ -70,16 +70,12 @@ def test_status_gate_blocks_a_criterion_with_no_red_record(repo, base_sha):
 
 
 def test_status_gate_exempts_a_guard_from_the_red_requirement(repo, base_sha):
-    write_contract(
-        repo, [criterion("C-01", verify="true", red="guard")], base=base_sha
-    )
+    write_contract(repo, [criterion("C-01", verify="true", red="guard")], base=base_sha)
     run(repo, "verify")
     assert run(repo, "status") == 0
 
 
-def test_status_gate_exempts_a_human_criterion_from_the_red_requirement(
-    repo, base_sha
-):
+def test_status_gate_exempts_a_human_criterion_from_the_red_requirement(repo, base_sha):
     crit = {
         "id": "C-01",
         "text": "A judgment a machine cannot make.",

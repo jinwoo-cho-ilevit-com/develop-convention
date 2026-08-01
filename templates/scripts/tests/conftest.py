@@ -15,9 +15,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 
 def git(*args: str, cwd: Path) -> str:
-    out = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
-    )
+    out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True)
     return out.stdout.strip()
 
 
