@@ -52,8 +52,14 @@ RED_MODES = ("required", "guard")
 REQUIRED_FIELDS = ("feature", "done_level", "criteria", "out_of_scope")
 
 # Refused rather than ignored: a contract carrying one of these was written by someone
-# who believes it is enforced, and this runner does not implement it.
+# who believes it is enforced, and this runner does not implement it. Anything outside
+# KNOWN_FIELDS is refused for the same reason — silently accepting `evidence_todo`,
+# which 19 tells authors to write, would be the same defect wearing a different name.
 UNSUPPORTED_FIELDS = ("lanes", "sequential_owner", "integration", "checkpoints")
+KNOWN_FIELDS = frozenset(
+    {"schema_version", "feature", "done_level", "base", "criteria", "out_of_scope", "revision"}
+)
+KNOWN_CRITERION_FIELDS = frozenset({"id", "text", "verify", "runner", "kind", "red", "hermetic"})
 
 # A verify command is executed as an argument vector, so these would become literal
 # arguments rather than doing what the author meant.
@@ -85,8 +91,10 @@ NO_BASELINE = "NO-BASELINE"
 # criterion PASS; keeping the words disjoint makes them non-interchangeable.
 RED = "RED"
 NOT_RED = "NOT-RED"
-NO_TEST = "NO-TEST"
 EXEMPT_GUARD = "EXEMPT-GUARD"
+# `NO-BASELINE` is deliberately shared with the status words: 06 §3 gives it one
+# meaning — the check could not run — and a criterion that selects no test is that
+# case, so it does not get a second word of its own.
 
 
 def now_iso() -> str:
@@ -243,6 +251,12 @@ def _check_of(raw_verify: object, raw_runner: object, cid: str) -> Check:
 def _criterion_of(raw: object, seen: set[str]) -> Criterion:
     if not isinstance(raw, dict):
         raise ContractError(f"each criterion must be a mapping, got {type(raw).__name__}")
+    unknown = sorted(set(raw) - KNOWN_CRITERION_FIELDS)
+    if unknown:
+        raise ContractError(
+            f"criterion {raw.get('id')!r} carries {', '.join(unknown)}, "
+            "which this runner does not read"
+        )
     cid = raw.get("id")
     if not isinstance(cid, str) or not CRITERION_ID_RE.fullmatch(cid):
         raise ContractError(f"criterion id {cid!r} is not a plain slug — ids become filenames")
@@ -307,6 +321,12 @@ def load_contract(path: Path | str) -> Contract:
     if unsupported:
         raise ContractError(
             f"this runner does not implement {', '.join(unsupported)} — "
+            "refusing rather than ignoring a field you expect to be enforced"
+        )
+    unknown = sorted(set(data) - KNOWN_FIELDS - set(UNSUPPORTED_FIELDS))
+    if unknown:
+        raise ContractError(
+            f"this runner does not read {', '.join(unknown)} — "
             "refusing rather than ignoring a field you expect to be enforced"
         )
 
@@ -691,7 +711,6 @@ def cmd_human(args: argparse.Namespace) -> int:
         raise ContractError(f"{crit.id} is not a `verify: human` criterion")
 
     status = PASS if args.verdict == "pass" else FAIL
-    at = now_iso()
     write_state(
         writer,
         crit.id,
@@ -703,24 +722,8 @@ def cmd_human(args: argparse.Namespace) -> int:
             "note": args.note or "",
         },
     )
-    writer.append_line(
-        "commands.jsonl",
-        json.dumps(
-            {
-                "at": at,
-                "criterion": crit.id,
-                "phase": "human",
-                "command": None,
-                "verdict": args.verdict,
-                "author": args.author,
-            },
-            ensure_ascii=False,
-        ),
-    )
-    writer.append_line(
-        "commands.log",
-        f"[{at}] {crit.id} human verdict={args.verdict} by {args.author}\n{'-' * 60}",
-    )
+    # No row in commands.jsonl: 19 defines that file as one object per executed command,
+    # and a verdict is not one. It lives in its own phase record and in manifest.json.
     print(f"{status} {crit.id} ({args.verdict} by {args.author})")
     render(writer, contract, root)
     return EXIT_OK if status == PASS else EXIT_GATE
@@ -751,7 +754,9 @@ def criterion_status(artifacts_root: Path, crit: Criterion) -> tuple[str, bool, 
         return PENDING_HUMAN, True, "verdict lacks an author or a UTC timestamp"
 
     verify = read_state(artifacts_root, crit.id, "verify")
-    status = str(verify["status"]) if verify else "NOT-RUN"
+    # 19 fixes the status vocabulary at four words, so "verify has not run" is reported
+    # as FAIL with the reason in the note rather than as a fifth word of our own.
+    status = str(verify["status"]) if verify else FAIL
     note = str(verify.get("note", "")) if verify else "verify has not run"
 
     if crit.is_guard:
@@ -776,7 +781,9 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
     for crit in contract.criteria:
         status, red_ok, note = criterion_status(writer.root, crit)
         if status == PASS and not red_ok:
-            status = "BLOCKED"
+            # It passed its own check but the red gate does not back it, so it is not
+            # done. Reported with a sanctioned word; the note carries the reason.
+            status = FAIL
         rows.append(f"| {crit.id} | {status} | `{display_command(crit.check)}` | {note} |")
 
     writer.write_text(
@@ -801,6 +808,18 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
                 "tree_clean": not git("status", "--porcelain", cwd=root),
                 "base": contract.base,
                 "done_level": contract.done_level,
+                "human_verdicts": [
+                    {
+                        "criterion": crit.id,
+                        "verdict": record.get("verdict"),
+                        "author": record.get("author"),
+                        "at": record.get("at"),
+                        "note": record.get("note", ""),
+                    }
+                    for crit in contract.criteria
+                    if crit.is_human
+                    and (record := read_state(writer.root, crit.id, "human")) is not None
+                ],
                 "environment": {"python": sys.version.split()[0], "platform": sys.platform},
                 "masked_env_names": sorted(
                     name
@@ -971,7 +990,7 @@ def cmd_red(args: argparse.Namespace) -> int:
                     if selection is None:
                         status, note, report = NO_BASELINE, "could not collect at head", None
                     elif not selection:
-                        status, note, report = NO_TEST, "the criterion selects no test", None
+                        status, note, report = NO_BASELINE, "the criterion selects no test", None
                     else:
                         brought = bring_forward(root, worktree, selection)
                         report_path = writer.reserve(f"state/reports/{crit.id}.red.xml")

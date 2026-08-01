@@ -12,7 +12,9 @@ import pytest
 from conftest import criterion, write_contract
 
 FOUR = ("REPORT.md", "commands.jsonl", "commands.log", "manifest.json")
-STATUS_WORDS = {"PASS", "FAIL", "PENDING-HUMAN", "NO-BASELINE", "NOT-RUN", "BLOCKED"}
+# 19 fixes the vocabulary at exactly these four. A fifth word in the status column is
+# the finding, not something to add here.
+STATUS_WORDS = {"PASS", "FAIL", "PENDING-HUMAN", "NO-BASELINE"}
 
 
 def art(repo, feature="sample"):
@@ -73,14 +75,18 @@ def test_evidence_report_is_one_row_per_criterion(repo, base_sha):
     assert len(rows) == 2
 
 
-def test_evidence_status_is_a_word_never_a_symbol(repo, base_sha):
-    """19: status survives grep and diff only if it is spelled out."""
+def test_evidence_status_is_one_of_the_four_words(repo, base_sha):
+    """19: status survives grep and diff only if it is one of a fixed, spelled-out set.
+
+    Driven through the states that tempted a fifth word — a criterion blocked by a
+    missing red record, and one whose verify never ran.
+    """
     simple(repo, base_sha, verify="false")
     run(repo, "verify")
     body = (art(repo) / "REPORT.md").read_text(encoding="utf-8")
-    for line in body.splitlines():
-        if line.startswith("| C-"):
-            assert line.split("|")[2].strip() in STATUS_WORDS
+    seen = [line.split("|")[2].strip() for line in body.splitlines() if line.startswith("| C-")]
+    assert seen, "no criterion rows in the report"
+    assert set(seen) <= STATUS_WORDS, seen
 
 
 def test_evidence_commands_jsonl_is_one_object_per_execution(repo, base_sha):
