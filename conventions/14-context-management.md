@@ -7,6 +7,7 @@
 - Dispatch independent tasks in parallel in a single batch, and run builds/tests in the background to reduce bottlenecks. However, guard against over-parallelization (merge/review overhead) with empirical measurement.
 - Keep the single source of truth in files, not in the conversation. Persist plans, decisions, and progress to external files, and treat conversation context as a volatile resource that can be summarized or lost at any time.
 - Put rules and facts that must persist in CLAUDE.md and auto memory (both survive compaction and `/clear`). Don't rely on conversation history to remember rules.
+- Auto memory is a setting and can be turned off — check before relying on it, because a rule written only there does nothing when it is disabled, and does so silently. Where it is off, CLAUDE.md carries the standing rules and a handoff file carries the session's findings; nothing is left to conversation history either way.
 - At every milestone, checkpoint "done / next / key decisions / relevant file paths" into a handoff document. Design work so it can resume as an externalized task.
 - Clear context with `/clear` between unrelated tasks. If two corrections don't fix things, `/clear` the contaminated context and restart with a better prompt.
 - When compaction is imminent, don't wait for it to run automatically — use `/compact <focus>` to specify what to keep, or summarize to a file first. Specify what to preserve in CLAUDE.md's "Compact Instructions".

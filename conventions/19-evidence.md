@@ -87,6 +87,8 @@ A human verdict is required to carry its author and an ISO-8601 UTC timestamp, a
 
 ### 7. Deliberately unspecified
 
-Visualization tiers, `figure ↔ criterion ↔ code anchor` linking, and a self-contained `index.html` are **not specified here yet**. Where a contract wants them, it records the intent in `evidence_todo` and leaves the format open.
+Visualization tiers, `figure ↔ criterion ↔ code anchor` linking, and a self-contained `index.html` are **not specified here yet**. Where a contract wants them, it says so in its body — in prose, under the criterion that needs them — and leaves the format open.
+
+Not in a front-matter field. An earlier version of this section named one, and the runner in `templates/scripts/` refuses every field it does not read, so an author following this document wrote a contract the tool then rejected. A field is a promise that something validates it; until the format exists there is nothing to validate, and the body is where an unvalidated intent belongs.
 
 Specifying a required field before its format exists is worse than leaving it out: every contract fills it differently, nothing can validate it, and the accumulated files all need rewriting once the real format lands.
