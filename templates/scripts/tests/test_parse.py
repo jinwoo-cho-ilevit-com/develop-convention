@@ -174,13 +174,23 @@ def test_parse_accepts_a_backtick_as_an_ordinary_argument(repo):
     assert run(repo, "lint") == 0
 
 
-@pytest.mark.parametrize("verify", ["/bin/echo a\n/bin/echo b", "/bin/echo a\n\n/bin/echo b"])
+@pytest.mark.parametrize(
+    "verify",
+    [
+        "/bin/echo a\n/bin/echo b",
+        "/bin/echo a\n\n/bin/echo b",
+        "/bin/echo a\r/bin/echo b",
+        "/bin/echo a\r\n/bin/echo b",
+    ],
+)
 def test_parse_refuses_a_verify_that_spans_more_than_one_line(repo, verify):
     """POSIX counts a newline among the control operators; shlex counts it as whitespace.
 
     A YAML block scalar holding two commands was fused into one argv and the criterion
     passed on a command the contract never states — the same failure the operator check
-    exists to prevent, arriving through a character the check never looked at.
+    exists to prevent, arriving through a character the check never looked at. Checking
+    for `\\n` alone then let `\\r` through the same way, which is why the rule is now
+    derived from shlex's whitespace set rather than written out.
     """
     write_contract(repo, [criterion("C-01", verify=verify), criterion("C-02", kind="negative")])
     assert run(repo, "lint") == 2

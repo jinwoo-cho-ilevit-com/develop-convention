@@ -6,6 +6,7 @@ here rather than assumed.
 """
 
 import json
+import re
 
 import contract
 import pytest
@@ -106,3 +107,24 @@ def test_evidence_manifest_records_provenance(repo, base_sha):
     assert manifest["commit"]
     assert isinstance(manifest["tree_clean"], bool)
     assert manifest["base"] == base_sha
+
+
+def test_evidence_report_escapes_a_pipe_in_the_command_cell(repo, base_sha):
+    """A bare `|` ends the cell early and drops `note`, which carries why it is blocked.
+
+    18 §4 advertises `--format='%h|%s'` as a command this runner runs, so the character
+    reaches the report, and every row must still have the four cells its header declares.
+    """
+    write_contract(
+        repo,
+        [
+            criterion("C-01", verify="git log -1 --format='%h|%s'"),
+            criterion("C-02", kind="negative"),
+        ],
+        base=base_sha,
+    )
+    contract.main(["verify", "--contract", str(repo / "contract.md")])
+    report = (repo / "artifacts" / "sample" / "REPORT.md").read_text(encoding="utf-8")
+    row = next(line for line in report.splitlines() if line.startswith("| C-01 "))
+    assert r"\|" in row
+    assert len(re.findall(r"(?<!\\)\|", row)) == 5, row

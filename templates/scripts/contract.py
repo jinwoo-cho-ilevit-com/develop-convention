@@ -68,6 +68,12 @@ KNOWN_CRITERION_FIELDS = frozenset({"id", "text", "verify", "runner", "kind", "r
 # through, and a redirect that silently did nothing still let its criterion pass.
 SHELL_PUNCTUATION = "();<>|&"
 
+# shlex separates arguments on every character in its whitespace set, so a verify holding
+# two commands separated by one of them is fused into a third rather than refused. Derived
+# from shlex rather than listed: writing `\n` alone let `\r` through, which is the third
+# time in this file that enumerating the bad forms missed one.
+LINE_SEPARATORS = frozenset(shlex.shlex().whitespace) - frozenset(" \t")
+
 EXIT_OK = 0
 EXIT_GATE = 1  # the runner answered, and the answer is no
 EXIT_CONTRACT = 2  # the runner could not answer
@@ -263,7 +269,7 @@ def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: 
     # whitespace, so a YAML block scalar holding two commands was fused into one argv
     # and passed — running a command the contract never states, which is the outcome
     # this whole check exists to prevent.
-    if "\n" in verify:
+    if LINE_SEPARATORS.intersection(verify):
         raise ContractError(
             f"{cid}: verify spans more than one line; a criterion runs one command, "
             "so write two criteria or put the sequence in a script"
@@ -851,7 +857,11 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
             # It passed its own check but the red gate does not back it, so it is not
             # done. Reported with a sanctioned word; the note carries the reason.
             status = FAIL
-        rows.append(f"| {crit.id} | {status} | `{display_command(crit.check)}` | {note} |")
+        # A `|` in a cell would end it early, and the column it drops is `note` — the one
+        # carrying why a criterion is blocked. `--format='%h|%s'` is a command this
+        # runner runs, so the character reaches here.
+        command = display_command(crit.check).replace("|", r"\|")
+        rows.append(f"| {crit.id} | {status} | `{command}` | {note.replace('|', r'\|')} |")
 
     writer.write_text(
         "REPORT.md",
