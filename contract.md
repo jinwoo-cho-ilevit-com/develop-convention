@@ -41,7 +41,7 @@ criteria:
     runner: pytest
 
   - id: C-05
-    text: "THE status command SHALL exit zero only when every criterion is PASS, and SHALL NOT report PASS for a criterion that has no red result unless that criterion is verified by a human or declared a guard."
+    text: "THE status command SHALL exit zero only when every criterion is PASS, and SHALL NOT report PASS for a criterion that has no red result unless that criterion is verified by a human or declared `red: guard`."
     verify: "uv run --group dev pytest templates/scripts/tests -k status_gate -q"
     kind: functional
     runner: pytest
@@ -81,7 +81,7 @@ criteria:
     kind: nonfunctional
 
   - id: C-12
-    text: "THE runner SHALL reject a feature name containing anything other than lowercase letters, digits and hyphens, and SHALL confine every file it writes to the artifacts directory inside the repository."
+    text: "THE runner SHALL reject a feature name containing anything other than lowercase letters, digits and hyphens, and SHALL confine every file it writes to the artifacts directory inside the repository, apart from the base checkout C-06 requires, which is the only exception."
     verify: "uv run --group dev pytest templates/scripts/tests -k containment -q"
     kind: functional
     runner: pytest
@@ -93,7 +93,7 @@ criteria:
     runner: pytest
 
   - id: C-14
-    text: "THE runner SHALL hold a human criterion at PENDING-HUMAN until a verdict carrying its author and its timestamp is recorded."
+    text: "THE runner SHALL hold a human criterion at PENDING-HUMAN until a verdict carrying its author and an ISO-8601 UTC timestamp is recorded."
     verify: "uv run --group dev pytest templates/scripts/tests -k human_verdict -q"
     kind: functional
     runner: pytest
