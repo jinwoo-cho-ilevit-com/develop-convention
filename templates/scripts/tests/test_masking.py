@@ -6,6 +6,8 @@ The first two tests are about the pattern file itself: a shape with no working s
 is a shape nobody has proven catches anything.
 """
 
+import json
+
 import contract
 import pytest
 from conftest import criterion, write_contract
@@ -90,6 +92,30 @@ def test_masking_keeps_a_planted_credential_out_of_every_artifact(repo, base_sha
     text = all_artifact_text(repo)
     assert text, "no artifacts were written"
     assert shape.sample not in text
+
+
+def test_masking_manifest_names_only_what_was_actually_redacted(repo, base_sha, monkeypatch):
+    """A manifest that named a variable it did not mask is a false assurance.
+
+    Both names match the secret-bearing globs; only the long value is redacted, so
+    only the long one may be listed. Listing the short one would tell a reviewer the
+    value was hidden while the log still carries it.
+    """
+    monkeypatch.setenv("LONG_TOKEN", "zq7wlongsecretvalue")
+    monkeypatch.setenv("SHORT_TOKEN", "abc")
+    write_contract(
+        repo,
+        [
+            criterion("C-01", verify="printenv SHORT_TOKEN"),
+            criterion("C-02", kind="negative"),
+        ],
+        base=base_sha,
+    )
+    contract.main(["verify", "--contract", str(repo / "contract.md")])
+    manifest = json.loads((artifacts(repo) / "manifest.json").read_text(encoding="utf-8"))
+    assert "LONG_TOKEN" in manifest["masked_env_names"]
+    assert "SHORT_TOKEN" not in manifest["masked_env_names"]
+    assert "abc" in all_artifact_text(repo), "the short value really is in the clear"
 
 
 def test_masking_keeps_an_environment_secret_out_of_every_artifact(repo, base_sha, monkeypatch):

@@ -463,22 +463,29 @@ def secret_env_globs() -> tuple[str, ...]:
 class Masker:
     """Redacts credential shapes and the values of secret-bearing variables."""
 
-    def __init__(self, literals: tuple[str, ...]) -> None:
+    def __init__(self, literals: tuple[str, ...], names: tuple[str, ...] = ()) -> None:
         self._literals = literals
+        # The variables whose values are actually being redacted — not the ones whose
+        # names merely matched. A manifest that named the second set would tell a
+        # reviewer a value was masked when the log still carries it in the clear.
+        self.names = names
 
     @staticmethod
     def from_env(env: dict[str, str] | None = None) -> Masker:
         source = os.environ if env is None else env
         globs = secret_env_globs()
-        values = {
-            value
+        masked = {
+            name: value
             for name, value in source.items()
             if isinstance(value, str)
             and len(value) >= MIN_SECRET_VALUE_LEN
             and any(fnmatch.fnmatchcase(name, glob) for glob in globs)
         }
         # Longest first, so a value that is a prefix of another does not half-redact it.
-        return Masker(tuple(sorted(values, key=len, reverse=True)))
+        return Masker(
+            tuple(sorted(set(masked.values()), key=len, reverse=True)),
+            tuple(sorted(masked)),
+        )
 
     def mask(self, text: str) -> str:
         for literal in self._literals:
@@ -500,7 +507,7 @@ class ArtifactWriter:
 
     def __init__(self, root: Path, masker: Masker | None = None) -> None:
         self.root = Path(root)
-        self._masker = masker if masker is not None else Masker.from_env()
+        self.masker = masker if masker is not None else Masker.from_env()
 
     def _target(self, rel: str) -> Path:
         relative = PurePosixPath(rel)
@@ -515,14 +522,14 @@ class ArtifactWriter:
     def write_text(self, rel: str, text: str) -> Path:
         target = self._target(rel)
         temp = target.with_name(f"{target.name}.tmp{os.getpid()}")
-        temp.write_text(self._masker.mask(text), encoding="utf-8")
+        temp.write_text(self.masker.mask(text), encoding="utf-8")
         os.replace(temp, target)
         return target
 
     def append_line(self, rel: str, text: str) -> Path:
         target = self._target(rel)
         with target.open("a", encoding="utf-8") as handle:
-            handle.write(self._masker.mask(text).rstrip("\n") + "\n")
+            handle.write(self.masker.mask(text).rstrip("\n") + "\n")
         return target
 
     def reserve(self, rel: str) -> Path:
@@ -821,11 +828,7 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
                     and (record := read_state(writer.root, crit.id, "human")) is not None
                 ],
                 "environment": {"python": sys.version.split()[0], "platform": sys.platform},
-                "masked_env_names": sorted(
-                    name
-                    for name in os.environ
-                    if any(fnmatch.fnmatchcase(name, glob) for glob in secret_env_globs())
-                ),
+                "masked_env_names": list(writer.masker.names),
             },
             indent=2,
             ensure_ascii=False,
