@@ -85,5 +85,5 @@ Sources: [ML testing — fixtures, seeds, golden files](https://medium.com/@conn
 - Run the verification command and check the exit code and full output before claiming completion.
 - Blockers, not completion: TODO comments, unimplemented branches, stub tests, skipped tests, "probably works".
 - For a rewrite or refactor, completion includes passing the characterization tests (→ [00-principles.md](00-principles.md)).
-- The verifier is not the author: review runs in a fresh context that starts from the diff and the criteria and never sees the author's reasoning (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- The verifier is not the author: review runs in a fresh context that starts from the diff and the criteria and never sees the author's reasoning (→ [20-review-gate.md](20-review-gate.md)).
 - Integration is verified once after merging the parallel lanes, by the end-to-end layer above. That run is what a contract's `integration` criteria point at (→ [18-work-contract.md](18-work-contract.md)).

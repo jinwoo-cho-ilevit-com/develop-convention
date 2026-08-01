@@ -17,7 +17,7 @@ Each doc starts with `## Core Rules` (imperative rules excerptable into agent in
 | [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, golden files, tolerance bands, CPU smoke tests, completion verification |
 | [07-ml-development.md](conventions/07-ml-development.md) | Seed/reproducibility, train-serve skew prevention, experiment tracking, checkpoints/spot pods |
 | [08-llm-development.md](conventions/08-llm-development.md) | Training framework routing, FSDP2/bf16, chat template consistency, evaluation reproducibility, LLM-as-judge, data |
-| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), post-development review gate (Codex plugin/cursor CLI), parallel review lanes + fan-in, model routing |
+| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, model routing, spec gating |
 | [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API inference module: adapter structure, calls/rate limits, errors/retries, ensembles, caching/resume, cost/evaluation |
 | [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider-specific considerations (OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + structured output tiered fallback |
 | [12-docs-reference.md](conventions/12-docs-reference.md) | Latest-docs reference procedure (4 tiers) + per-provider canonical URL registry + smoke-test confirmation |
@@ -28,6 +28,7 @@ Each doc starts with `## Core Rules` (imperative rules excerptable into agent in
 | [17-commit-protocol.md](conventions/17-commit-protocol.md) | Commit protocol: Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting — git log doubles as a research note |
 | [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria (EARS/Given-When-Then + executable verify), lane ownership, done level (auto/reviewed/proven by size × reversibility), field triggers, changing a frozen contract |
 | [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, teed execution records with secret masking, provenance and timestamps, human verdict records, recorded bypasses |
+| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, lanes defined by input (module/project/absence/security), fan-in and severity, review tool paths without pinned model ids |
 
 ## How to Apply to a New Project
 
@@ -142,12 +143,17 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Agentic Workflow
 - Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills.
-- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration, review tool) before starting; freeze shared contracts during execution; assign locks/migrations to a single owner.
-- Every agent must go through a review separate from its author after development. Choose the review tool before development begins — Path A: Codex plugin (Stop gate `ALLOW`/`BLOCK` + `/codex:review`, a configured default model, the orchestrator synthesizes and applies feedback) / Path B: cursor CLI (read-only `--mode ask`; resolve the model id at use time with `cursor-agent models` and pick by role — depth, speed/cost, or a family different from Path A's — rather than pinning an id in the docs).
-- Scale review lanes to change risk: a 2+ module or interface/schema change gets three parallel lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), critic (requirement + diff, hunting for what is absent); anything smaller gets one lane, and a security lane is added only when auth/secrets/external input is touched. Lanes never see each other's output, and at least one runs on a different vendor's model.
-- Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered, dedupe by `file:line`, resolve contradictory advice, verify each finding against the code, rank by severity. An unsynthesized merge just amplifies manufactured issues. The review ends when no confirmed blocker remains — not when a findings list exists.
-- Review lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
+- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution; assign locks/migrations to a single owner.
 - Merge each branch only after its tests pass, then do one integration verification pass. Route models by difficulty (mechanical → lightweight, standard → mid-tier, architecture → top-tier).
+- Write heavyweight spec documents only when they are an asset shared across PRs or workers; small or exploratory work uses lightweight iteration.
+
+### Review Gate
+- Every change goes through a review its author did not perform, on a tool chosen before development starts. The reviewer gets the diff and the criteria, never the author's reasoning.
+- Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched.
+- Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered, dedupe by `file:line`, resolve contradictions, verify each finding against the code, rank by severity. An unsynthesized merge amplifies manufactured issues once per lane.
+- Severity carries an action: blocker blocks the merge and is re-reviewed by the lane that raised it, major is fixed in the same work, minor becomes a follow-up, nit may be ignored. A finding with no concrete failing scenario is a nit.
+- Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
+- Run at least one lane on a different vendor's family, and don't pin model ids in the docs — resolve them at use time and pick by role. A gate that passes is not evidence the gate works; confirm once that it fails when it should.
 
 ### Secret Management
 - Never hardcode secrets in code, config, logs, or images; never commit a plaintext `.env` (`.gitignore` + `.env.example` lists keys only). The single source of truth is a central secret manager (Infisical recommended).

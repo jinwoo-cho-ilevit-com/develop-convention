@@ -49,7 +49,7 @@ The contract is the output. Reaching it takes answering five questions; leaving 
 3. Rejected alternatives are recorded with their reason.
 4. **The next question can only be answered by writing code.** This is the most reliable of the four.
 
-There is no separate planning-depth setting. How hard a plan is challenged before execution follows `done_level`: `auto` skips it, `reviewed` gets one adversarial pass, `proven` gets the full lane set (→ [09-agentic-workflow.md](09-agentic-workflow.md) §3). A second dial would only be another thing to under-report.
+There is no separate planning-depth setting. How hard a plan is challenged before execution follows `done_level`: `auto` skips it, `reviewed` gets one adversarial pass, `proven` gets the full lane set (→ [20-review-gate.md](20-review-gate.md)). A second dial would only be another thing to under-report.
 
 When asking a person to decide something, give them the trade: what is gained, what is lost, what it costs to reverse, and why the decision is not yours to make. Options without their costs are a request for agreement, not a decision.
 
@@ -109,4 +109,4 @@ Record kind and reason in `revision` either way.
 
 A contract has the lifetime of one piece of work. On completion it is committed with that work and then deleted — git history is the archive, and a stale contract in the tree is worse than none. Decisions that outlive the work move to the ADR chain before deletion (→ [15-doc-tracking.md](15-doc-tracking.md)); a contract is not an ADR.
 
-Criteria map to tests and the red check via [06-testing-verification.md](06-testing-verification.md); evidence and human verdicts via [19-evidence.md](19-evidence.md); decomposition, isolation, review lanes, and model routing stay in [09-agentic-workflow.md](09-agentic-workflow.md). The contract records decisions, not the rules behind them.
+Criteria map to tests and the red check via [06-testing-verification.md](06-testing-verification.md); evidence and human verdicts via [19-evidence.md](19-evidence.md); decomposition, isolation, and model routing stay in [09-agentic-workflow.md](09-agentic-workflow.md), review lanes and fan-in in [20-review-gate.md](20-review-gate.md). The contract records decisions, not the rules behind them.

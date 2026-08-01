@@ -11,7 +11,7 @@
 - If a human edits a managed section, don't silently revert it — log the reason code to the corrections log and feed it into future generation prompts (RMA loop). If contradictory reasons pile up for the same section, demote that section to human ownership.
 - ADRs are append-only — supersede with a new ADR instead of editing. Record not only adopted decisions but also reversed decisions and rollbacks, with reasons. When agents reference ADRs, they must resolve the supersession chain to the end and follow only the currently valid decision.
 - Standardize visualizations on Mermaid (it's text, so it's diffable/reviewable, GitHub renders it natively, and agents can read and write it). Generate module dependency graphs with deterministic tools (pydeps, madge, etc.) rather than maintaining them by hand.
-- Include a "code change ↔ doc update consistency" check in the review gate (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- Include a "code change ↔ doc update consistency" check in the review gate (→ [20-review-gate.md](20-review-gate.md)).
 
 ## Details
 

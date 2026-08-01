@@ -18,9 +18,8 @@ A development-conventions documentation repository. The deliverable is documents
 ## Verification
 
 - Cross-check before completion: (1) every conventions doc has `## Core Rules` as its first body heading, (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) no tool-call residue and every doc-map link resolves.
-- **A claim that two rules conflict, or that a rule lives somewhere, must quote the actual file.** Three times during this repo's own review a claim about the repository turned out to be an inference rather than an observation: twice a "conflict" did not exist and the proposed fix would have weakened a rule that was already correct, and once a reviewer refuted a commit body after testing a different tool version than the one this repo pins. Reading beats inferring in both directions — quote the file, and pin the version you tested.
-- **A gate that passes is not evidence the gate works.** Verify the gate itself fails when it should, at least once. This repo shipped a red-check gate whose own evidence pack contained no red results, and the completion report treated the resulting exit 0 as proof.
-- Sizable changes are verified by fresh-context review lanes that start from the diff and criteria and never see the authoring session's reasoning — a rule this repo's 00-principles.md and 09-agentic-workflow.md set for itself.
+- A claim that two rules conflict, or that a rule lives somewhere, quotes the actual file. The same holds for refuting one: name the tool version you tested with, and make it the version this repo pins.
+- Sizable changes go through fresh-context review lanes (→ `conventions/20-review-gate.md`), which this repo applies to itself.
 
 ## Commits
 
