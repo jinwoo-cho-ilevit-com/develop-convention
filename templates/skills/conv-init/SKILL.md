@@ -9,7 +9,7 @@ One-command application of the convention templates to the current project. Tool
 
 ## Inputs (ask if not provided)
 
-1. **One-line project description** (fills `[one-line: what this project is]`).
+1. **One-line project description** (fills `[One line: what this project is]`).
 2. **Project type**: `general` / `ML` / `LLM API` (multiple allowed) — decides which optional blocks survive.
 3. **Adopt docsync doc tracking?** yes/no.
 
@@ -31,7 +31,7 @@ Copy from `<CONVENTION_PATH>/templates/` into the project root:
 
 | Placeholder | Fill with |
 |---|---|
-| `[one-line: what this project is]` | user's description |
+| `[One line: what this project is]` | user's description |
 | `PROJECT_NAME` | directory name or existing pyproject name |
 | `[CONVENTION_PATH]` | the path from step 1 |
 | `[ENTRY]` / smoke command | actual entrypoint if known, else leave a TODO comment for the user |
