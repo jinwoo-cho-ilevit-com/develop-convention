@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0   # `contract.py red` checks out the contract's base commit
 
-      - uses: astral-sh/setup-uv@v9
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
 
