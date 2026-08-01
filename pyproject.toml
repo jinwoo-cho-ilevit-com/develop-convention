@@ -1,0 +1,41 @@
+# This repository's deliverable is documentation. The only code it carries is the
+# contract toolkit under templates/scripts/, which projects copy out. This file
+# exists so that code can be linted and tested here before it is copied anywhere.
+[project]
+name = "develop-convention"
+version = "0"
+description = "Development convention documents and the work-contract toolkit"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pyyaml>=6",
+  # Pinned to the rev of the ruff-pre-commit hook in .pre-commit-config.yaml.
+  # A formatter that differs between the hook and `uv run ruff format` makes the
+  # hook rewrite what the local check just called clean.
+  "ruff==0.14.5",
+]
+
+# Kept in step with templates/pyproject.toml — files under templates/ resolve that
+# file as their ruff config, so a setting that differs here lints them under two rules.
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+# Snippets inside the convention documents are illustrations, sometimes aligned
+# deliberately for reading. Formatting them rewrites prose-adjacent examples for
+# no gain and makes `format --check` fail on hand-written docs.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# The path does not exist until the runner lane creates it; bare `uv run pytest`
+# is a usage error until then. The contract's verify commands pass explicit paths.
+[tool.pytest.ini_options]
+testpaths = ["templates/scripts/tests"]
+addopts = "--strict-markers -q"
