@@ -5,14 +5,17 @@ A **work contract** is one file, written before the work starts, that fixes thre
 ## Core Rules
 
 - Write the contract before development starts and freeze it during execution. Record any change in `revision` with its kind; an additive change touching no existing criterion or `owns` entry updates only the affected lane.
-- Scale the contract to the work. Three to five lines — feature, done level, criteria, out of scope — is complete for small work, and that form is not the heavyweight spec [09-agentic-workflow.md](09-agentic-workflow.md) §5 warns against. Add `lanes`/`owns`/`integration` only for two or more parallel lanes, and `base` only when adding tests.
+- Scale the contract to the work. Three to five lines — feature, done level, criteria, out of scope — is complete for small work, and that form is not the heavyweight spec [09-agentic-workflow.md](09-agentic-workflow.md) §4 warns against. Add `lanes`/`owns`/`integration` only for two or more parallel lanes, and `base` only when adding tests.
 - Write every criterion in EARS or Given-When-Then with `SHALL`, and apply the judgment test: **if two agents could disagree about whether it passed, rewrite it.**
 - Give every criterion an executable `verify:` command or mark it `verify: human`. A criterion that is neither is not a criterion.
 - Cover functional, non-functional, and **negative** criteria — what must *not* happen. The negative kind is what stops over-building. State what is out of scope; an unstated boundary is the one that gets crossed.
 - For a rewrite, include a characterization criterion that pins existing behaviour first (→ [00-principles.md](00-principles.md)).
-- Declare `done_level` before starting, chosen by size × reversibility. At every level three things are mandatory: every criterion passes, the evidence exists, and each new test was observed failing at the base commit.
-- Restrict `owns` to disjoint directory prefixes. Globs expanded against the current file list miss files that do not exist yet, which is the collision the check exists to prevent.
-- Assign lock files, migrations, and generated files to a single owner in `sequential_owner`, never to a lane.
+- Declare `done_level` before starting, chosen by size × reversibility. At every level three things are mandatory: every criterion passes, the evidence exists, and each new test was observed failing at the base commit (the red check and its three outcomes are defined in [06-testing-verification.md](06-testing-verification.md) §3; this document does not restate them).
+- Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. An absence criterion almost always is, and one declared without the exemption fails the red check for the correct reason and blocks the gate.
+- Give every lane a disjoint `owns`, written as directory prefixes wherever the work divides that way. Globs expanded against the current file list miss files that do not exist yet, which is the collision the check exists to prevent.
+- Name cross-cutting files individually in `owns`, one owner each. A repository has files that belong to no directory — the README, the ignore file, the site config — and a prefix rule cannot assign them, so a decomposition that only knows prefixes silently leaves them to whoever touches them first. Give the integration lane an explicit list and run it last.
+- Slice by file, not by phase, when several kinds of change land in the same documents. Three lanes each doing "their kind of edit" across the same files collide by construction; one lane per file, carrying every kind of edit for that file, does not.
+- Assign lock files, migrations, and generated files to a single owner, never to a lane.
 - Record model tier per lane (`light`/`mid`/`top`), never a model id, so the routing choice can be audited afterwards.
 - Answer the five planning questions before writing criteria, and start once the four start signals hold.
 - Make deviation visible rather than forbidding it. A bypassed gate is `done_level: bypassed` with a reason; an unrecorded bypass is the blocker.
@@ -50,6 +53,14 @@ The contract is the output. Reaching it takes answering five questions; leaving 
 4. **The next question can only be answered by writing code.** This is the most reliable of the four.
 
 There is no separate planning-depth setting. How hard a plan is challenged before execution follows `done_level`: `auto` skips it, `reviewed` gets one adversarial pass, `proven` gets the full lane set (→ [20-review-gate.md](20-review-gate.md)). A second dial would only be another thing to under-report.
+
+**Stopping the pre-execution gate.** A gate whose exit condition is "until the reviewers stop finding things" has no fixed point, and prose review does not converge on its own. Fix the exit before the first round:
+
+- Only a *blocker* holds the gate — something that would make the work wrong or unusable. Everything else is recorded and carried into the work.
+- Between rounds, count how many of this round's findings were introduced by the previous round's fix. When that is most of them, the fix rate has become the defect source: stop and change the approach rather than run another round.
+- Narrowing what counts as a blocker mid-gate is legitimate, and it is a decision — write it down, because a rule invented to end a round is invisible to the next one.
+
+The same three apply to a review loop after execution. Round count is not an exit condition: one loop here ran eleven rounds without converging, and what ended it was noticing the findings had changed in kind — from gates opening wrongly to prose being imprecise — not their number.
 
 When asking a person to decide something, give them the trade: what is gained, what is lost, what it costs to reverse, and why the decision is not yours to make. Options without their costs are a request for agreement, not a decision.
 

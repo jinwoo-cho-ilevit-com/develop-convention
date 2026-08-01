@@ -14,9 +14,9 @@
 
 - **CPU-bound preprocessing** (tokenization, image decoding, feature computation): multiprocessing. In PyTorch, DataLoader's `num_workers>0` serves this role. Note, though, that every sample passes through an inter-process queue, so the queue transfer itself can become a bottleneck.
 - **IO-bound work** (API calls, file/network downloads, DB queries): asyncio. Single-thread concurrency keeps overhead low, but it only helps when actual non-blocking I/O is used.
-- **Python free-threading (3.14t)**: promoted to official support in 3.14, but it's a separate build, and depending on C extension compatibility the GIL can silently re-activate. Maintain a "watch and verify by benchmark before adopting" stance.
+- **Python free-threading (3.14t)**: PEP 779 (Final, Python 3.14) moved the free-threaded build to phase II — officially supported, but still a separate optional build installed under the `t`-suffixed tag. The GIL can be re-enabled at runtime (`PYTHON_GIL`, `-X gil`) and is re-enabled automatically when a C extension not marked free-thread-safe is imported — that case prints a warning rather than being silent. Maintain a "watch and verify by benchmark before adopting" stance.
 
-Sources: [PyTorch — data loading tutorial](https://docs.pytorch.org/tutorials/intermediate/intermediate_data_loading_tutorial.html), [Python — free-threading HOWTO](https://docs.python.org/3/howto/free-threading-python.html)
+Sources: [PyTorch — data loading tutorial](https://docs.pytorch.org/tutorials/intermediate/intermediate_data_loading_tutorial.html), [PEP 779 — criteria for supported status of free-threaded Python](https://peps.python.org/pep-0779/), [Python 3.14 release notes](https://docs.python.org/3/whatsnew/3.14.html), [Python — free-threading HOWTO](https://docs.python.org/3/howto/free-threading-python.html) (as of: 2026-08)
 
 ### 2. DataLoader Tuning Checklist
 
@@ -39,7 +39,7 @@ Instrument at three layers:
 - There are two headline metrics: **VRAM usage** and **GPU utilization (%)**. Record these two plus RAM/CPU at every pipeline stage.
 - In-code instrumentation: have one shared helper that logs `torch.cuda.max_memory_allocated()` (when using CUDA) and `psutil`-based RAM/CPU at stage start/end, and have every stage share it.
 
-Sources: [nvitop](https://github.com/XuehaiPan/nvitop), [W&B system metrics](https://docs.wandb.ai/models/ref/python/experiments/system-metrics), [GPU utilization guide](https://towardsdatascience.com/a-guide-to-gpu-utilization/)
+Sources: [nvitop](https://github.com/XuehaiPan/nvitop), [W&B system metrics](https://docs.wandb.ai/models/ref/python/experiments/system-metrics), [NVIDIA NVML — utilization metrics](https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceStructs.html) (GPU utilization = percent of time one or more kernels was executing; memory utilization = percent of time device memory was being read or written)
 
 ### 4. Structured Logging
 

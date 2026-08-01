@@ -26,16 +26,16 @@ Provider API knowledge goes stale on a timescale of months (the silent `output_f
 
 Web search is for lead-finding only. Facts are confirmed only through Tiers 1–4 (→ [00-principles.md](00-principles.md), fact-based judgment).
 
-### 2. Canonical URL Registry (as of: 2026-07)
+### 2. Canonical URL Registry (as of: 2026-08)
 
 When starting work related to a provider, fetch the URL in the corresponding row. Check whether the provider offers an `llms.txt` (a documentation index for agents), and if so, add it to this table.
 
 **OpenAI** — https://developers.openai.com/api/docs/
-- guides/structured-outputs · guides/reasoning · guides/rate-limits · guides/batch · guides/prompt-caching · guides/deprecations
+- guides/structured-outputs · guides/reasoning · guides/rate-limits · guides/batch · guides/prompt-caching · deprecations (top level, not under guides/)
 - Reference parallel-processing implementation: https://github.com/openai/openai-cookbook/blob/main/examples/api_request_parallel_processor.py
 
 **Anthropic** — https://platform.claude.com/docs/en/
-- build-with-claude/structured-outputs · build-with-claude/effort · build-with-claude/adaptive-thinking · build-with-claude/prompt-caching · build-with-claude/batch-processing · build-with-claude/streaming
+- build-with-claude/structured-outputs · build-with-claude/effort · build-with-claude/thinking · build-with-claude/prompt-caching · build-with-claude/batch-processing · build-with-claude/streaming
 - api/rate-limits · about-claude/models/model-ids-and-versions
 
 **Google Gemini** — https://ai.google.dev/gemini-api/docs/
@@ -49,18 +49,18 @@ When starting work related to a provider, fetch the URL in the corresponding row
 
 For the ML/training stack (torch, TRL, vLLM, etc.), the source links in [08-llm-development.md](08-llm-development.md) are the seed. When a new library is adopted, leaving its official docs URL as a source in the corresponding convention document is itself the registry entry.
 
-### 2.1 Provider Official Skills (as of: 2026-07)
+### 2.1 Provider Official Skills (as of: 2026-08)
 
-SKILL.md is an open standard supported by major agents including Claude Code, Codex CLI, Cursor, and Gemini CLI. If a provider offers an official skill, install and use it instead of fetching docs every time, and prioritize it over ctx7 when checking SDK usage.
+Agent Skills is an open standard — a folder holding a `SKILL.md` (with `name` and `description`) plus optional scripts and references — originally developed by Anthropic and then released as an open standard. Claude Code, Codex, Cursor, and Gemini CLI all read it, as do a long tail of other agents. If a provider offers an official skill, install and use it instead of fetching docs every time, and prioritize it over ctx7 when checking SDK usage.
 
 | Provider | Official skill | Install |
 |---|---|---|
-| Google | `gemini-api-dev` (general development), `gemini-live-api-dev` (real-time), `gemini-interactions-api` | `npx skills add google-gemini/gemini-skills --skill <name> --global` or ctx7 |
-| Anthropic | anthropics/skills marketplace (includes a Claude API development skill) | Claude Code: `/plugin marketplace add anthropics/skills` then `/plugin install` |
-| OpenAI | Dedicated API-development skill **unverified** (the Codex skills catalog is deprecated → migrating to the Plugins repo) | — Use the Tier 1/2 path, re-check periodically |
-| DeepSeek / OpenRouter | **Unverified** | — Use the Tier 1/2 path, re-check periodically |
+| Google | `gemini-api-dev` (general development), `gemini-live-api-dev` (real-time), `gemini-interactions-api`, `gemini-omni-flash-api` | `npx skills add google-gemini/gemini-skills --skill <name> --global` or ctx7 |
+| Anthropic | anthropics/skills marketplace (`document-skills`, `example-skills`). A dedicated Claude API development skill is **not** among them; for the API itself use the Tier 1 docs | Claude Code: `/plugin marketplace add anthropics/skills` then `/plugin install` |
+| OpenAI | Dedicated API-development skill **(unverified — needs research)**. Codex itself reads the standard from `.agents/skills`, but the `openai/skills` catalog repo is deprecated in favor of `openai/plugins` (author new ones as skill-only plugins) | — Use the Tier 1/2 path, re-check periodically |
+| DeepSeek / OpenRouter | **(unverified — needs research)** | — Use the Tier 1/2 path, re-check periodically |
 
-Sources: [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecation notice)](https://github.com/openai/skills)
+Sources: [Agent Skills — open standard](https://agentskills.io), [Claude Code — skills](https://code.claude.com/docs/en/skills), [Codex — build skills](https://learn.chatgpt.com/docs/build-skills), [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [google-gemini/gemini-skills](https://github.com/google-gemini/gemini-skills), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecation notice)](https://github.com/openai/skills)
 
 ### 3. Provider Smoke Tests (Tier 4)
 
@@ -78,4 +78,4 @@ The following three lines in each project's CLAUDE.md/AGENTS.md are enough:
 - Don't guess at undocumented behavior — confirm it with a provider smoke test
 ```
 
-Once this procedure is confirmed to be reused in practice, consider promoting it to a skill — until then, the registry + three-line rule delivers more value than its maintenance cost (→ [09-agentic-workflow.md](09-agentic-workflow.md), skill-extraction criteria).
+Once this procedure is confirmed to be reused in practice, consider promoting it to a skill — until then, the registry + three-line rule delivers more value than its maintenance cost. The test for promotion is the one in [09-agentic-workflow.md](09-agentic-workflow.md) §1 ("Split into Skills"): knowledge that isn't always needed belongs in an on-demand skill rather than an always-loaded instruction file.

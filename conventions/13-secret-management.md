@@ -74,8 +74,8 @@ Sources: [Infisical — Docker integration](https://infisical.com/docs/integrati
 
 ### 5. Leak Prevention
 
-- Enforce secret scanning before commit. Run `gitleaks` doubly, in both a pre-commit hook and CI, to block hardcoded credentials. Scanning is especially important because commits made by AI coding assistants have a higher secret-leak rate.
+- Enforce secret scanning before commit. Run `gitleaks` doubly, in both a pre-commit hook and CI, to block hardcoded credentials. Scanning matters more once agents are committing: GitGuardian's State of Secrets Sprawl 2026 measured a 3.2% secret-leak rate on Claude Code-assisted commits against a 1.5% baseline across all public GitHub commits (roughly 2x). The report does not publish the sample size or method for that comparison, and cautions against reading it as a tool defect — the developer still decides what gets accepted and pushed — so the control is scanning the commits, not avoiding the tool.
 - A secret that's already been committed isn't made safe just by adding it to `.gitignore` — it remains in history, so **rotate and reissue it immediately**, and remove it from history if needed.
 - Teams separate dev/staging/prod environments, restrict prod secret access to a minimal set of people/machine identities, and track access via audit logs.
 
-Sources: [gitleaks](https://github.com/gitleaks/gitleaks)
+Sources: [gitleaks](https://github.com/gitleaks/gitleaks), [GitGuardian — State of Secrets Sprawl 2026](https://www.gitguardian.com/state-of-secrets-sprawl-report-2026)

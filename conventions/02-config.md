@@ -21,14 +21,14 @@ Exception: values that are invariant by mathematical definition (e.g., 1000 mill
 
 ### 2. Tool choice: Hydra + a validation layer
 
-As of 2025-2026, Hydra is the de facto standard for hierarchical, composable config.
+Hydra is actively maintained (v1.3.4, released 2026-07-04) and is this repo's default choice for hierarchical, composable config. Its "de facto standard" status is a market-share claim (unverified — needs research); pick it for the composition model, not for the ranking.
 
 - **config group**: split by axis, like `configs/model/`, `configs/data/`, `configs/train/`, and define experiments as compositions.
 - **ablation**: a combinatorial sweep becomes a single line, e.g. `python train.py --multirun model=base,large data=full,filtered`. Each run automatically saves config+logs to an isolated output directory.
-- **validation layer**: the combination of Hydra (composition) and Pydantic (type/range validation) is the currently recommended pattern. A value like `train_size=1.5` must fail before training starts.
+- **validation layer**: Hydra's own documented mechanism is Structured Configs — Python dataclasses that give runtime type checking during composition plus static type checking. Pair it with a range/constraint validator (Pydantic) for what dataclasses cannot express; that Hydra+Pydantic pairing is a community pattern, not a documented recommendation (unverified — needs research). Either way, a value like `train_size=1.5` must fail before training starts.
 - Lightweight alternative: if you want code-first typed config without YAML, use tyro (dataclass-based, strong static type checking) or draccus. Pick one per project and use it consistently.
 
-Sources: [Hydra — configuring experiments](https://hydra.cc/docs/patterns/configuring_experiments/), [Configuration management for model training experiments using Pydantic and Hydra](https://towardsdatascience.com/configuration-management-for-model-training-experiments-using-pydantic-and-hydra-d14a6ae84c13/), [tyro](https://github.com/brentyi/tyro), [draccus](https://github.com/dlwh/draccus)
+Sources: [Hydra — configuring experiments](https://hydra.cc/docs/patterns/configuring_experiments/), [Hydra — structured configs](https://hydra.cc/docs/tutorials/structured_config/intro/), [Hydra releases](https://github.com/facebookresearch/hydra/releases), [tyro](https://github.com/brentyi/tyro), [draccus](https://github.com/dlwh/draccus) (as of: 2026-08)
 
 ### 3. Ablation study structure
 
