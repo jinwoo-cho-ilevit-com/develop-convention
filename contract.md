@@ -200,6 +200,21 @@ the runner from drifting apart.
 | `record_output` | `true` records command output as evidence | `false` | yes |
 | `red` | `required` or `guard` | `required` | no |
 
+## Review tooling
+
+20 requires the review tool to be chosen before development starts and recorded alongside the
+decomposition, so it is recorded here rather than in the front matter — it is a routing decision,
+not a field the runner reads.
+
+| When | Lanes | Tool |
+|---|---|---|
+| Before execution (18 §2, `proven`) | criteria, project, absence — over this contract, since the contract is the plan | one lane on `cursor-agent --mode ask`, the rest in-session |
+| During execution | Stop gate per turn | Path A, Codex plugin |
+| Before closing | deeper pass over the diff | Path B, `cursor-agent --mode ask` |
+
+Model ids are resolved at use time with `cursor-agent models`, never pinned here. The
+different-vendor lane exists to satisfy 20's rule that not every lane shares a model family.
+
 ## Why `done_level: proven`
 
 This introduces a module with external effect — it executes commands and writes files. Under the
