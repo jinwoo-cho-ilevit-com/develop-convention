@@ -79,5 +79,3 @@ The following three lines in each project's CLAUDE.md/AGENTS.md are enough:
 ```
 
 Once this procedure is confirmed to be reused in practice, consider promoting it to a skill — until then, the registry + three-line rule delivers more value than its maintenance cost (→ [09-agentic-workflow.md](09-agentic-workflow.md), skill-extraction criteria).
-</content>
-</invoke>

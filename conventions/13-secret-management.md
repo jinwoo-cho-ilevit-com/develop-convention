@@ -86,4 +86,3 @@ Sources: [Infisical — Docker integration](https://infisical.com/docs/integrati
 - Teams separate dev/staging/prod environments, restrict prod secret access to a minimal set of people/machine identities, and track access via audit logs.
 
 Sources: [gitleaks](https://github.com/gitleaks/gitleaks)
-</content>
