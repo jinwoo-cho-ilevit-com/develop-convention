@@ -129,6 +129,27 @@ def test_red_reads_the_report_and_not_the_words_in_the_output(repo):
     assert record["status"] == "RED", record
 
 
+def test_red_records_the_collection_probe_it_executes(repo, base_sha):
+    """19 §3 defines commands.jsonl as one object per executed command, and this is one.
+
+    A criterion ruled out at collection gets no other row, so its verdict rested
+    entirely on a command the evidence never mentioned.
+    """
+    cmd = f"{sys.executable} -m pytest tests/test_absent.py -q -p no:cacheprovider"
+    write_contract(repo, [criterion("C-01", verify=cmd, runner="pytest")], base=base_sha)
+    run(repo, "red")
+    rows = [
+        json.loads(line)
+        for line in (repo / "artifacts" / "sample" / "commands.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    probes = [r for r in rows if r["phase"] == "red-collect" and r["criterion"] == "C-01"]
+    assert len(probes) == 1, rows
+    assert "--collect-only" in probes[0]["command"]
+
+
 def test_red_base_finds_tests_when_rootdir_differs_from_the_repo_root(repo, base_sha):
     """A nested pyproject.toml moves pytest's rootdir, and with it the printed paths.
 

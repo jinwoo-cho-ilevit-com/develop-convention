@@ -86,12 +86,34 @@ def test_parse_rejects_a_criterion_id_that_is_not_a_plain_slug(repo):
     assert run(repo, "lint") == 2
 
 
+def test_parse_refuses_a_bypassed_done_level(repo):
+    """18 and 19 both require a bypass to carry a reason, and this runner records none.
+
+    Accepting the level put the reason nowhere and still returned OK from `status` —
+    18 calls an unrecorded bypass the blocker, so the runner refuses the contract.
+    """
+    write_contract(repo, [criterion("C-01")], done_level="bypassed")
+    assert run(repo, "lint") == 2
+
+
 # --- verify strings the runner refuses to execute ------------------------------------
 
 
 @pytest.mark.parametrize("verify", ["a && b", "a | b", "a; b", "a > out", "a `b`", "a $(b)"])
 def test_parse_rejects_a_verify_command_that_needs_a_shell(repo, verify):
     """C-02 runs an argument vector, so a shell operator would become a literal argument."""
+    write_contract(repo, [criterion("C-01", verify=verify)])
+    assert run(repo, "lint") == 2
+
+
+@pytest.mark.parametrize("verify", ["a 2>&1", "a &> out", "a >& out", "a <> b", "a |& b"])
+def test_parse_rejects_a_redirect_whose_operator_is_two_characters(repo, verify):
+    """shlex merges adjacent punctuation, so `>&` is one token and matched no listed operator.
+
+    These loaded cleanly, reached the program as a literal argument, and the criterion
+    passed with its redirect having done nothing — the exact outcome the refusal exists
+    to prevent. The rule is now the character set shlex splits on, not a list of forms.
+    """
     write_contract(repo, [criterion("C-01", verify=verify)])
     assert run(repo, "lint") == 2
 

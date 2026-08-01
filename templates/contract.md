@@ -19,7 +19,8 @@ feature: "[short-slug]"
 # auto      = criteria pass only (docs, formatting, behaviour-preserving refactor)
 # reviewed  = + zero confirmed blockers from a non-authoring review   <- default
 # proven    = + integration smoke + one run on real data
-# bypassed  = a gate was skipped; `revision.reason` is then required
+# bypassed  = a gate was skipped; the reason is required, and scripts/contract.py
+#             refuses this level because it has nowhere to record one
 # Choose by size x reversibility, not size alone.
 done_level: reviewed
 

@@ -64,6 +64,18 @@ def test_human_verdict_without_an_author_is_refused(repo, base_sha):
         run(repo, "human", "--id", "C-01", "--verdict", "pass")
 
 
+@pytest.mark.parametrize("author", ["", "   "])
+def test_human_verdict_with_a_blank_author_is_refused_when_written(repo, base_sha, author):
+    """argparse requires the flag, not a value behind it.
+
+    `--author ""` was accepted, printed PASS and exited 0, while the REPORT.md the same
+    call rendered said PENDING-HUMAN. One invocation reported both answers.
+    """
+    loaded = setup(repo, base_sha)
+    assert run(repo, "human", "--id", "C-01", "--verdict", "pass", "--author", author) == 2
+    assert status_of(repo, loaded) == "PENDING-HUMAN"
+
+
 def test_human_verdict_on_a_machine_criterion_is_refused(repo, base_sha):
     write_contract(repo, [criterion("C-01"), criterion("C-02", kind="negative")], base=base_sha)
     assert run(repo, "human", "--id", "C-01", "--verdict", "pass", "--author", "t") == 2

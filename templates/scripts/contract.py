@@ -47,7 +47,7 @@ CRITERION_ID_RE = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
 
 RUNNER_KINDS = ("pytest", "command")
 KINDS = ("functional", "nonfunctional", "negative")
-DONE_LEVELS = ("auto", "reviewed", "proven", "bypassed")
+DONE_LEVELS = ("auto", "reviewed", "proven")
 RED_MODES = ("required", "guard")
 REQUIRED_FIELDS = ("feature", "done_level", "criteria", "out_of_scope")
 
@@ -61,9 +61,12 @@ KNOWN_FIELDS = frozenset(
 )
 KNOWN_CRITERION_FIELDS = frozenset({"id", "text", "verify", "runner", "kind", "red", "hermetic"})
 
-# A verify command is executed as an argument vector, so these would become literal
-# arguments rather than doing what the author meant.
-SHELL_TOKENS = frozenset({"|", "||", "&&", ";", ";;", "&", ">", ">>", "<", "<<", "(", ")"})
+# A verify command is executed as an argument vector, so an operator would become a
+# literal argument rather than doing what the author meant. These are the characters
+# `shlex(punctuation_chars=True)` splits operators out of, and a token made only of them
+# is one. Listing the operators instead let the merged forms — `>&`, `&>`, `<>`, `|&` —
+# through, and a redirect that silently did nothing still let its criterion pass.
+SHELL_PUNCTUATION = "();<>|&"
 SHELL_FRAGMENTS = ("`", "$(")
 
 EXIT_OK = 0
@@ -237,7 +240,7 @@ def _check_of(raw_verify: object, raw_runner: object, cid: str) -> Check:
         raise ContractError(f"{cid}: verify cannot be split into arguments: {exc}") from exc
     if not argv:
         raise ContractError(f"{cid}: verify is empty after splitting")
-    shell_tokens = sorted(SHELL_TOKENS.intersection(argv))
+    shell_tokens = sorted({tok for tok in argv if tok and not tok.strip(SHELL_PUNCTUATION)})
     if shell_tokens:
         raise ContractError(
             f"{cid}: verify contains the shell operator(s) {shell_tokens}; "
@@ -332,7 +335,14 @@ def load_contract(path: Path | str) -> Contract:
 
     done_level = data["done_level"]
     if done_level not in DONE_LEVELS:
-        raise ContractError(f"done_level {done_level!r} is not one of {DONE_LEVELS}")
+        # 18 defines `bypassed`, and 18/19 both require the bypass to carry a reason.
+        # Recording one is out of this runner's scope, so accepting the level would put
+        # the reason nowhere and still return OK — the state 18 calls the blocker.
+        extra = " — recording a bypass and its reason is out of this runner's scope"
+        raise ContractError(
+            f"done_level {done_level!r} is not one of {DONE_LEVELS}"
+            f"{extra if done_level == 'bypassed' else ''}"
+        )
 
     raw_criteria = data["criteria"]
     if not isinstance(raw_criteria, list) or not raw_criteria:
@@ -717,6 +727,13 @@ def cmd_human(args: argparse.Namespace) -> int:
     if not crit.is_human:
         raise ContractError(f"{crit.id} is not a `verify: human` criterion")
 
+    # Checked here as well as when the record is read: without this, `--author ""` was
+    # accepted, printed PASS, and exited 0 while the REPORT.md the same call rendered
+    # said PENDING-HUMAN. argparse requires the flag, not a value behind it.
+    author = args.author.strip()
+    if not author:
+        raise ContractError("a verdict needs an author — one without it is not a verdict")
+
     status = PASS if args.verdict == "pass" else FAIL
     write_state(
         writer,
@@ -725,7 +742,7 @@ def cmd_human(args: argparse.Namespace) -> int:
         {
             "status": status,
             "verdict": args.verdict,
-            "author": args.author,
+            "author": author,
             "note": args.note or "",
         },
     )
@@ -865,11 +882,17 @@ def base_worktree(root: Path, base_sha: str) -> Iterator[Path]:
         shutil.rmtree(holder, ignore_errors=True)
 
 
-def pytest_selection(argv: tuple[str, ...], cwd: Path) -> list[str] | None:
+def pytest_selection(
+    argv: tuple[str, ...], cwd: Path, writer: ArtifactWriter, criterion_id: str
+) -> list[str] | None:
     """The files a pytest criterion selects, asked of pytest rather than guessed.
 
     Guessing test paths from a name pattern is the same species of mistake as reading
     the runner kind out of the command string: it works for one project's layout.
+
+    The probe is a command the runner executes, so it gets a row in `commands.jsonl`
+    like any other. A criterion ruled out here has no other row at all, and its verdict
+    rests entirely on this one — leaving it unrecorded made that verdict unauditable.
     """
     # --rootdir pins what the printed paths are relative to. Without it pytest reports
     # against its own discovered rootdir — the nearest pyproject.toml above the test
@@ -877,6 +900,7 @@ def pytest_selection(argv: tuple[str, ...], cwd: Path) -> list[str] | None:
     # nothing here. It changes no test selection, only the reporting base.
     probe = (*argv, "--collect-only", "-q", f"--rootdir={cwd}")
     run = run_argv(probe, cwd=cwd, timeout=COLLECT_TIMEOUT_SEC)
+    record_command(writer, criterion_id, "red-collect", run)
     if run.spawn_error is not None or run.timed_out:
         return None
     # Quiet collection prints `path::name`, and a command that already carried -q makes
@@ -985,7 +1009,7 @@ def cmd_red(args: argparse.Namespace) -> int:
             brought: list[str] = []
             match crit.check:
                 case PytestCheck(argv):
-                    selection = pytest_selection(argv, root)
+                    selection = pytest_selection(argv, root, writer, crit.id)
                     if selection is None:
                         status, note, report = NO_BASELINE, "could not collect at head", None
                     elif not selection:
