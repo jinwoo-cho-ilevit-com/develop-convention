@@ -213,6 +213,27 @@ def split_front_matter(text: str) -> str:
     raise ContractError("contract front matter is never closed by a `---` line")
 
 
+def name_list(names: set) -> str:
+    """Field names for an error message, whatever YAML turned the keys into.
+
+    YAML 1.1 resolves `on`, `no` and a bare year to a bool or an int, so an unknown key
+    need not be a string. Joining them raised, and the runner exited `3` — "the runner
+    broke" — where it owed the author `2` and the name of the field.
+    """
+    return ", ".join(repr(name) for name in sorted(names, key=repr))
+
+
+def cell(text: str) -> str:
+    """One value, safe to put in a table cell without ending the row or the table.
+
+    A `|` closes the cell, and a line break closes the row — a blank one closes the
+    whole table, dropping every criterion below it from what a reviewer reads. Notes
+    carry whatever an author typed, so both arrive here. Whitespace is collapsed rather
+    than escaped: the cell is a summary, and the full text is in the state record.
+    """
+    return " ".join(text.split()).replace("|", r"\|")
+
+
 def lex(verify: str) -> list[str]:
     """Split a verify command into the arguments that will be executed.
 
@@ -294,11 +315,10 @@ def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: 
 def _criterion_of(raw: object, seen: set[str]) -> Criterion:
     if not isinstance(raw, dict):
         raise ContractError(f"each criterion must be a mapping, got {type(raw).__name__}")
-    unknown = sorted(set(raw) - KNOWN_CRITERION_FIELDS)
+    unknown = name_list(set(raw) - KNOWN_CRITERION_FIELDS)
     if unknown:
         raise ContractError(
-            f"criterion {raw.get('id')!r} carries {', '.join(unknown)}, "
-            "which this runner does not read"
+            f"criterion {raw.get('id')!r} carries {unknown}, which this runner does not read"
         )
     cid = raw.get("id")
     if not isinstance(cid, str) or not CRITERION_ID_RE.fullmatch(cid):
@@ -370,10 +390,10 @@ def load_contract(path: Path | str) -> Contract:
             f"this runner does not implement {', '.join(unsupported)} — "
             "refusing rather than ignoring a field you expect to be enforced"
         )
-    unknown = sorted(set(data) - KNOWN_FIELDS - set(UNSUPPORTED_FIELDS))
+    unknown = name_list(set(data) - KNOWN_FIELDS - set(UNSUPPORTED_FIELDS))
     if unknown:
         raise ContractError(
-            f"this runner does not read {', '.join(unknown)} — "
+            f"this runner does not read {unknown} — "
             "refusing rather than ignoring a field you expect to be enforced"
         )
 
@@ -857,11 +877,9 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
             # It passed its own check but the red gate does not back it, so it is not
             # done. Reported with a sanctioned word; the note carries the reason.
             status = FAIL
-        # A `|` in a cell would end it early, and the column it drops is `note` — the one
-        # carrying why a criterion is blocked. `--format='%h|%s'` is a command this
-        # runner runs, so the character reaches here.
-        command = display_command(crit.check).replace("|", r"\|")
-        rows.append(f"| {crit.id} | {status} | `{command}` | {note.replace('|', r'\|')} |")
+        rows.append(
+            f"| {crit.id} | {status} | `{cell(display_command(crit.check))}` | {cell(note)} |"
+        )
 
     writer.write_text(
         "REPORT.md",

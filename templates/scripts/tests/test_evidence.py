@@ -128,3 +128,25 @@ def test_evidence_report_escapes_a_pipe_in_the_command_cell(repo, base_sha):
     row = next(line for line in report.splitlines() if line.startswith("| C-01 "))
     assert r"\|" in row
     assert len(re.findall(r"(?<!\\)\|", row)) == 5, row
+
+
+def test_evidence_report_keeps_every_row_when_a_note_holds_a_blank_line(repo, base_sha):
+    """A blank line closes the table, and every criterion below it stops being a row.
+
+    `--note` carries whatever an author typed, so this arrives through the sanctioned
+    way of attaching a reason to a verdict.
+    """
+    write_contract(
+        repo,
+        [
+            {"id": "C-01", "text": "a judgement", "verify": "human", "kind": "functional"},
+            criterion("C-02", kind="negative"),
+        ],
+        base=base_sha,
+    )
+    args = ["human", "--contract", str(repo / "contract.md"), "--id", "C-01"]
+    contract.main([*args, "--verdict", "reject", "--author", "me", "--note", "blocked\n\nsee"])
+    report = (repo / "artifacts" / "sample" / "REPORT.md").read_text(encoding="utf-8")
+    rows = [line for line in report.splitlines() if line.startswith("| C-")]
+    assert len(rows) == 2, report
+    assert all(len(re.findall(r"(?<!\\)\|", row)) == 5 for row in rows), rows

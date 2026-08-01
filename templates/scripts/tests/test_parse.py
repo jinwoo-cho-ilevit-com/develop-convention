@@ -286,3 +286,32 @@ def test_parse_a_broken_contract_never_reports_success(repo):
 def test_parse_a_valid_contract_lints_clean(repo):
     write_contract(repo, [criterion("C-01"), criterion("C-02", kind="negative")])
     assert run(repo, "lint") == 0
+
+
+@pytest.mark.parametrize("key", ["on", "no", "2024", "yes"])
+def test_parse_names_an_unknown_field_whose_key_yaml_did_not_leave_a_string(repo, key):
+    """YAML 1.1 resolves `on`/`no`/`yes` to booleans and a bare year to an int.
+
+    Joining the unknown names raised, so the runner exited 3 — "the runner broke" —
+    where it owed the author 2 and the name of the field.
+    """
+    write_raw(
+        repo,
+        "---\nschema_version: 1\nfeature: sample\ndone_level: reviewed\n"
+        f"{key}: something\ncriteria:\n  - id: C-01\n    text: x\n    verify: 'true'\n"
+        "    runner: command\n    kind: negative\nout_of_scope: [x]\n---\n",
+    )
+    assert run(repo, "lint") == 2
+
+
+def test_parse_accepts_a_verify_folded_across_lines(repo):
+    """A folded scalar has no line break left in it: YAML made it one line, as asked."""
+    write_raw(
+        repo,
+        "---\nschema_version: 1\nfeature: sample\ndone_level: reviewed\n"
+        "criteria:\n  - id: C-01\n    text: x\n    verify: >-\n      echo one\n      two\n"
+        "    runner: command\n    kind: negative\nout_of_scope: [x]\n---\n",
+    )
+    assert run(repo, "lint") == 0
+    loaded = contract.load_contract(repo / "contract.md")
+    assert contract.display_command(loaded.criteria[0].check) == "echo one two"
