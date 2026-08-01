@@ -208,13 +208,53 @@ def split_front_matter(text: str) -> str:
     raise ContractError("contract front matter is never closed by a `---` line")
 
 
-def _check_of(raw_verify: object, raw_runner: object, cid: str) -> Check:
+def lex(verify: str, *, posix: bool) -> list[str]:
+    """Split a verify command. `posix=False` keeps the quotes, which is how quoting is read.
+
+    `commenters` is cleared because shlex otherwise drops an unquoted `#` and everything
+    after it. Nothing here runs through a shell, so a `#` is an ordinary argument, and
+    silently executing a shorter command than the contract states is the worst of the
+    three outcomes — worse than refusing it and worse than passing it along.
+    """
+    lexer = shlex.shlex(verify, posix=posix, punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return list(lexer)
+
+
+def unquoted_shell_operators(verify: str) -> list[str]:
+    """Operator tokens the author left unquoted.
+
+    Nothing can act as an operator here — the command is never given a shell — so this
+    is a lint against writing a shell command by mistake, and it has to leave literals
+    alone. Reading the quoted form is what separates the two: `find … -exec … ';'` needs
+    that `;` as an argument, while a bare `;` is someone expecting a shell. Judging the
+    post-quoting argv could not tell them apart and refused both.
+    """
+    try:
+        tokens = lex(verify, posix=False)
+    except ValueError:
+        return []  # the posix lex reports the real error
+    found = set()
+    for token in tokens:
+        if not token or token[0] in "'\"":
+            continue
+        if not token.strip(SHELL_PUNCTUATION):
+            found.add(token)
+        elif any(fragment in token for fragment in SHELL_FRAGMENTS):
+            found.add(token)
+    return sorted(found)
+
+
+def _check_of(raw_verify: object, raw_runner: object, cid: str, has_runner_key: bool) -> Check:
     if not isinstance(raw_verify, str) or not raw_verify.strip():
         raise ContractError(f"{cid}: verify must be a non-empty string, or `human`")
     verify = raw_verify.strip()
 
     if verify == "human":
-        if raw_runner is not None:
+        # `"runner" in raw`, not `is not None`: a bare `runner:` key parses as null and
+        # slipped through, which is the leftover line the refusal exists to catch.
+        if has_runner_key:
             raise ContractError(f"{cid}: a human criterion takes no runner")
         return HumanCheck()
 
@@ -223,29 +263,18 @@ def _check_of(raw_verify: object, raw_runner: object, cid: str) -> Check:
     if raw_runner not in RUNNER_KINDS:
         raise ContractError(f"{cid}: runner {raw_runner!r} is not one of {RUNNER_KINDS}")
 
-    for fragment in SHELL_FRAGMENTS:
-        if fragment in verify:
-            raise ContractError(
-                f"{cid}: verify contains {fragment!r}, which needs a shell; "
-                "this runner executes an argument vector"
-            )
-    # punctuation_chars splits shell operators into tokens of their own while leaving a
-    # quoted `-k 'a; b'` as one argument, so an operator is detected only where it would
-    # actually have acted as one.
-    lexer = shlex.shlex(verify, posix=True, punctuation_chars=True)
-    lexer.whitespace_split = True
+    operators = unquoted_shell_operators(verify)
+    if operators:
+        raise ContractError(
+            f"{cid}: verify contains the shell operator(s) {operators}; "
+            "split it into separate criteria or a script, or quote it to mean it literally"
+        )
     try:
-        argv = list(lexer)
+        argv = lex(verify, posix=True)
     except ValueError as exc:
         raise ContractError(f"{cid}: verify cannot be split into arguments: {exc}") from exc
     if not argv:
         raise ContractError(f"{cid}: verify is empty after splitting")
-    shell_tokens = sorted({tok for tok in argv if tok and not tok.strip(SHELL_PUNCTUATION)})
-    if shell_tokens:
-        raise ContractError(
-            f"{cid}: verify contains the shell operator(s) {shell_tokens}; "
-            "split it into separate criteria or a script"
-        )
 
     argv_tuple = tuple(argv)
     return PytestCheck(argv_tuple) if raw_runner == "pytest" else CommandCheck(argv_tuple)
@@ -279,18 +308,22 @@ def _criterion_of(raw: object, seen: set[str]) -> Criterion:
     if red not in RED_MODES:
         raise ContractError(f"{cid}: red {red!r} is not one of {RED_MODES}")
 
-    if raw.get("hermetic") is False:
-        # templates/contract.md documents this as a red exemption, but C-05 admits only
-        # a human criterion or `red: guard`. Refused until that is reconciled.
+    # `is False` alone let `hermetic: "false"`, `0`, `banana` and `null` through, which
+    # is the silent acceptance this runner refuses everywhere else — an author writing
+    # any of them believes an exemption is in force. Only literal `true` is inert.
+    hermetic = raw.get("hermetic", True)
+    if hermetic is not True:
+        # templates/contract.md documents `false` as a red exemption, but C-05 admits
+        # only a human criterion or `red: guard`. Refused until that is reconciled.
         raise ContractError(
-            f"{cid}: `hermetic: false` is not implemented by this runner; "
+            f"{cid}: hermetic {hermetic!r} is not implemented by this runner; "
             "use `red: guard` for a standing invariant"
         )
 
     return Criterion(
         id=cid,
         text=text,
-        check=_check_of(raw.get("verify"), raw.get("runner"), cid),
+        check=_check_of(raw.get("verify"), raw.get("runner"), cid, "runner" in raw),
         kind=kind,
         red=red,
     )
@@ -769,9 +802,14 @@ def criterion_status(artifacts_root: Path, crit: Criterion) -> tuple[str, bool, 
             return PENDING_HUMAN, True, "awaiting a verdict"
         if record.get("verdict") == "reject":
             return FAIL, True, str(record.get("note") or "rejected")
+        # The same predicate the write path applies, not a weaker one: bare truthiness
+        # let a hand-edited `"   "` — the exact value `human` refuses — read as a pass,
+        # and so did a mapping. A read check laxer than the write check checks nothing.
+        author = record.get("author")
         if (
             record.get("verdict") == "pass"
-            and record.get("author")
+            and isinstance(author, str)
+            and author.strip()
             and is_iso_utc(record.get("at"))
         ):
             return PASS, True, ""

@@ -64,6 +64,22 @@ def test_human_verdict_without_an_author_is_refused(repo, base_sha):
         run(repo, "human", "--id", "C-01", "--verdict", "pass")
 
 
+@pytest.mark.parametrize("author", ["   ", {"x": 1}, ["someone"]])
+def test_human_verdict_a_hand_edited_author_does_not_read_as_a_pass(repo, base_sha, author):
+    """The read check must be the same predicate as the write check, not a weaker one.
+
+    Bare truthiness let `"   "` — the exact value `human` refuses — and a mapping pass,
+    so hand-editing the record bought what the command would not give.
+    """
+    loaded = setup(repo, base_sha)
+    assert run(repo, "human", "--id", "C-01", "--verdict", "pass", "--author", "tester") == 0
+    record = repo / "artifacts" / "sample" / "state" / "C-01.human.json"
+    document = json.loads(record.read_text(encoding="utf-8"))
+    document["author"] = author
+    record.write_text(json.dumps(document), encoding="utf-8")
+    assert status_of(repo, loaded) == "PENDING-HUMAN"
+
+
 @pytest.mark.parametrize("author", ["", "   "])
 def test_human_verdict_with_a_blank_author_is_refused_when_written(repo, base_sha, author):
     """argparse requires the flag, not a value behind it.

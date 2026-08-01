@@ -118,6 +118,56 @@ def test_parse_rejects_a_redirect_whose_operator_is_two_characters(repo, verify)
     assert run(repo, "lint") == 2
 
 
+@pytest.mark.parametrize(
+    "verify",
+    [
+        "find . -exec echo {} ';'",
+        "myprog --op '>'",
+        "grep -E '(|)' f",
+        "grep -F '`' f",
+        "echo 'cost $(1) usd'",
+        "pytest -k 'a; b'",
+    ],
+)
+def test_parse_accepts_an_operator_the_author_quoted(repo, verify):
+    """Nothing can act as an operator here, so a quoted one is an ordinary argument.
+
+    Judging the post-quoting argv could not tell `find … -exec … ';'` from someone
+    expecting a shell, and refused both — the contract became unusable for a command
+    that runs correctly as an argument vector.
+    """
+    write_contract(repo, [criterion("C-01", verify=verify), criterion("C-02", kind="negative")])
+    assert run(repo, "lint") == 0
+
+
+def test_parse_passes_an_unquoted_hash_through_as_an_argument(repo):
+    """shlex drops an unquoted `#` and the rest of the line unless commenters is cleared.
+
+    The criterion then passed on a shorter command than the contract states, and the
+    evidence attributed the truncated form to it.
+    """
+    write_contract(
+        repo,
+        [criterion("C-01", verify="echo keepme #tail"), criterion("C-02", kind="negative")],
+    )
+    assert run(repo, "lint") == 0
+    loaded = contract.load_contract(repo / "contract.md")
+    assert contract.display_command(loaded.criteria[0].check).endswith("keepme '#tail'")
+
+
+@pytest.mark.parametrize("hermetic", ["false", 0, "no", "banana", None])
+def test_parse_refuses_a_hermetic_value_that_is_not_true(repo, hermetic):
+    """`is False` let every near-miss through, and each one reads as an exemption."""
+    write_contract(repo, [criterion("C-01", hermetic=hermetic)])
+    assert run(repo, "lint") == 2
+
+
+def test_parse_refuses_a_bare_runner_key_on_a_human_criterion(repo):
+    """A `runner:` line left behind parses as null, which `is not None` did not catch."""
+    write_contract(repo, [{"id": "C-01", "text": "x", "verify": "human", "runner": None}])
+    assert run(repo, "lint") == 2
+
+
 def test_parse_rejects_an_empty_verify(repo):
     write_contract(repo, [criterion("C-01", verify="   ")])
     assert run(repo, "lint") == 2
