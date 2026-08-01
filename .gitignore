@@ -1,5 +1,6 @@
+# Operational artifacts, never committed (→ CLAUDE.md). A negation under an excluded
+# directory does nothing in git, so listing one only stated an intent the rule denies.
 .omc/
-!.omc/skills/
 .claude/
 .omx/
 .code-review-graph/

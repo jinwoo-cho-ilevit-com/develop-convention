@@ -63,7 +63,7 @@ Sources: [dosu — A Claude Code Skill for Auto-Generating Project Docs](https:/
 ### 4. The History Layer — Commits and ADRs
 
 - Per-commit history is carried by the structured commit body (Why/What/How/Result) — write it so a dev note can be reconstructed from `git log` alone (→ [17-commit-protocol.md](17-commit-protocol.md)).
-- Decisions that change the structure go into an ADR (`docs/adr/NNNN-title.md`): context, decision, alternatives, consequences, kept brief. When a decision changes, don't edit it — supersede it with a new ADR, per Nygard's original wording: "If a decision is reversed, we will keep the old one around, but mark it as superseded."
+- Decisions that change the structure go into an ADR (`adr/NNNN-title.md`): context, decision, alternatives, consequences, kept brief. Keep the directory in the source tree — a docs site assembled at build time is not one, and an ADR written into the assembled output is not tracked at all. When a decision changes, don't edit it — supersede it with a new ADR, per Nygard's original wording: "If a decision is reversed, we will keep the old one around, but mark it as superseded."
 - Record failures too: keep reversed decisions and rollbacks with their reasons. What's actually needed during incident response is the record that "that approach was already tried and it failed."
 - Consumption rule: when an agent searches or references ADRs, it must follow the supersession chain to the end and use only the currently valid decision. This prevents the mistake of following an old, reversed decision as-is.
 

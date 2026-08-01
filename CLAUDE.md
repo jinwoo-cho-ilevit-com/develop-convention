@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A development-conventions documentation repository. The deliverable is documents, not code — there are no build/test commands.
-`README.md` is the doc map + full rules summary; the actual rules live in `conventions/NN-*.md`, split by topic. Other projects consume these docs by excerpting the "Core Rules" sections into their CLAUDE.md/AGENTS.md, and `templates/` (AGENTS.md, CLAUDE.md, pyproject.toml, contract.md) is the starting point for new projects. When changing a convention rule, also check consistency with templates/.
+A development-conventions documentation repository. The deliverable is documents, and the only code is the work-contract toolkit under `templates/scripts/`, which projects copy out — so there is a test suite, and `uv run --group dev pytest` runs both it and the repository invariants under `tests/`.
+`README.md` is the doc map + full rules summary; the actual rules live in `conventions/NN-*.md`, split by topic. Other projects consume these docs by excerpting the "Core Rules" sections into their CLAUDE.md/AGENTS.md, and `templates/` (AGENTS.md, CLAUDE.md, pyproject.toml, contract.md, `.pre-commit-config.yaml`, `.python-version`, `scripts/`, `skills/`) is the starting point for new projects. When changing a convention rule, also check consistency with templates/.
 
 ## Document format (must follow when editing/adding docs)
 

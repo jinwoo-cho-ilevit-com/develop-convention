@@ -34,8 +34,9 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.format]
 quote-style = "double"
 
-# The path does not exist until the runner lane creates it; bare `uv run pytest`
-# is a usage error until then. The contract's verify commands pass explicit paths.
+# Two paths: the contract toolkit projects copy out, and the invariants this repository
+# asserts about itself. A bare `uv run pytest` is what CI runs, so both are covered
+# without the workflow having to name them.
 [tool.pytest.ini_options]
-testpaths = ["templates/scripts/tests"]
+testpaths = ["templates/scripts/tests", "tests"]
 addopts = "--strict-markers -q"
