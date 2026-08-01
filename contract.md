@@ -17,7 +17,7 @@ revision:
     closes four coverage gaps the lanes named — feature validation, a test that passes at base,
     the human-verdict record, and masking — and fixes the guard exemption in C-05. Breaking
     rather than additive because it edits the text of C-05, C-10 and C-11; no lane had started,
-    so the restart 18 §6 prescribes costs nothing.
+    so the restart 18 §7 prescribes costs nothing.
 
 criteria:
   - id: C-01
@@ -214,7 +214,7 @@ been spent arguing about patches.
 
 **Abandonment surface.** `templates/scripts/`, plus `git worktree prune` for base checkouts a
 crashed red check left registered. The toolchain files and the `runner` row in the schema predate
-this work and stay. `contract.md` is deleted on completion either way (18 §6). `a078b30` is the
+this work and stay. `contract.md` is deleted on completion either way (18 §7). `a078b30` is the
 model: one revert commit whose message records the confirmed blockers.
 
 **Deferred, not dismissed.** Three gate rounds produced a long list of real gaps — the

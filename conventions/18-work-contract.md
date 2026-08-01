@@ -61,7 +61,19 @@ A single `contract.md`: YAML front matter is machine-readable, the body is human
 
 `checkpoints[]` marks when a plan-versus-diff review should happen. It is a marker, not a trigger: whoever owns the work runs the review and records that it happened.
 
-### 4. Writing criteria
+`runner` is `pytest` or `command`, required on every criterion whose `verify` is not `human`. It is declared rather than guessed: deciding the kind by looking for the word "pytest" in the command text produced two unrelated defects in the first runner, because a `grep` command that mentioned pytest was classified as one and a project that used something else was judged by pytest's rules.
+
+### 4. What the runner in `templates/scripts/` enforces
+
+The toolkit is optional — a contract is a checklist first, and running it by hand is legitimate. Where it is used, this is the subset it implements, and it refuses anything else rather than ignoring it. A contract carrying `lanes`, `sequential_owner`, `integration`, `checkpoints`, or `hermetic: false` is rejected with a message naming the field: silently accepting a field the author believes is enforced is worse than not supporting it.
+
+`lint` validates the schema and reports the judgment rules separately — a missing `negative` criterion or an empty `out_of_scope` is exit `1`, a contract that cannot be parsed at all is exit `2`. A `verify` command is executed as an argument vector and never through a shell, so a command containing a shell operator is rejected at lint time rather than silently passing `&&` to a program as an argument.
+
+`red` checks each criterion against the commit named in `base`, in a detached worktree outside the repository that is removed afterwards. For a `pytest` criterion the runner asks pytest which files the criterion selects and copies those into the checkout — from the working tree, so a test written but not yet committed is what gets checked. A `command` criterion has nothing brought forward: base is base. The outcomes follow [06-testing-verification.md](06-testing-verification.md) §3 — a check that fails at base is `RED`, one that passes there proves nothing, and one that cannot run is a missing baseline rather than either.
+
+A pytest verdict never rests on the exit code alone. A selection containing only skipped tests exits zero, so the runner reads the test report and requires at least one test to have executed. `command` criteria have no equivalent signal, and the runner does not pretend otherwise: whether a command criterion is backed by a test at all is a judgment left to review.
+
+### 5. Writing criteria
 
 EARS constrains a sentence into trigger, condition, system, and response. Given-When-Then does the same through precondition, action, expected result. Either is fine; mixing them in one contract is not.
 
@@ -78,7 +90,7 @@ The anti-patterns are criteria that cannot fail: "handle errors gracefully", "mu
 
 Sources: [EARS, fifteen years on](https://joshmcdonald.medium.com/ears-fifteen-years-on-the-requirements-format-built-for-the-agent-era-0f78f8ff35a0), [acceptance criteria an agent can verify](https://www.braingrid.ai/blog/how-to-write-acceptance-criteria-ai-agent-can-verify)
 
-### 5. Done level
+### 6. Done level
 
 | Level | Adds to the mandatory three | Use for |
 |---|---|---|
@@ -97,7 +109,7 @@ The upper-right cell is what a size-only rule misses: a one-line change to a pub
 
 Evidence sits outside the dial deliberately. If it were a property of the higher levels, "this is only `auto`" would become the way to skip it.
 
-### 6. Changing and closing a contract
+### 7. Changing and closing a contract
 
 Freezing prevents drift across parallel lanes, but a rule forcing every lane to restart over one added criterion gets quietly ignored, and a contract nobody follows is worse than none.
 

@@ -65,7 +65,19 @@ The verdict record carries the verdict, who gave it, when, and an optional note.
 
 A rejection is not a failed test — the criterion may well pass mechanically while the approach is still wrong. Treat it as a blocker with a stated reason, and resolve it by changing the work or the contract, not by re-running the check.
 
-### 6. Deliberately unspecified
+### 6. What the runner in `templates/scripts/` records
+
+The toolkit a project copies out writes the layout above and nothing else. Five subcommands — `lint`, `red`, `verify`, `human`, `status` — and three exit codes: `0` the phase's answer is yes, `1` the answer is no, `2` the runner could not answer at all. A broken contract is `2` rather than `1` so a caller can tell "your contract is unusable" from "your work is not done"; the two were the same number in the version this replaces, and that is how a gate opened on an unreadable contract.
+
+Each phase writes its own record at `artifacts/<feature>/state/<criterion>.<phase>.json`, and the path is derived from the record rather than passed in. No phase can overwrite another's result because no phase names another's file. `REPORT.md` and `manifest.json` are then re-rendered from that directory, so neither accumulates and neither can lose an entry. `status` writes nothing at all — a status command that produced `REPORT.md` could never observe `REPORT.md` missing, which is the check it exists to perform.
+
+The red record uses a vocabulary of its own — `RED`, `NOT-RED`, `NO-BASELINE`, `NO-TEST`, `EXEMPT-GUARD` — kept disjoint from the four status words above. A red result that satisfies the gate is `RED`, never `PASS`, so the two can never be read as the same thing. Only `RED` satisfies it: `NO-BASELINE` means the check could not run and is never treated as evidence.
+
+Masking covers the command line, the environment and the output, and happens inside the one function that opens a file for writing rather than at each call site. What counts as a secret is a pattern file the toolkit ships (`templates/scripts/secrets.toml`): credential shapes, each carrying a sample its own test suite checks the pattern against, plus globs matching the names of secret-bearing environment variables, whose values are redacted wherever they appear.
+
+A human verdict is required to carry its author and an ISO-8601 UTC timestamp, and that is checked when the verdict is read, not only when it is written — a record edited by hand does not buy a pass.
+
+### 7. Deliberately unspecified
 
 Visualization tiers, `figure ↔ criterion ↔ code anchor` linking, and a self-contained `index.html` are **not specified here yet**. Where a contract wants them, it records the intent in `evidence_todo` and leaves the format open.
 
