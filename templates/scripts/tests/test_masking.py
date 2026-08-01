@@ -43,6 +43,19 @@ def test_masking_every_shape_matches_its_own_sample(shape):
 
 
 @pytest.mark.parametrize("shape", SHAPES, ids=lambda s: s.name)
+def test_masking_no_sample_sits_whole_in_the_pattern_file(shape):
+    """A sample is a credential in the format scanners look for.
+
+    Written whole it makes this file a secret: GitHub's push protection rejected a push
+    over the Slack sample, and a project that copied the toolkit inherited the block.
+    Fragments are joined in memory, so the split has to survive review — this is what
+    refuses one that was reassembled into a single fragment.
+    """
+    body = contract.SECRETS_PATH.read_text(encoding="utf-8")
+    assert shape.sample not in body
+
+
+@pytest.mark.parametrize("shape", SHAPES, ids=lambda s: s.name)
 def test_masking_redacts_the_sample_of_every_shape(shape):
     masked = contract.Masker.from_env({}).mask(f"prefix {shape.sample} suffix")
     assert shape.sample not in masked
