@@ -116,7 +116,9 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Testing & Verification
 - Minimize unnecessary pytest tests: unit tests for core logic + 1-3 E2E smoke tests. Assert metrics with a tolerance band; update golden files only via an explicit flag.
-- CI smoke-tests the GPU code path with CPU + small samples. TODOs/stubs/skips are blockers, not completion.
+- Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%, line coverage is a different measure and is not the target.
+- Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed" — a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check.
+- Every fixed bug gains exactly one regression test. CI smoke-tests the GPU code path with CPU + small samples. TODOs/stubs/skips are blockers, not completion.
 
 ### AI/ML
 - Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); verify skew with sample replay.
