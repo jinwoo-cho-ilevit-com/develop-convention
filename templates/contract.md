@@ -32,6 +32,8 @@ criteria:
     # or Given-When-Then. Judgment test: could two agents disagree? Then rewrite.
     text: "WHEN [trigger], THE [system] SHALL [observable response]."
     verify: "[executable command]"
+    runner: pytest            # pytest | command -- declared, never guessed from the command
+                              # text. Required unless `verify: human`.
     kind: functional          # functional | nonfunctional | negative
     hermetic: true            # false = touches network/db/ports; excluded from red check
     red: required             # required = must fail at base
@@ -40,6 +42,7 @@ criteria:
   - id: C-02
     text: "THE [system] SHALL NOT [thing that must not happen]."
     verify: "[executable command]"
+    runner: command
     kind: negative            # at least one negative criterion; it is what stops over-building
     hermetic: true
 
