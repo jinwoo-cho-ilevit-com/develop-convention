@@ -55,7 +55,7 @@ revision          kind: additive|narrowing|breaking, reason
 
 A lane that is given up is marked `state: abandoned` with a reason, not deleted. Deleting it makes the abandonment invisible; marking it excludes the lane from completion gates while leaving the record.
 
-`checkpoints[]` names when a plan-versus-diff review should fire. Without an automated gate the check surfaces through `contract.py status`, which warns about checkpoints that were passed without review.
+`checkpoints[]` names when a plan-versus-diff review should fire — after a given criterion, or after a number of commits. It is a marker, not a trigger: nothing in this document assumes tooling that fires it. Whoever owns the work is responsible for running the review when the checkpoint is reached, and for recording that it happened.
 
 ### 3. Writing completion criteria
 

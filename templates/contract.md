@@ -3,7 +3,10 @@
 # Full rules: <CONVENTION_PATH>/conventions/18-work-contract.md
 #
 # YAML notes that bite in practice:
-#   - Quote anything starting with `*` or `&`: `owns: ["src/loader/**"]`, not `[*.py]`
+#   - Bracketed placeholders below are quoted on purpose: a bare `[short-slug]` parses as a
+#     one-element list, not a string, and silently becomes the literal `['short-slug']`.
+#   - Quote anything starting with `*` or `&`. `owns` takes directory prefixes, not globs:
+#     `owns: ["src/loader/"]` — a glob such as `src/**` is rejected.
 #   - Quote any command containing `:` or `#`: verify: "pytest -k 'a: b'"
 #   - Use a block scalar for multi-line commands:
 #       verify: |
@@ -11,7 +14,7 @@
 #   - A bare `---` in the body ends the front matter. Use `***` for a horizontal rule.
 
 schema_version: 1
-feature: [short-slug]
+feature: "[short-slug]"
 
 # auto      = criteria pass only (docs, formatting, behaviour-preserving refactor)
 # reviewed  = + zero confirmed blockers from a non-authoring review   <- default
@@ -21,7 +24,7 @@ feature: [short-slug]
 done_level: reviewed
 
 # Commit the work starts from. Required when adding tests (red check runs against it).
-base: [git-sha]
+base: "[git-sha]"
 
 criteria:
   - id: C-01

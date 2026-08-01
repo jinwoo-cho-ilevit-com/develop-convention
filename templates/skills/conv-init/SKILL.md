@@ -43,12 +43,11 @@ In the copied AGENTS.md, keep only the blocks matching the project type (`ML`, `
 
 ### 5. Work contracts (if adopted)
 
-Copy `<CONVENTION_PATH>/templates/contract.md` to the project root and
-`<CONVENTION_PATH>/templates/scripts/contract.py` to `scripts/`. Do not copy the toolkit's own
-tests — they verify the tool, not the project.
+Copy `<CONVENTION_PATH>/templates/contract.md` to the project root.
 
-Add `.conv/` and `artifacts/` to `.gitignore`. Point out that `contract.md` is a per-work file:
-the copied one is a template to fill in, not a contract for the project as a whole.
+Point out that `contract.md` is a per-work file: the copied one is a template to fill in, not a
+contract for the project as a whole. There is no runner yet — criteria are executed and recorded
+by hand against the rules in conventions 18 and 19.
 
 ### 6. docsync (if adopted)
 

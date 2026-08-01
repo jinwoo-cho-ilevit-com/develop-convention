@@ -4,16 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A development-conventions documentation repository. The deliverable is documents; the one exception is the work-contract toolkit under `templates/scripts/`, which projects copy out and which is linted and tested here before it goes anywhere.
-
-`README.md` is the doc map + full rules summary; the actual rules live in `conventions/NN-*.md`, split by topic. Other projects consume these docs by excerpting the "Core Rules" sections into their CLAUDE.md/AGENTS.md, and `templates/` (AGENTS.md, CLAUDE.md, pyproject.toml, contract.md, scripts/) is the starting point for new projects. When changing a convention rule, also check consistency with templates/.
-
-## Commands
-
-- Test: `uv run --group dev pytest`
-- Lint/format: `uv run --group dev ruff check . && uv run --group dev ruff format --check .`
-- Secret scan: `uvx pre-commit run gitleaks --all-files`
-- Files under `templates/` resolve `templates/pyproject.toml` as their ruff config, so the root config is kept in step with it.
+A development-conventions documentation repository. The deliverable is documents, not code — there are no build/test commands.
+`README.md` is the doc map + full rules summary; the actual rules live in `conventions/NN-*.md`, split by topic. Other projects consume these docs by excerpting the "Core Rules" sections into their CLAUDE.md/AGENTS.md, and `templates/` (AGENTS.md, CLAUDE.md, pyproject.toml, contract.md) is the starting point for new projects. When changing a convention rule, also check consistency with templates/.
 
 ## Document format (must follow when editing/adding docs)
 
@@ -25,8 +17,9 @@ A development-conventions documentation repository. The deliverable is documents
 
 ## Verification
 
-- Cross-check before completion: (1) every conventions doc has `## Core Rules`, (2) body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) tests, lint, and the secret scan pass. `.github/workflows/checks.yml` runs (1), (4), and (5) plus a doc-map link check.
-- **A claim that two rules conflict, or that a rule lives somewhere, must quote the actual file.** Twice during this repo's own review the "conflict" turned out not to exist and the proposed fix would have weakened a rule that was already correct. Inferring what a document says instead of reading it is the failure mode 16 exists to prevent, and it applies to this repo's own planning too.
+- Cross-check before completion: (1) every conventions doc has `## Core Rules` as its first body heading, (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) no tool-call residue and every doc-map link resolves.
+- **A claim that two rules conflict, or that a rule lives somewhere, must quote the actual file.** Three times during this repo's own review a claim about the repository turned out to be an inference rather than an observation: twice a "conflict" did not exist and the proposed fix would have weakened a rule that was already correct, and once a reviewer refuted a commit body after testing a different tool version than the one this repo pins. Reading beats inferring in both directions — quote the file, and pin the version you tested.
+- **A gate that passes is not evidence the gate works.** Verify the gate itself fails when it should, at least once. This repo shipped a red-check gate whose own evidence pack contained no red results, and the completion report treated the resulting exit 0 as proof.
 - Sizable changes are verified by fresh-context review lanes that start from the diff and criteria and never see the authoring session's reasoning — a rule this repo's 00-principles.md and 09-agentic-workflow.md set for itself.
 
 ## Commits
