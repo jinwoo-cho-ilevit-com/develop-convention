@@ -53,12 +53,13 @@ path=$(jq -r '.tool_input.file_path // ""' <<<"$payload")
 # reads them, and blocking either defeats what the guard exists for. Matched on the path
 # segment so an absolute and a relative spelling of the same file get the same verdict.
 #
-# A `..` anywhere forfeits the exemption rather than being resolved. `.plans/../src/app.js`
-# contains the segment and lands outside it, which turned this exemption into a way past
-# the one refusal that was previously exact. Nothing legitimate writes to a plan through a
-# parent traversal, so the cheap rule is the correct one here.
+# A `..` *segment* forfeits the exemption rather than being resolved: `.plans/../src/app.js`
+# holds the exempt name and lands outside it, which turned this exemption into a way past
+# the one refusal that was previously exact. Matching two dots anywhere instead was too
+# wide — it refused `.plans/f/release..notes.md`, a plan file whose name comes from the
+# feature and which no rule forbids.
 case "$path" in
-*..*) ;;
+.. | ../* | */../* | */..) ;;
 "$PLAN_DIR_NAME"/* | */"$PLAN_DIR_NAME"/*) exit 0 ;;
 esac
 

@@ -178,7 +178,27 @@ def test_read_only_shell_work_is_not_blocked(command):
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize(
-    "path", [".plans/../src/app.js", "/x/.plans/../../etc/passwd", ".plans/a/../../src/b.py"]
+    "path", [".plans/f/release..notes.md", ".plans/f/v1..2.md", ".plans/f/PLAN.md"]
+)
+def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(path):
+    """The first traversal guard matched two dots anywhere, not a `..` path segment.
+
+    Feature names come from the user and nothing forbids this spelling, so the orchestrator
+    was refused the plan file it was told to write — a fix that shut the door it opened and
+    one next to it.
+    """
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".plans/../src/app.js",
+        "/x/.plans/../../etc/passwd",
+        ".plans/a/../../src/b.py",
+        "../.plans/x.md",
+    ],
 )
 def test_the_plan_exemption_does_not_reach_outside_the_plan(path):
     """The exemption made the one exact refusal in this guard bypassable.
