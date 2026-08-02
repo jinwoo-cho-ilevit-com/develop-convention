@@ -36,7 +36,13 @@ function finding(over = {}) {
 const keyOf = (f) => `${f.file}:${f.line ?? ''}:${f.summary}`
 
 function makeAgent(rounds, over = {}, seen = { labels: [] }) {
-  let reviewRound = 0
+  // The round advances on the verify call, which happens once after a round's lenses have
+  // all answered. Counting review calls instead would hand each lens of one round a
+  // different entry from `rounds`, so a multi-lens case would stop modelling a round.
+  let round = 0
+  let lensInRound = 0
+  const findingsNow = () => rounds[Math.min(round, rounds.length - 1)] ?? []
+
   return async (_prompt, opts = {}) => {
     const label = opts.label ?? ''
     seen.labels.push(label)
@@ -48,17 +54,21 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
       if (over.verifierDies) return null
       // Confirms whatever it was handed unless the case says otherwise, so the loop under
       // test is the review loop and not this stub.
-      const claimed = rounds[Math.min(reviewRound - 1, rounds.length - 1)] ?? []
-      return {
-        verdicts: claimed
-          .filter((f) => f.severity === 'blocker')
-          .map((f) => ({ key: keyOf(f), confirmed: !over.refuteBlockers, evidence: 'stub' })),
-      }
+      const verdicts = findingsNow()
+        .filter((f) => f.severity === 'blocker')
+        .map((f) => ({ key: keyOf(f), confirmed: !over.refuteBlockers, evidence: 'stub' }))
+      round++
+      lensInRound = 0
+      return { verdicts }
     }
     if (label.startsWith('review:')) {
       if (over.reviewerDies) throw new Error('reviewer died')
-      const findings = rounds[Math.min(reviewRound++, rounds.length - 1)]
-      return { commandsRun: over.commandsRun ?? 3, findings }
+      // A per-lens sequence, so a round where only one lens stayed silent is expressible.
+      const ran = over.commandsRunSeq
+        ? (over.commandsRunSeq[lensInRound] ?? 0)
+        : (over.commandsRun ?? 3)
+      lensInRound++
+      return { commandsRun: ran, findings: findingsNow() }
     }
     return null
   }
@@ -139,6 +149,20 @@ const cases = [
     rounds: [[]],
     over: { commandsRun: 0 },
     expect: { outcome: 'review-unexecuted', rounds: 1 },
+  },
+  {
+    // Two lenses that ran used to carry a third that did not into a clean pass, and the
+    // silent lens is precisely the one whose "no findings" carries no information.
+    name: 'one silent lens among three still stops the pass',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/', 'src/b/'] }, commandsRunSeq: [0, 2, 2] },
+    expect: { outcome: 'review-unexecuted', rounds: 1 },
+  },
+  {
+    name: 'a lane awaiting a human verdict is held out of passed',
+    rounds: [[]],
+    over: { develop: { worktree: '/tmp/wt', branch: 'lane-a', criteria: [{ criterion: 'the warning reads well', command: '', passed: false }] } },
+    expect: { outcome: 'pending-human', escalation: 'human' },
   },
   {
     name: 'non-blocker findings from an earlier round are carried out',

@@ -207,6 +207,32 @@ function fixPrompt(lane, blockers) {
   ].join('\n')
 }
 
+// The one place a lane leaves the loop without a blocker, so the human-verdict check
+// cannot be added to one exit and missed on the other — which is how a lane awaiting a
+// verdict reached `passed` from the early return while the late one held it back.
+function clean(lane, dev, ctx, round, carried) {
+  // A `[human]` criterion has no command and is reported not-passed by construction.
+  // Putting the lane in `passed` makes the caller merge it and ask for the verdict
+  // afterwards, which is the order 19 forbids: PENDING-HUMAN blocks completion, and a
+  // merged lane is past the point where a rejection can act.
+  const awaiting = (dev.criteria ?? []).filter((c) => !c.command && !c.passed)
+  return {
+    lane: lane.name,
+    outcome: awaiting.length ? 'pending-human' : 'passed',
+    rounds: round,
+    branch: ctx.branch,
+    criteria: dev.criteria,
+    carried: dedupe(carried),
+    ...(awaiting.length
+      ? {
+          escalation: 'human',
+          awaiting: awaiting.map((c) => c.criterion),
+          note: `${awaiting.length} criteria need a human verdict before this lane can merge.`,
+        }
+      : {}),
+  }
+}
+
 // Review, fix, recheck — for one lane, independent of every other lane.
 async function reviewLoop(dev, lane) {
   if (!dev) return { lane: lane.name, outcome: 'develop-failed' }
@@ -256,19 +282,19 @@ async function reviewLoop(dev, lane) {
         note: `${lenses.length - reviews.length} of ${lenses.length} review lanes returned nothing. Re-run them rather than merging a short review.`,
       }
     }
+    // Any lens, not all of them. Requiring every lens to be silent meant two that ran
+    // could carry a third that did not into a clean pass, and the lens that read nothing
+    // is exactly the one whose "no findings" means nothing.
     const readings = reviews.filter((r) => !r.commandsRun)
-    if (readings.length === reviews.length) {
+    if (readings.length) {
       return {
         lane: lane.name,
         outcome: 'review-unexecuted',
         rounds: round,
         branch: ctx.branch,
         criteria: dev.criteria,
-        note: 'Every review lane ran zero commands. These verdicts are readings, not reviews.',
+        note: `${readings.length} of ${reviews.length} review lenses ran zero commands. Those verdicts are readings, not reviews.`,
       }
-    }
-    if (readings.length) {
-      log(`lane ${lane.name} round ${round}: ${readings.length} lane(s) ran no commands — those verdicts are readings`)
     }
 
     // Dedupe across lenses: the same defect seen twice is one defect.
@@ -286,16 +312,7 @@ async function reviewLoop(dev, lane) {
     // downgrade a finding but never silently drops one.
     carried.push(...findings.filter((f) => f.severity !== 'blocker'))
 
-    if (!rawBlockers.length) {
-      return {
-        lane: lane.name,
-        outcome: 'passed',
-        rounds: round,
-        branch: ctx.branch,
-        criteria: dev.criteria,
-        carried: dedupe(carried),
-      }
-    }
+    if (!rawBlockers.length) return clean(lane, dev, ctx, round, carried)
 
     // 20 §3 step 3, the one it calls the most important: check each finding against the
     // code before acting on it. Skipping it lets one reviewer's invention force a fix, and
@@ -317,16 +334,7 @@ async function reviewLoop(dev, lane) {
       log(`lane ${lane.name} round ${round}: ${unverified.length} blocker(s) did not survive verification`)
     }
 
-    if (!blockers.length) {
-      return {
-        lane: lane.name,
-        outcome: 'passed',
-        rounds: round,
-        branch: ctx.branch,
-        criteria: dev.criteria,
-        carried: dedupe(carried),
-      }
-    }
+    if (!blockers.length) return clean(lane, dev, ctx, round, carried)
 
     // Two signals that another round will not converge, and the script computes one of
     // them itself. `causedByPreviousFix` is a reviewer's judgment, so a loop that trusts
@@ -405,8 +413,7 @@ return {
   // reachable. This script dispatches every lens on the session's model, so the record is
   // the honest half — a report that stays silent reads as if the rule were satisfied.
   vendorDiversity: 'not implemented: every review lens ran on the session model family',
-  escalations: halted.filter((r) => r.escalation === 'human').map((r) => ({ lane: r.lane, outcome: r.outcome, note: r.note })),
-  humanCriteria: passed.flatMap((r) =>
-    (r.criteria ?? []).filter((c) => !c.command).map((c) => ({ lane: r.lane, criterion: c.criterion })),
-  ),
+  escalations: halted
+    .filter((r) => r.escalation === 'human')
+    .map((r) => ({ lane: r.lane, outcome: r.outcome, note: r.note, awaiting: r.awaiting })),
 }

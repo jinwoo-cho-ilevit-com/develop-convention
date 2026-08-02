@@ -177,6 +177,45 @@ def test_read_only_shell_work_is_not_blocked(command):
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize(
+    "path", [".plans/../src/app.js", "/x/.plans/../../etc/passwd", ".plans/a/../../src/b.py"]
+)
+def test_the_plan_exemption_does_not_reach_outside_the_plan(path):
+    """The exemption made the one exact refusal in this guard bypassable.
+
+    `.plans/../src/app.js` contains the exempt segment and resolves outside it, so a Write
+    that the guard refuses by name was allowed by spelling it through a parent.
+    """
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "deny"
+
+
+def test_the_declared_bypass_works_without_jq(tmp_path):
+    """Its own refusal message told the reader to set this variable, and the check that
+    read the variable sat below the refusal. With Bash hooked too, a jq-less machine denied
+    the command that would have installed jq."""
+    empty_bin = tmp_path / "bin"
+    empty_bin.mkdir()
+    for tool in ("bash", "cat", "grep", "sed", "wc", "tr", "printf"):
+        for root in ("/bin", "/usr/bin"):
+            if Path(root, tool).exists():
+                (empty_bin / tool).symlink_to(Path(root, tool))
+                break
+    if not (empty_bin / "bash").exists():
+        pytest.skip("no bash to build an isolated PATH with")
+
+    result = subprocess.run(
+        [str(empty_bin / "bash"), str(GUARD)],
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "brew install jq"}}),
+        capture_output=True,
+        text=True,
+        env={"PATH": str(empty_bin), "DEV_HARNESS_ALLOW_MAIN": "1"},
+    )
+    assert result.returncode == 0
+    assert not result.stdout.strip(), "the advertised bypass is unreachable without jq"
+    assert "bypassed" in result.stderr
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_the_orchestrator_may_write_its_own_plan(tmp_path):
     """The plugin's own commands tell the main session to write these files.
 

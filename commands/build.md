@@ -17,19 +17,20 @@ The script is what guarantees the shape: lanes pipeline rather than wait on each
 
 ## When the workflow returns
 
-It returns `{ passed, halted, unanswered, humanCriteria }`. **Handle `halted` and `unanswered` before you touch `passed`** — a report that merges the passing lanes and omits the rest is the failure this split exists to prevent.
+It returns `{ passed, halted, unanswered, escalations, vendorDiversity }`. **Handle `halted` and `unanswered` before you touch `passed`** — a report that merges the passing lanes and omits the rest is the failure this split exists to prevent.
 
 1. **Stop on anything in `halted`.** Report each one to the user with its `outcome` and `note`, and do not merge that lane. What each outcome means:
    - `criteria-failed` — the lane's own completion criteria did not pass. It is not done.
-   - `review-incomplete` — a review lane returned nothing. Re-run it; do not merge a short review.
-   - `review-unexecuted` — every reviewer ran zero commands. Those verdicts are readings, not reviews.
-   - `regression-halt` — most of the last round's findings came from the previous fix. This needs a different approach, not another round.
+   - `pending-human` — the lane is clean but a `[human]` criterion has no verdict. **Ask for it now, before merging.** Record verdict, author and timestamp in the lane brief. A merged lane is past the point where a rejection can act (→ `19-evidence.md`).
+   - `review-incomplete` — a review lens returned nothing. Re-run it; do not merge a short review.
+   - `review-unexecuted` — a review lens ran zero commands. That verdict is a reading, not a review.
+   - `regression-halt` — the findings are repeating or coming from the last fix. This needs a different approach, not another round.
    - `round-cap` — the runaway guard fired. **This is a call for a person, not a completion.**
    - `develop-failed` / `fix-failed` — the agent died. Re-run or investigate.
 2. **`unanswered` > 0 means a lane never returned at all.** A lane that finished is not a lane that answered — re-run it rather than reporting a short build.
-3. Merge each lane in `passed`. Run the integration lane last.
-4. Run the whole-project completion condition from `PLAN.md`.
-5. Report the criteria table with the commands that were run and their output — not a narrative summary (→ `19-evidence.md`). Include every lane's `carried` findings; the merge may downgrade a finding but never silently drops one.
-6. Any criterion in `humanCriteria` is still open. Ask for the verdict and record it with author and timestamp in the lane brief. An unanswered human check is a TODO, and TODOs block completion.
+3. **`escalations` is the list that needs a person.** Every entry must be answered or reported; none of them is a completion.
+4. Merge each lane in `passed`. Run the integration lane last.
+5. Run the whole-project completion condition from `PLAN.md`.
+6. Report the criteria table with the commands that were run and their output — not a narrative summary (→ `19-evidence.md`). Include every lane's `carried` findings; the merge may downgrade a finding but never silently drops one. Report `vendorDiversity` verbatim: every review lens ran on one model family, and a report that stays quiet about it reads as if the rule were met.
 
-Claim completion only when `halted` is empty, `unanswered` is zero, and every `[human]` criterion carries a verdict.
+Claim completion only when `halted` is empty, `unanswered` is zero, and `escalations` is empty.

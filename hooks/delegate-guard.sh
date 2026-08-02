@@ -19,18 +19,21 @@ emit_deny() {
   exit 0
 }
 
+# The declared bypass is checked first and needs nothing to work. It used to sit below the
+# jq check, whose own message told the reader to use it — so on a machine without jq the
+# escape the guard advertised was the one path it had already refused, including the Bash
+# call that would have installed jq. Recorded on stderr, never silent (→ 19-evidence.md).
+if [ "${DEV_HARNESS_ALLOW_MAIN:-}" = "1" ]; then
+  echo "dev-harness: main-session guard bypassed via DEV_HARNESS_ALLOW_MAIN" >&2
+  exit 0
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   emit_deny "dev-harness cannot run: jq is not on PATH, and without it this guard cannot read the hook payload. Install jq, or set DEV_HARNESS_ALLOW_MAIN=1 to work unguarded. Refusing rather than allowing, because a guard that silently stops guarding is worse than no guard."
 fi
 
 if ! jq -e . >/dev/null 2>&1 <<<"$payload"; then
   emit_deny "dev-harness cannot run: the hook payload did not parse as JSON. Refusing rather than allowing — an unreadable payload is not evidence that the call is safe."
-fi
-
-# The bypass is declared and recorded on stderr, so it is never silent (→ 19-evidence.md).
-if [ "${DEV_HARNESS_ALLOW_MAIN:-}" = "1" ]; then
-  echo "dev-harness: main-session guard bypassed via DEV_HARNESS_ALLOW_MAIN" >&2
-  exit 0
 fi
 
 # `agent_id` is present only inside a subagent call, and only a non-blank string counts.
@@ -49,7 +52,13 @@ path=$(jq -r '.tool_input.file_path // ""' <<<"$payload")
 # The plan and the lane briefs are the orchestrator's own artifacts — it writes them and
 # reads them, and blocking either defeats what the guard exists for. Matched on the path
 # segment so an absolute and a relative spelling of the same file get the same verdict.
+#
+# A `..` anywhere forfeits the exemption rather than being resolved. `.plans/../src/app.js`
+# contains the segment and lands outside it, which turned this exemption into a way past
+# the one refusal that was previously exact. Nothing legitimate writes to a plan through a
+# parent traversal, so the cheap rule is the correct one here.
 case "$path" in
+*..*) ;;
 "$PLAN_DIR_NAME"/* | */"$PLAN_DIR_NAME"/*) exit 0 ;;
 esac
 
@@ -96,7 +105,7 @@ Bash)
   # below does not fire on `… 2>/dev/null`, which every second command carries.
   scrubbed=$(printf '%s' "$command_line" | sed -E 's#[0-9]*>>?[[:space:]]*/dev/[A-Za-z0-9]+##g')
   if printf '%s' "$scrubbed" | grep -Eq \
-    '(^|[[:space:]])(tee|patch|truncate)([[:space:]]|$)|(^|[[:space:]])(sed|perl|ruby)[[:space:]]+-[A-Za-z]*i|(^|[[:space:]])dd[[:space:]][^|]*of=|(^|[[:space:]])git[[:space:]]+(apply|restore)([[:space:]]|$)|(^|[^0-9&])>[^&]'; then
+    '(^|[[:space:]])(tee|patch|truncate|touch|install|mkdir|rmdir)([[:space:]]|$)|(^|[[:space:]])(cp|mv|rm|ln)[[:space:]]+-?|(^|[[:space:]])(sed|perl|ruby)[[:space:]]+-[A-Za-z]*i|(^|[[:space:]])dd[[:space:]][^|]*of=|(^|[[:space:]])git[[:space:]]+(apply|restore|checkout)([[:space:]]|$)|(^|[^0-9&])>[^&]'; then
     emit_deny "That shell command writes files, and the main session does not edit. Delegate it to a lane with the Agent tool, or set DEV_HARNESS_ALLOW_MAIN=1 for this one call. Read-only shell work (git, ls, grep, test runs) is not affected."
   fi
   ;;
