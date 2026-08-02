@@ -49,6 +49,12 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
   return async (_prompt, opts = {}) => {
     const label = opts.label ?? ''
     seen.labels.push(label)
+    // Stands in for the agent that stats the contract test paths. `missingFrozen` is what it
+    // reports absent; `freezeCheckDies` makes it answer nothing, which must not read as "none".
+    if (label === 'freeze-check') {
+      if (over.freezeCheckDies) return null
+      return { missing: over.missingFrozen ?? [] }
+    }
     if (label.startsWith('develop:')) {
       // eslint-disable-next-line no-throw-literal
       if ('throws' in over) throw over.throws
@@ -99,15 +105,20 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
 async function run(rounds, over = {}) {
   const wf = loadWorkflow()
   const seen = { labels: [] }
-  const args = {
-    planDir: '.plans',
-    base: 'main',
-    lanes: [over.lane ?? { name: 'a', owns: ['src/a/'] }],
-    boundaries: over.boundaries ?? [],
-    // What `/dev-harness:build` declares after writing the contract tests. A case can drop it
-    // to reach the refusal.
-    ...(over.omitFrozen ? {} : { boundariesFrozen: true }),
-  }
+  // `rawArgs` hands the workflow whatever the case says, object or not — the way an agent
+  // that JSON-encoded its arguments reaches it. Everything else builds the normal object.
+  const args =
+    'rawArgs' in over
+      ? over.rawArgs
+      : {
+          planDir: '.plans',
+          base: 'main',
+          lanes: [over.lane ?? { name: 'a', owns: ['src/a/'] }],
+          boundaries: over.boundaries ?? [],
+          // What `/dev-harness:build` declares after writing the contract tests. A case can
+          // drop it to reach the refusal.
+          ...(over.omitFrozen ? {} : { boundariesFrozen: true }),
+        }
   const out = await wf(args, makeAgent(rounds, over, seen), parallel, pipeline, () => {}, () => {})
   return { ...out, labels: seen.labels }
 }
@@ -314,7 +325,46 @@ const cases = [
     name: 'a caller that did not freeze the boundaries never reaches an agent',
     rounds: [[]],
     over: { omitFrozen: true },
-    expect: { refused: true },
+    expect: { refused: /boundariesFrozen was not true/ },
+  },
+  {
+    // The Workflow tool takes JSON values, so a caller that encoded them arrives with a string
+    // and every field reads as undefined. Refusing over the freeze here names a cause that did
+    // not happen, and the fix it suggests is to hardcode the flag.
+    name: 'args arriving as a JSON string is refused for its shape, not the freeze',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }], boundariesFrozen: true }) },
+    expect: { refused: /arrived as a string or scalar rather than an object/ },
+  },
+  {
+    // Declaring the freeze is not doing it, and the lanes are told the contract tests exist on
+    // the strength of that declaration alone.
+    name: 'a boundary whose contract test does not exist is refused by name',
+    rounds: [[]],
+    over: {
+      boundaries: [{ name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+      missingFrozen: ['tests/test_api_contract.py'],
+    },
+    expect: { refused: /declared frozen but these contract tests do not exist: tests\/test_api_contract\.py/ },
+  },
+  {
+    name: 'boundaries whose contract tests all exist fan out normally',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }] },
+    expect: { outcome: 'passed', rounds: 1, hasLabel: 'freeze-check' },
+  },
+  {
+    // Fail closed: a check that answered nothing measured nothing, and reading its silence as
+    // "none missing" would put the declaration back in charge of itself.
+    name: 'a freeze check that answers nothing refuses rather than assuming',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py' }], freezeCheckDies: true },
+    expect: { refused: /unmeasured declaration is that same declaration/ },
+  },
+  {
+    name: 'a plan with no boundaries dispatches no freeze check',
+    rounds: [[]],
+    expect: { outcome: 'passed', rounds: 1, noLabel: 'freeze-check' },
   },
 ]
 
@@ -343,8 +393,13 @@ for (const c of cases) {
   if (c.expect.refused) {
     const why = []
     if (out.passed !== undefined) why.push('the workflow ran the lanes')
-    if (out.labels.length) why.push(`agents were dispatched: ${JSON.stringify(out.labels)}`)
-    if (!/boundariesFrozen/.test(out.note ?? '')) why.push(`note=${out.note}`)
+    // A refusal dispatched no lane. `freeze-check` is a refusal deciding whether to refuse,
+    // so it is allowed; these four prefixes are every label lane work produces.
+    const laneWork = out.labels.filter((l) => /^(develop|review|fix|touched):/.test(l))
+    if (laneWork.length) why.push(`lane agents were dispatched: ${JSON.stringify(laneWork)}`)
+    // Each case pins the words naming its own cause: a refusal for the wrong reason sends the
+    // caller to fix the wrong thing, and one shared pattern could not tell them apart.
+    if (!c.expect.refused.test(out.note ?? '')) why.push(`note=${out.note}`)
     if (why.length) failed++
     console.log(`${why.length ? 'FAIL' : 'OK  '} ${c.name}${why.length ? ' -> ' + why.join(', ') : ''}`)
     continue

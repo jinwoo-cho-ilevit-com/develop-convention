@@ -85,6 +85,19 @@ const TOUCHED_SCHEMA = {
   },
 }
 
+const FROZEN_SCHEMA = {
+  type: 'object',
+  required: ['missing'],
+  additionalProperties: false,
+  properties: {
+    missing: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'only the given paths that do not exist; a path that exists is left out entirely',
+    },
+  },
+}
+
 const VERDICT_SCHEMA = {
   type: 'object',
   required: ['verdicts'],
@@ -150,6 +163,17 @@ const planDir = args?.planDir ?? '.plans'
 const conventionsDir = args?.conventionsDir ?? 'conventions'
 const lanes = args?.lanes ?? []
 const boundaries = args?.boundaries ?? []
+
+// A caller that JSON-encoded its arguments arrives with a string, so every field reads as
+// undefined and the frozen check below would refuse in the name of a freeze that may well
+// have happened. The two causes are named apart because they need opposite fixes.
+if (args !== undefined && (typeof args !== 'object' || args === null)) {
+  log('args arrived as a string or scalar, not an object. Nothing can be read from it.')
+  return {
+    lanes: [],
+    note: 'refused: the arguments arrived as a string or scalar rather than an object, so every field including boundariesFrozen read as undefined. The Workflow tool takes actual JSON values, not a JSON-encoded string — pass { planDir, base, lanes, boundaries, conventionsDir, boundariesFrozen } as an object. This is not a reason to hardcode boundariesFrozen.',
+  }
+}
 
 // One contract test per boundary, owned by no lane, is written before fan-out — that is what
 // holds the interfaces still while every lane edits at once. Invoking this workflow directly
@@ -517,6 +541,38 @@ async function reviewLoop(dev, lane) {
     }
     lastFixTouched = new Set(measured?.files ?? [])
     sinceSha = measured?.head ?? sinceSha
+  }
+}
+
+// Every lane is told its contract tests already exist, on the strength of the declaration
+// alone. Measuring it costs one agent that only stats files; skipping it means that sentence
+// is false for every lane whenever the freeze was skipped.
+const frozenPaths = boundaries.flatMap((b) => [b?.test, b?.sample].filter(Boolean))
+// A plan with no boundaries has nothing to freeze, so nothing is checked and no agent runs.
+if (frozenPaths.length) {
+  const frozen = await agent(
+    [
+      'From the repository root, report which of these paths do not exist as files:',
+      ...frozenPaths.map((p) => `- ${p}`),
+      '',
+      'Check existence only. Create nothing and judge nothing — not whether a file is the right',
+      'test, not whether it is empty. Report the paths exactly as they are given here.',
+    ].join('\n'),
+    { label: 'freeze-check', phase: 'Develop', schema: FROZEN_SCHEMA },
+  )
+  if (!frozen) {
+    log('The freeze check returned nothing, so nothing about the contract tests was measured.')
+    return {
+      lanes: [],
+      note: 'refused: the freeze check returned nothing, so whether the contract tests exist is unmeasured. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.',
+    }
+  }
+  if (frozen.missing?.length) {
+    log(`${frozen.missing.length} of ${frozenPaths.length} contract test paths do not exist.`)
+    return {
+      lanes: [],
+      note: `refused: the boundaries were declared frozen but these contract tests do not exist: ${frozen.missing.join(', ')}. Write them before fanning out — until they do, nothing holds the interfaces still and every lane is told otherwise.`,
+    }
   }
 }
 
