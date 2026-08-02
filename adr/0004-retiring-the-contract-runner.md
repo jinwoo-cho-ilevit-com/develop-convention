@@ -38,7 +38,15 @@ What changed is the shape of the work around it. The loop this repository now ru
 - **Lane fields read but not executed** — closed by execution. `workflows/build.js` runs the lanes, so the gap that entry recorded no longer exists.
 - **`review_rounds` absent from the manifest** — closed by removal. Rounds are visible in the lane branch's commits, and the loop's exit no longer depends on counting them ([20-review-gate.md](../conventions/20-review-gate.md) §3).
 
-### 4. What is lost, stated plainly
+### 4. Secret masking lost its enforcement, and only its rule survives
+
+`19` still requires command lines and environment values to be masked before evidence leaves the machine, and the reason is unchanged. What is gone is the thing that did it: masking happened inside the single writer every artifact passed through, so no caller could forget it, and the patterns it matched lived in `templates/scripts/secrets.toml` — 71 lines of credential shapes and secret-bearing variable names. Both were deleted with the runner.
+
+What replaced them is one imperative sentence addressed to a model. Nothing in the plugin performs masking, nothing checks it, and no test covers it. The leak path `19` names is real and now has no mechanism across it: `artifacts/` is gitignored, so the pre-commit secret scan never sees the file that gets pasted into a review.
+
+*Why it is recorded rather than fixed here:* rebuilding the pattern set is a piece of work with its own contract, and the honest interim state is a rule a person has to keep. Recording it is what stops the next reader from concluding that masking is handled because a document says it should be.
+
+### 5. What is lost, stated plainly
 
 222 of this repository's 383 tests defended the runner and go with it. They were also the regression net for the conventions the runner encoded, so the change that removes them is a change with a thinner net than the one that added them. The replacement is a smaller set of invariants over the plugin and the documents; whether it holds is a judgment this ADR does not get to make in advance.
 

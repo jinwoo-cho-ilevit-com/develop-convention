@@ -4,15 +4,21 @@ One pass from "I want to build this" to a merged, verified change. Every step is
 
 ## Core Rules
 
-- The main session orchestrates and does not develop. It interviews, splits the work, judges results, and delegates every edit to a subagent — reading and writing in the main context spends the budget the orchestration needs (→ [09-agentic-workflow.md](09-agentic-workflow.md), [14-context-management.md](14-context-management.md)).
+Run the steps in this order, each governed by the document beside it. Only the interview rules below belong to this document; everything else is a pointer, because a rule written twice drifts and the first draft of this file proved it — its copy of the loop's exits had already lost one before the change that added it was merged.
+
+| Step | Governed by |
+|---|---|
+| Orchestrate, do not develop | [09-agentic-workflow.md](09-agentic-workflow.md), [14-context-management.md](14-context-management.md) |
+| Interview to a plan and one brief per lane | this document |
+| Split by disjoint file ownership | [18-work-contract.md](18-work-contract.md) |
+| Freeze each boundary with a contract test before the lanes start | [06-testing-verification.md](06-testing-verification.md) |
+| Write criteria as sentence plus command, `[human]` where no command exists | [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md) |
+| Review each lane on its own finish, then fix and re-review | [20-review-gate.md](20-review-gate.md) |
+| Merge, integrate last, verify end to end | [09-agentic-workflow.md](09-agentic-workflow.md), [06-testing-verification.md](06-testing-verification.md) |
+
 - Specify by interview, not by template. What to ask about is derived from this project — infer the axes from the request and the repository, check once for what recent practice adds, then keep only those that name a way this project could fail. A fixed axis list can only cover what someone already knew to list.
 - Keep the axis list open during the interview. When an answer reveals an axis you did not have, add it. Record every axis and its state — decided, not applicable, still open — because that record is the only account of what was never asked.
 - The interview ends when the person says it ends, and its output is a plan plus one brief per lane, not prose.
-- Split as far as disjoint file ownership allows, and freeze every boundary the split creates with a contract test written **before** the lanes start. The test file belongs to no lane. Lanes that own separate files can still hold contradictory assumptions about what crosses between them; the test is the assumption in the form least open to reinterpretation (→ [06-testing-verification.md](06-testing-verification.md) §1).
-- Write each completion criterion as a sentence paired with the command that checks it. A criterion with no possible command is marked `[human]` and carries a verdict, an author, and a timestamp before the lane closes (→ [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md)).
-- Review a lane the moment that lane finishes, not when all of them do. Waiting for the last lane manufactures the bottleneck; overlapping review with the lanes still running removes it (→ [20-review-gate.md](20-review-gate.md), [14-context-management.md](14-context-management.md) §1).
-- Send findings back to the lane that wrote the code, in the tree it already has, and re-review. The loop has three exits and no others, defined in [20-review-gate.md](20-review-gate.md) §3.
-- Merge a lane only after its criteria pass, run the integration lane last, and verify the assembled project end to end before claiming completion (→ [09-agentic-workflow.md](09-agentic-workflow.md), [06-testing-verification.md](06-testing-verification.md)).
 
 ## Details
 

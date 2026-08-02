@@ -42,6 +42,16 @@ Split as far as file ownership allows. `owns` entries are directory prefixes or 
 
 List every boundary between lanes with the contract test that will pin it. Those test files belong to no lane and are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches an agent per boundary to write them (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
 
+Write the boundary table with these exact keys, because `build.js` reads them and a boundary spelled another way silently drops that lane from three review lenses to one:
+
+```markdown
+| name | lanes | test | sample |
+|---|---|---|---|
+| parser-validator | lane-a, lane-b | tests/contract/test_parser_validator.py | tests/fixtures/parser_out.sample.json |
+```
+
+Mark a lane `security: true` in the lane table when it touches auth, secrets, or input the project did not produce; that adds a security review lens (→ `${CLAUDE_PLUGIN_ROOT}/conventions/20-review-gate.md`).
+
 Write each completion criterion as a sentence paired with the command that checks it:
 
 ```markdown

@@ -63,6 +63,27 @@ const FINDINGS_SCHEMA = {
   },
 }
 
+const VERDICT_SCHEMA = {
+  type: 'object',
+  required: ['verdicts'],
+  additionalProperties: false,
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['key', 'confirmed', 'evidence'],
+        additionalProperties: false,
+        properties: {
+          key: { type: 'string', description: 'the finding key exactly as it was given to you' },
+          confirmed: { type: 'boolean' },
+          evidence: { type: 'string', description: 'what you ran or read that decided it' },
+        },
+      },
+    },
+  },
+}
+
 // A lane is defined by its input, not by its attitude — three reviewers told to
 // "be critical" over the same input return the same findings three times (→ 20).
 const REVIEW_LENSES = [
@@ -70,6 +91,22 @@ const REVIEW_LENSES = [
   { key: 'project', input: 'the diff plus its callers and callees, and the convention docs it must satisfy' },
   { key: 'absence', input: 'the lane brief and the diff — hunt for what the brief requires and the diff omits' },
 ]
+
+// Added only when the lane touches auth, secrets, or external input (→ 20 Core Rules).
+const SECURITY_LENS = {
+  key: 'security',
+  input: 'the diff, its trust boundaries, and every point where it accepts input it did not produce',
+}
+const TRUST_BOUNDARY = /auth|secret|credential|token|login|session|permission|hook|api|webhook|upload/i
+
+// One finding is one defect wherever it was seen, and the same key identifies it across
+// rounds — which is what makes repetition measurable without asking a reviewer.
+const keyOf = (f) => `${f.file}:${f.line ?? ''}:${f.summary}`
+
+function dedupe(findings) {
+  const seen = new Set()
+  return findings.filter((f) => (seen.has(keyOf(f)) ? false : (seen.add(keyOf(f)), true)))
+}
 
 const planDir = args?.planDir ?? '.plans'
 // The conventions travel with the plugin, not with the project the lanes run in, so the
@@ -83,11 +120,16 @@ if (!lanes.length) {
   return { lanes: [], note: 'no lanes supplied' }
 }
 
-// Three lanes when the change spans modules or pins an interface, one otherwise (→ 20 §2).
+// Three lanes when the change spans modules or pins an interface, one otherwise, plus a
+// security lens when the lane touches a trust boundary (→ 20 §2).
 function lensesFor(lane) {
   const spansModules = (lane.owns ?? []).length > 1
-  const pinsInterface = boundaries.some((b) => b.lanes?.includes(lane.name))
-  return spansModules || pinsInterface ? REVIEW_LENSES : [REVIEW_LENSES[0]]
+  const pinsInterface = boundaries.some((b) => (b.lanes ?? []).includes(lane.name))
+  const base = spansModules || pinsInterface ? REVIEW_LENSES : [REVIEW_LENSES[0]]
+  // The plan says so explicitly, or the paths say so for a plan that forgot to.
+  const touchesTrust =
+    lane.security === true || (lane.owns ?? []).some((p) => TRUST_BOUNDARY.test(p))
+  return touchesTrust ? [...base, SECURITY_LENS] : base
 }
 
 function developPrompt(lane) {
@@ -131,6 +173,24 @@ function reviewPrompt(lane, lens, round, fixSummary) {
   ].join('\n')
 }
 
+function verifyPrompt(lane, blockers) {
+  return [
+    `Check each claimed blocker in lane "${lane.name}" against the actual code. You are not`,
+    'reviewing the change and you are not looking for new problems — you are deciding whether',
+    'each of these is real.',
+    `Work in ${lane.worktree} on branch ${lane.branch}.`,
+    '',
+    blockers.map((b) => `- key: ${keyOf(b)}\n  claim: ${b.summary}\n  scenario: ${b.failureScenario ?? '(none given)'}`).join('\n'),
+    '',
+    'Reproduce it, or read the code path and show it cannot happen. Return one verdict per key,',
+    'with the key copied exactly, and say what you ran or read.',
+    '',
+    'A finding with no concrete failing scenario is not confirmed. Reviewers asked to find problems',
+    'manufacture them in sound code, and an unconfirmed blocker forces a fix that then shows up as',
+    'the next round\'s regression signal.',
+  ].join('\n')
+}
+
 function fixPrompt(lane, blockers) {
   return [
     `You own lane "${lane.name}". Continue in the worktree you already have: ${lane.worktree}.`,
@@ -168,6 +228,7 @@ async function reviewLoop(dev, lane) {
   const lenses = lensesFor(lane)
   const carried = []
   let fixSummary = ''
+  let previousKeys = new Set()
 
   for (let round = 1; round <= ROUND_CAP; round++) {
     const reviews = (
@@ -215,36 +276,91 @@ async function reviewLoop(dev, lane) {
     const findings = reviews
       .flatMap((r) => r.findings ?? [])
       .filter((f) => {
-        const key = `${f.file}:${f.line ?? ''}:${f.summary}`
-        if (seen.has(key)) return false
-        seen.add(key)
+        if (seen.has(keyOf(f))) return false
+        seen.add(keyOf(f))
         return true
       })
 
-    const blockers = findings.filter((f) => f.severity === 'blocker')
+    const rawBlockers = findings.filter((f) => f.severity === 'blocker')
     // Non-blockers are carried out of every round, not only the last. 20 §3: the merge may
     // downgrade a finding but never silently drops one.
     carried.push(...findings.filter((f) => f.severity !== 'blocker'))
 
-    if (!blockers.length) {
-      return { lane: lane.name, outcome: 'passed', rounds: round, branch: ctx.branch, criteria: dev.criteria, carried }
+    if (!rawBlockers.length) {
+      return {
+        lane: lane.name,
+        outcome: 'passed',
+        rounds: round,
+        branch: ctx.branch,
+        criteria: dev.criteria,
+        carried: dedupe(carried),
+      }
     }
 
-    // The fix has become the defect source. More rounds will not converge (→ 18 §2).
-    const fromFix = findings.filter((f) => f.causedByPreviousFix).length
-    if (round > 1 && fromFix * 2 > findings.length) {
+    // 20 §3 step 3, the one it calls the most important: check each finding against the
+    // code before acting on it. Skipping it lets one reviewer's invention force a fix, and
+    // that fix then shows up as the next round's regression signal.
+    const verdicts = await agent(verifyPrompt(ctx, rawBlockers), {
+      label: `verify:${lane.name}#${round}`,
+      phase: 'Review',
+      schema: VERDICT_SCHEMA,
+    })
+    const confirmedKeys = new Set(
+      (verdicts?.verdicts ?? []).filter((v) => v.confirmed).map((v) => v.key),
+    )
+    // A verifier that died confirms nothing, and dropping every blocker on its silence
+    // would turn its death into a pass.
+    const blockers = verdicts ? rawBlockers.filter((f) => confirmedKeys.has(keyOf(f))) : rawBlockers
+    const unverified = rawBlockers.filter((f) => !blockers.includes(f))
+    if (unverified.length) {
+      unverified.forEach((f) => carried.push({ ...f, severity: 'minor', summary: `[unverified] ${f.summary}` }))
+      log(`lane ${lane.name} round ${round}: ${unverified.length} blocker(s) did not survive verification`)
+    }
+
+    if (!blockers.length) {
+      return {
+        lane: lane.name,
+        outcome: 'passed',
+        rounds: round,
+        branch: ctx.branch,
+        criteria: dev.criteria,
+        carried: dedupe(carried),
+      }
+    }
+
+    // Two signals that another round will not converge, and the script computes one of
+    // them itself. `causedByPreviousFix` is a reviewer's judgment, so a loop that trusts
+    // it alone can only detect what a reviewer thought to mark — and a test that sets the
+    // flag proves the branch fires, never that the flag is reachable. Repetition is a fact
+    // about the findings, so it is derived here from identity across rounds (→ 20 §3).
+    const repeated = findings.filter((f) => previousKeys.has(keyOf(f)))
+    const fromFix = findings.filter((f) => f.causedByPreviousFix)
+    const stuckKeys = new Set([...repeated, ...fromFix].map(keyOf))
+    if (round > 1 && stuckKeys.size * 2 > findings.length) {
       return {
         lane: lane.name,
         outcome: 'regression-halt',
         rounds: round,
         branch: ctx.branch,
         blockers,
-        note: `${fromFix} of ${findings.length} findings came from the previous fix. Change the approach rather than running another round.`,
+        carried: dedupe(carried),
+        escalation: 'human',
+        note: `${stuckKeys.size} of ${findings.length} findings are unchanged from the previous round (${repeated.length}) or introduced by its fix (${fromFix.length}). Change the approach rather than running another round.`,
       }
     }
+    previousKeys = new Set(findings.map(keyOf))
 
     if (round === ROUND_CAP) {
-      return { lane: lane.name, outcome: 'round-cap', rounds: round, branch: ctx.branch, blockers, note: 'Round cap reached; a person decides what happens next.' }
+      return {
+        lane: lane.name,
+        outcome: 'round-cap',
+        rounds: round,
+        branch: ctx.branch,
+        blockers,
+        carried: dedupe(carried),
+        escalation: 'human',
+        note: 'Round cap reached; a person decides what happens next. This is not a completion.',
+      }
     }
 
     // No `isolation` here on purpose: a fresh worktree is the opposite of what the prompt
@@ -285,6 +401,11 @@ return {
   passed,
   halted,
   unanswered: lanes.length - settled.length,
+  // 20 requires a lane on a different vendor's family, or a record that only one was
+  // reachable. This script dispatches every lens on the session's model, so the record is
+  // the honest half — a report that stays silent reads as if the rule were satisfied.
+  vendorDiversity: 'not implemented: every review lens ran on the session model family',
+  escalations: halted.filter((r) => r.escalation === 'human').map((r) => ({ lane: r.lane, outcome: r.outcome, note: r.note })),
   humanCriteria: passed.flatMap((r) =>
     (r.criteria ?? []).filter((c) => !c.command).map((c) => ({ lane: r.lane, criterion: c.criterion })),
   ),

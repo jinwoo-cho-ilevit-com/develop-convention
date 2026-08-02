@@ -65,6 +65,17 @@ Read)
     limit=$DEFAULT_READ_LINE_LIMIT
     ;;
   esac
+  # A bounded read costs what it asks for, not what the file holds. Judging a 20-line
+  # window by the size of a 5000-line file refuses the cheap request and leaves raising the
+  # limit or bypassing the guard as the only ways through, both worse than the read.
+  requested=$(jq -r '.tool_input.limit // empty' <<<"$payload")
+  case "$requested" in
+  '' | *[!0-9]*) ;;
+  *)
+    if [ "$requested" -le "$limit" ]; then exit 0; fi
+    emit_deny "That Read asks for $requested lines, over the $limit-line budget for the main session. Narrow it, or send an Explore subagent and take its summary."
+    ;;
+  esac
   [ -f "$path" ] || exit 0
   # Line counts mean nothing for images and other binaries.
   grep -Iq . -- "$path" 2>/dev/null || exit 0

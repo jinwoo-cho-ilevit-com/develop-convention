@@ -79,6 +79,38 @@ def test_format_doc_map_lists_every_convention():
     assert not missing, f"README's doc map omits {missing}"
 
 
+def test_every_convention_sits_under_a_doc_map_group():
+    """The check above passes on a doc named anywhere in the README — a prose arrow counts.
+
+    The map is grouped now because the numbers are identifiers rather than a reading order,
+    so a doc outside every group is unreachable by the only ordering a reader is given.
+    """
+    body = read("README.md")
+    doc_map = body[body.index("## Document Map") : body.index("## How to Apply")]
+    grouped = set()
+    for block in re.split(r"^### ", doc_map, flags=re.M)[1:]:
+        # Table rows only. Counting every mention inside the section lets a sentence of
+        # prose stand in for a row, which is the same hole this test exists to close.
+        rows = [line for line in block.splitlines() if line.startswith("| [")]
+        grouped |= set(re.findall(r"conventions/(\d\d-[a-z-]+\.md)", "\n".join(rows)))
+    missing = sorted({d.name for d in CONVENTIONS} - grouped)
+    assert not missing, f"these docs are in no group's table: {missing}"
+
+
+@pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)
+def test_links_inside_a_convention_resolve(doc):
+    """Only the README's links were checked, so a doc could point at a deleted file.
+
+    The strict site build catches this in CI by accident; a repository invariant should not
+    depend on a docs job that a reader may not run.
+    """
+    broken = []
+    for target in re.findall(r"\]\((?!https?:|#)([^)#]+)", read(doc)):
+        if not (doc.parent / target).resolve().exists():
+            broken.append(target)
+    assert not broken, f"{doc.name} links to files that do not exist: {broken}"
+
+
 # --- the published site ----------------------------------------------------------------
 
 
