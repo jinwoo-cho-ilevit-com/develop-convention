@@ -13,12 +13,14 @@ AGENTS_FILE_NAME="AGENTS.md"
 
 payload=$(cat)
 
-emit_deny() {
+emit_decision() {
   # Written without jq so this still works when jq is the thing that is missing.
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' \
-    "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/^/"/' -e 's/$/"/' | tr -d '\n')"
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":%s}}\n' \
+    "$1" "$(printf '%s' "$2" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/^/"/' -e 's/$/"/' | tr -d '\n')"
   exit 0
 }
+emit_deny() { emit_decision deny "$1"; }
+emit_ask() { emit_decision ask "$1"; }
 
 # The declared bypass is read from this hook's own environment, which a PreToolUse hook has
 # before the tool call runs: it is session-scoped, set at launch or through the settings env
@@ -61,9 +63,14 @@ case "$path" in
 "$AGENTS_FILE_NAME" | */"$AGENTS_FILE_NAME") exit 0 ;;
 esac
 
+# Ask where the test is a guess, refuse where it is exact. The editing tools name
+# themselves, but legitimate exceptions exist and a session-scoped bypass is a heavy price
+# for one of them; the shell test cannot tell a real write from a `>` inside a commit
+# message. A headless run has nobody to prompt and the permission system denies there, so
+# asking costs nothing when no human is present.
 case "$tool" in
 Edit | MultiEdit | Write | NotebookEdit)
-  emit_deny "The main session does not edit files. Spawn a lane with the Agent tool using isolation: worktree, hand it the brief from ${PLAN_DIR_NAME}/<feature>/lane-*.md, and fan the result back in. Working unguarded is a whole-session decision, not a per-call one: put DEV_HARNESS_ALLOW_MAIN=1 in the settings env block and restart, or launch the session with it set."
+  emit_ask "This edits a file from the main session, which orchestrates rather than develops. The usual path is a lane: an Agent with isolation: worktree, handed the brief from ${PLAN_DIR_NAME}/<feature>/lane-*.md. Approve it if this is a one-off the split does not cover."
   ;;
 Read)
   limit="${DEV_HARNESS_READ_LIMIT:-$DEFAULT_READ_LINE_LIMIT}"
@@ -105,7 +112,7 @@ Bash)
   scrubbed=$(printf '%s' "$command_line" | sed -E 's#[0-9]*>>?[[:space:]]*/dev/[A-Za-z0-9]+##g')
   if printf '%s' "$scrubbed" | grep -Eq \
     '(^|[[:space:]])(tee|patch|truncate|touch|install|mkdir|rmdir)([[:space:]]|$)|(^|[[:space:]])(cp|mv|rm|ln)[[:space:]]+-?|(^|[[:space:]])(sed|perl|ruby)[[:space:]]+-[A-Za-z]*i|(^|[[:space:]])dd[[:space:]][^|]*of=|(^|[[:space:]])git[[:space:]]+(apply|restore|checkout)([[:space:]]|$)|(^|[^0-9&])>[^&]'; then
-    emit_deny "That shell command writes files, and the main session does not edit. Delegate it to a lane with the Agent tool. Read-only shell work (git, ls, grep, test runs) is not affected. Prefixing this command with the bypass will not help — the hook reads its environment before your command runs, so DEV_HARNESS_ALLOW_MAIN=1 has to be in the session environment already (the settings env block, then restart)."
+    emit_ask "This shell command looks like it writes a file, and the main session orchestrates rather than develops. Pattern matching cannot tell a real write from a redirection character inside a commit message or a quoted string, so approve it if that is what this is; otherwise send it to a lane."
   fi
   ;;
 esac
