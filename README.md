@@ -101,6 +101,19 @@ Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste co
 
 A hook keeps the main session an orchestrator: it plans, splits and judges, and every edit goes to a subagent. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
 
+`/dev-harness:build` reports one outcome per lane. Only the first is a completion:
+
+| Outcome | What you do |
+|---|---|
+| `passed` | Nothing — the criteria passed and review found no blockers, so the lane merges |
+| `pending-human` | Give the `[human]` criterion its verdict, before the lane merges rather than after |
+| `criteria-failed` | Send the lane back: its own completion criteria did not pass, so it is not done |
+| `review-incomplete` | Re-run the lens that returned nothing rather than merging a short review |
+| `review-unexecuted` | Re-run the lens that ran zero commands — that verdict is a reading, not a review |
+| `verification-incomplete` | Decide the blockers yourself; the verifier's answer did not map onto them |
+| `regression-halt` | Change the approach — the findings are repeating or coming from the last fix |
+| `round-cap` | Decide as a person what happens next; the runaway guard fired |
+
 ### Tool-by-Tool Behavior
 
 | Tool | Behavior |
@@ -121,15 +134,20 @@ Starting a piece of work:
 /dev-harness:spec  Add a DeepSeek adapter to the inference layer
 ```
 
+Running the lanes it wrote — the second half of the same flow, once you have read `PLAN.md` and the briefs:
+```
+/dev-harness:build  deepseek-adapter
+```
+
 Enforcing a specific rule:
 ```
-Build the preprocessing pipeline. Follow the Core Rules in conventions/04 (small-sample runs, resume).
+Build the preprocessing pipeline. Follow the Core Rules in doc 04 (small-sample runs, resume).
 Add a DeepSeek adapter. Follow the procedure in doc 12 — fetch the official docs first to confirm, then implement.
 ```
 
 Review:
 ```
-Review this diff against the conventions at <convention repo path>.
+Review this diff against the conventions the plugin carries.
 Flag violations with their doc number, using a separate review agent, not the authoring session.
 ```
 
