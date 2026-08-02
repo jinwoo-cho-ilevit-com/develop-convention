@@ -322,16 +322,22 @@ async function reviewLoop(dev, lane) {
       phase: 'Review',
       schema: VERDICT_SCHEMA,
     })
-    const confirmedKeys = new Set(
-      (verdicts?.verdicts ?? []).filter((v) => v.confirmed).map((v) => v.key),
+    // Only an explicit refutation drops a blocker. Keying off `confirmed` instead meant a
+    // verifier that answered `{verdicts: []}` — truncated, or simply omitting them — read
+    // as refuting every blocker, and one real blocker reached `passed` with no fix and no
+    // escalation. A missing verdict is a missing verdict, not a clearance.
+    const refutedKeys = new Set(
+      (verdicts?.verdicts ?? []).filter((v) => v.confirmed === false).map((v) => v.key),
     )
-    // A verifier that died confirms nothing, and dropping every blocker on its silence
-    // would turn its death into a pass.
-    const blockers = verdicts ? rawBlockers.filter((f) => confirmedKeys.has(keyOf(f))) : rawBlockers
-    const unverified = rawBlockers.filter((f) => !blockers.includes(f))
-    if (unverified.length) {
-      unverified.forEach((f) => carried.push({ ...f, severity: 'minor', summary: `[unverified] ${f.summary}` }))
-      log(`lane ${lane.name} round ${round}: ${unverified.length} blocker(s) did not survive verification`)
+    const blockers = rawBlockers.filter((f) => !refutedKeys.has(keyOf(f)))
+    const refuted = rawBlockers.filter((f) => refutedKeys.has(keyOf(f)))
+    if (refuted.length) {
+      refuted.forEach((f) => carried.push({ ...f, severity: 'minor', summary: `[refuted] ${f.summary}` }))
+      log(`lane ${lane.name} round ${round}: ${refuted.length} blocker(s) were refuted on verification`)
+    }
+    const uncovered = blockers.length - (verdicts?.verdicts ?? []).filter((v) => v.confirmed).length
+    if (uncovered > 0) {
+      log(`lane ${lane.name} round ${round}: ${uncovered} blocker(s) came back without a verdict — kept as blockers`)
     }
 
     if (!blockers.length) return clean(lane, dev, ctx, round, carried)
@@ -341,10 +347,14 @@ async function reviewLoop(dev, lane) {
     // it alone can only detect what a reviewer thought to mark — and a test that sets the
     // flag proves the branch fires, never that the flag is reachable. Repetition is a fact
     // about the findings, so it is derived here from identity across rounds (→ 20 §3).
-    const repeated = findings.filter((f) => previousKeys.has(keyOf(f)))
-    const fromFix = findings.filter((f) => f.causedByPreviousFix)
+    // Blockers only, on both sides of the ratio. Counting every finding let two majors
+    // that are carried round after round — by design, since only blockers get fixed —
+    // form the majority and halt a lane whose actual blocker had changed and was fixable.
+    // The loop this exit governs is the blocker loop; its denominator has to be the same.
+    const repeated = blockers.filter((f) => previousKeys.has(keyOf(f)))
+    const fromFix = blockers.filter((f) => f.causedByPreviousFix)
     const stuckKeys = new Set([...repeated, ...fromFix].map(keyOf))
-    if (round > 1 && stuckKeys.size * 2 > findings.length) {
+    if (round > 1 && stuckKeys.size * 2 > blockers.length) {
       return {
         lane: lane.name,
         outcome: 'regression-halt',
@@ -353,10 +363,10 @@ async function reviewLoop(dev, lane) {
         blockers,
         carried: dedupe(carried),
         escalation: 'human',
-        note: `${stuckKeys.size} of ${findings.length} findings are unchanged from the previous round (${repeated.length}) or introduced by its fix (${fromFix.length}). Change the approach rather than running another round.`,
+        note: `${stuckKeys.size} of ${blockers.length} confirmed blockers are unchanged from the previous round (${repeated.length}) or introduced by its fix (${fromFix.length}). Change the approach rather than running another round.`,
       }
     }
-    previousKeys = new Set(findings.map(keyOf))
+    previousKeys = new Set(blockers.map(keyOf))
 
     if (round === ROUND_CAP) {
       return {

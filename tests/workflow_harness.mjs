@@ -54,9 +54,11 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
       if (over.verifierDies) return null
       // Confirms whatever it was handed unless the case says otherwise, so the loop under
       // test is the review loop and not this stub.
-      const verdicts = findingsNow()
-        .filter((f) => f.severity === 'blocker')
-        .map((f) => ({ key: keyOf(f), confirmed: !over.refuteBlockers, evidence: 'stub' }))
+      const verdicts = over.emptyVerdicts
+        ? []
+        : findingsNow()
+            .filter((f) => f.severity === 'blocker')
+            .map((f) => ({ key: keyOf(f), confirmed: !over.refuteBlockers, evidence: 'stub' }))
       round++
       lensInRound = 0
       return { verdicts }
@@ -125,6 +127,28 @@ const cases = [
     rounds: [[finding()]],
     over: { refuteBlockers: true },
     expect: { outcome: 'passed', rounds: 1, noLabel: 'fix:' },
+  },
+  {
+    // A verifier that answers with nothing is not a verifier that cleared anything. Keying
+    // off `confirmed` made an empty list read as refuting every blocker, so one real
+    // blocker reached `passed` with no fix and no escalation.
+    // It goes to the fix agent and then halts on repetition, which is the designed path.
+    // What matters is that it is not `passed`: an unanswered verdict used to clear it.
+    name: 'a verifier returning no verdicts leaves the blocker standing',
+    rounds: [[finding()]],
+    over: { emptyVerdicts: true },
+    expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human', hasLabel: 'fix:a#1' },
+  },
+  {
+    // Majors are carried by design and never fixed, so counting them let two of them
+    // outvote a blocker that had actually changed and was still fixable.
+    name: 'carried majors do not halt a lane whose blocker is still changing',
+    rounds: [
+      [finding({ severity: 'major', summary: 'm1' }), finding({ severity: 'major', summary: 'm2' }), finding({ summary: 'b1' })],
+      [finding({ severity: 'major', summary: 'm1' }), finding({ severity: 'major', summary: 'm2' }), finding({ summary: 'b2' })],
+      [],
+    ],
+    expect: { outcome: 'passed', rounds: 3, carried: ['m1', 'm2'] },
   },
   {
     name: 'a lane touching a trust boundary gets a security lens',
