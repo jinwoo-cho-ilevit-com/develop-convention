@@ -1,7 +1,7 @@
 {
   "name": "dev-harness",
   "displayName": "Development Harness",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Runs the development conventions in this repository: interview-driven planning, delegated execution in parallel lanes, and review that starts the moment a lane finishes.",
   "author": {
     "name": "Jinwoo Cho",

@@ -247,6 +247,22 @@ def test_the_orchestrator_may_write_its_own_plan(tmp_path):
         assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "allow"
 
 
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("path", ["AGENTS.md", "/x/y/AGENTS.md", "src/parser/AGENTS.md"])
+def test_the_orchestrator_may_write_agents_md(path):
+    """`/dev-harness:setup` writes this file from the main session, and the other two
+    commands ask for it when a command is missing. Refusing it made the guard block the
+    artifact the rest of the plugin depends on."""
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("path", ["AGENTS.md.bak", "src/AGENTS.mdx", "notAGENTS.md"])
+def test_the_agents_exemption_matches_the_whole_name(path):
+    """A prefix or suffix match would exempt any file whose name merely contains it."""
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "deny"
+
+
 def test_the_guard_refuses_rather_than_vanishes_without_jq(tmp_path):
     """Without jq every branch read empty and the call fell through to allow — and the
     other guard tests skip in exactly that environment, so CI was green where the gate was
