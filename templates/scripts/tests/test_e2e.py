@@ -69,9 +69,22 @@ def art(repo):
     return repo / "artifacts" / "sample"
 
 
+PHASES = ("red", "verify", "human")
+
+
 def snapshot(repo):
+    """The per-criterion phase records, which are what no phase may lose.
+
+    Only those: the state directory also holds a run log and the creation stamp, and an
+    assertion that enumerated every file in it would fail the next time the manifest
+    gained a field — which is a different property from the one this test is about.
+    """
     state = art(repo) / "state"
-    return {p.name: p.read_bytes() for p in sorted(state.glob("*.json"))}
+    return {
+        p.name: p.read_bytes()
+        for p in sorted(state.glob("*.json"))
+        if p.name.rsplit(".", 2)[-2:-1] and p.name.rsplit(".", 2)[-2] in PHASES
+    }
 
 
 def run(repo, *argv):

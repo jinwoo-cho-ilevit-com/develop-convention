@@ -7,6 +7,7 @@ here rather than assumed.
 
 import json
 import re
+import time
 
 import contract
 import pytest
@@ -181,3 +182,52 @@ def test_bypass_reason_reaches_the_manifest(repo, base_sha):
     manifest = json.loads((art(repo) / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["done_level"] == "bypassed"
     assert manifest["bypass"]["reason"] == "the deploy window closed"
+
+
+def test_created_at_does_not_move_between_renders(repo, base_sha):
+    """19 §4 derives lead time per contract from this field, and a value that moves
+    derives nothing. It used to be `now_iso()` at every render — the time of the last
+    write rather than the first.
+    """
+    simple(repo, base_sha)
+    run(repo, "verify")
+    first = json.loads((art(repo) / "manifest.json").read_text(encoding="utf-8"))["created_at"]
+    time.sleep(1.1)
+    run(repo, "verify")
+    second = json.loads((art(repo) / "manifest.json").read_text(encoding="utf-8"))["created_at"]
+    assert first == second
+    runs = json.loads((art(repo) / "manifest.json").read_text(encoding="utf-8"))["verify_runs"]
+    assert runs[-1]["at"] != first, "the run log must still advance while created_at holds"
+
+
+def test_another_feature_awaiting_a_verdict_is_reported(repo, base_sha, capsys):
+    """A contract awaiting verdicts can be replaced by the next one with nothing noticing.
+
+    It happened three times in the session that added this. The runner cannot refuse —
+    collecting verdicts at the end means several contracts are pending on purpose — so
+    it reports what it sees.
+    """
+    other = art(repo, "earlier") / "state"
+    other.mkdir(parents=True)
+    (other / "C-01.human.json").write_text(
+        json.dumps({"criterion": "C-01", "phase": "human", "status": "PENDING-HUMAN"}),
+        encoding="utf-8",
+    )
+    simple(repo, base_sha)
+    run(repo, "lint")
+    assert "earlier still awaits a human verdict" in capsys.readouterr().out
+
+
+def test_the_current_feature_is_not_reported_as_pending(repo, base_sha, capsys):
+    write_contract(
+        repo,
+        [
+            {"id": "C-01", "text": "a judgement", "verify": "human", "kind": "functional"},
+            criterion("C-02", kind="negative"),
+        ],
+        base=base_sha,
+    )
+    run(repo, "verify")
+    capsys.readouterr()
+    run(repo, "status")
+    assert "still awaits a human verdict" not in capsys.readouterr().out

@@ -62,7 +62,7 @@ REQUIRED_FIELDS = ("feature", "done_level", "criteria", "out_of_scope")
 # who believes it is enforced, and this runner does not implement it. Anything outside
 # KNOWN_FIELDS is refused for the same reason — silently accepting `evidence_todo`,
 # which 19 tells authors to write, would be the same defect wearing a different name.
-UNSUPPORTED_FIELDS = ("lanes", "sequential_owner", "integration", "checkpoints")
+UNSUPPORTED_FIELDS: tuple[str, ...] = ()
 KNOWN_FIELDS = frozenset(
     {
         "schema_version",
@@ -73,8 +73,18 @@ KNOWN_FIELDS = frozenset(
         "out_of_scope",
         "revision",
         "bypass",
+        "lanes",
+        "sequential_owner",
+        "integration",
+        "checkpoints",
     }
 )
+
+MODEL_TIERS = ("light", "mid", "top")
+# 18 records `owns` as directory prefixes plus individually named cross-cutting files.
+# A glob is refused because it is expanded against the files that exist now and misses
+# the ones the work is about to create — which is the collision the check exists for.
+GLOB_CHARS = "*?[]"
 KNOWN_CRITERION_FIELDS = frozenset({"id", "text", "verify", "runner", "kind", "red", "hermetic"})
 
 # A verify command is executed as an argument vector, so an operator would become a
@@ -436,6 +446,88 @@ def _criterion_of(raw: object, seen: set[str]) -> Criterion:
     )
 
 
+def _owns_entry(raw: object, lane_id: str) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise ContractError(f"lane {lane_id}: every `owns` entry is a non-empty string")
+    entry = raw.strip()
+    if any(ch in entry for ch in GLOB_CHARS):
+        raise ContractError(
+            f"lane {lane_id}: `owns` entry {entry!r} is a glob. A glob is expanded against "
+            "the files that exist now and misses the ones the work is about to create, "
+            "which is the collision this check exists to prevent — use a directory prefix "
+            "or name the file"
+        )
+    return entry
+
+
+def _covers(owner: str, path: str) -> bool:
+    """A prefix covers everything beneath it; a named file covers only itself."""
+    return path == owner or (owner.endswith("/") and path.startswith(owner))
+
+
+def validate_lanes(data: dict) -> None:
+    """The decomposition has to be self-consistent before any of it runs.
+
+    18 requires disjoint ownership, and this session found out why by nearly breaking it:
+    five lanes sliced by kind of change all landed in the same three documents. Sliced by
+    file instead, they cannot collide. This is the check that says so before the lanes
+    start rather than when they conflict.
+    """
+    raw_lanes = data.get("lanes")
+    if raw_lanes is None:
+        for field in ("sequential_owner", "integration", "checkpoints"):
+            if field in data:
+                raise ContractError(
+                    f"`{field}` describes a decomposition, but there are no `lanes`"
+                )
+        return
+    if not isinstance(raw_lanes, list) or len(raw_lanes) < 2:
+        raise ContractError(
+            "`lanes` is for two or more parallel lanes; with fewer, leave it out (18 §2)"
+        )
+
+    owned: dict[str, str] = {}
+    seen_ids: set[str] = set()
+    for raw in raw_lanes:
+        if not isinstance(raw, dict):
+            raise ContractError(f"each lane must be a mapping, got {type(raw).__name__}")
+        lane_id = raw.get("id")
+        if not isinstance(lane_id, str) or not lane_id.strip():
+            raise ContractError("every lane needs a non-empty `id`")
+        if lane_id in seen_ids:
+            raise ContractError(f"duplicate lane id {lane_id!r}")
+        seen_ids.add(lane_id)
+
+        tier = raw.get("model_tier")
+        if tier is not None and tier not in MODEL_TIERS:
+            raise ContractError(
+                f"lane {lane_id}: model_tier {tier!r} is not one of {MODEL_TIERS} — "
+                "18 records a tier so the routing choice can be audited, never a model id"
+            )
+
+        entries = raw.get("owns")
+        if not isinstance(entries, list) or not entries:
+            raise ContractError(f"lane {lane_id}: `owns` is a non-empty list")
+        for entry in (_owns_entry(item, lane_id) for item in entries):
+            for existing, holder in owned.items():
+                if _covers(existing, entry) or _covers(entry, existing):
+                    raise ContractError(
+                        f"lanes {holder} and {lane_id} both own {entry!r}/{existing!r}; "
+                        "ownership must be disjoint, so slice by file rather than by the "
+                        "kind of change when several kinds land in the same files"
+                    )
+            owned[entry] = lane_id
+
+    for raw in data.get("sequential_owner", []) or []:
+        single = str(raw).strip()
+        for entry, holder in owned.items():
+            if _covers(entry, single) or _covers(single, entry):
+                raise ContractError(
+                    f"{single!r} is in `sequential_owner` and also owned by lane {holder}; "
+                    "a file with a single owner belongs to no lane"
+                )
+
+
 def load_contract(path: Path | str) -> Contract:
     """Read and validate a contract. Raises rather than returning something partial."""
     path = Path(path)
@@ -468,6 +560,7 @@ def load_contract(path: Path | str) -> Contract:
             f"this runner does not implement {', '.join(unsupported)} — "
             "refusing rather than ignoring a field you expect to be enforced"
         )
+    validate_lanes(data)
     unknown = name_list(set(data) - KNOWN_FIELDS - set(UNSUPPORTED_FIELDS))
     if unknown:
         raise ContractError(
@@ -762,6 +855,25 @@ def append_run(writer: ArtifactWriter, phase: str) -> None:
     writer.append_line(RUNS_REL, json.dumps({"phase": phase, "at": now_iso()}))
 
 
+# `created_at` used to be `now_iso()` at every render, which made it the time of the last
+# write rather than of the first. 19 §4 names it as one of the fields lead time per
+# contract is derived from, and a value that moves derives nothing. Written once, into the
+# same state directory the rest of the manifest comes from.
+CREATED_REL = "state/created.json"
+
+
+def ensure_created(writer: ArtifactWriter) -> None:
+    if not (writer.root / CREATED_REL).is_file():
+        writer.write_text(CREATED_REL, json.dumps({"at": now_iso()}) + "\n")
+
+
+def read_created(artifacts_root: Path) -> str | None:
+    path = artifacts_root / CREATED_REL
+    if not path.is_file():
+        return None
+    return str(json.loads(path.read_text(encoding="utf-8"))["at"])
+
+
 def read_runs(artifacts_root: Path) -> list[dict]:
     path = artifacts_root / RUNS_REL
     if not path.is_file():
@@ -870,6 +982,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     root = repo_root(contract_path)
     writer = ArtifactWriter(artifacts_dir(root, contract.feature))
 
+    ensure_created(writer)
     append_run(writer, "verify")
     failed = False
     for crit in contract.criteria:
@@ -905,6 +1018,7 @@ def cmd_human(args: argparse.Namespace) -> int:
     contract = load_contract(contract_path)
     root = repo_root(contract_path)
     writer = ArtifactWriter(artifacts_dir(root, contract.feature))
+    ensure_created(writer)
 
     matches = [c for c in contract.criteria if c.id == args.id]
     if not matches:
@@ -1020,7 +1134,7 @@ def render(writer: ArtifactWriter, contract: Contract, root: Path) -> None:
         "manifest.json",
         json.dumps(
             {
-                "created_at": now_iso(),
+                "created_at": read_created(writer.root) or now_iso(),
                 "commit": git("rev-parse", "HEAD", cwd=root),
                 "tree_clean": not git("status", "--porcelain", cwd=root),
                 "base": contract.base,
@@ -1183,6 +1297,7 @@ def cmd_red(args: argparse.Namespace) -> int:
         raise ContractError("contract has no `base`; the red check needs a commit to check against")
     base_sha = git("rev-parse", "--verify", f"{contract.base}^{{commit}}", cwd=root)
     writer = ArtifactWriter(artifacts_dir(root, contract.feature))
+    ensure_created(writer)
 
     failed = False
     with base_worktree(root, base_sha) as worktree:
@@ -1256,6 +1371,44 @@ def cmd_red(args: argparse.Namespace) -> int:
 # --- the status gate ----------------------------------------------------------------------
 
 
+def other_pending_features(root: Path, current: Feature) -> list[str]:
+    """Features under `artifacts/` still holding a human verdict, other than this one.
+
+    The runner sees one contract at a time, so a contract awaiting verdicts can be
+    replaced by the next one with nothing noticing — which happened three times in the
+    session that added this. It cannot refuse: a workflow that collects every verdict at
+    the end has several contracts pending on purpose. So it says what it sees.
+    """
+    base = root / "artifacts"
+    if not base.is_dir():
+        return []
+    pending = []
+    for state in sorted(base.glob("*/state")):
+        feature = state.parent.name
+        if feature == current.value:
+            continue
+        for record in state.glob("*.human.json"):
+            try:
+                document = json.loads(record.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if document.get("status") == PENDING_HUMAN:
+                pending.append(feature)
+                break
+        else:
+            # A criterion with no human record at all is pending too, but this function
+            # only sees the artifacts — the other contract's criteria are not readable
+            # from here, so an absent record cannot be distinguished from an absent
+            # criterion. Reporting what is recorded is the honest half.
+            continue
+    return pending
+
+
+def report_other_pending(root: Path, current: Feature) -> None:
+    for feature in other_pending_features(root, current):
+        print(f"NOTE {feature} still awaits a human verdict — close it before deleting it")
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     """Read-only on purpose.
 
@@ -1265,6 +1418,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     contract_path = Path(args.contract)
     contract = load_contract(contract_path)
     root = repo_root(contract_path)
+    report_other_pending(root, contract.feature)
     artifacts = artifacts_dir(root, contract.feature)
 
     blocking = []
@@ -1302,7 +1456,9 @@ def quality_problems(contract: Contract) -> list[str]:
 
 
 def cmd_lint(args: argparse.Namespace) -> int:
-    contract = load_contract(Path(args.contract))
+    contract_path = Path(args.contract)
+    contract = load_contract(contract_path)
+    report_other_pending(repo_root(contract_path), contract.feature)
     problems = quality_problems(contract)
     for problem in problems:
         print(f"FAIL {problem}")

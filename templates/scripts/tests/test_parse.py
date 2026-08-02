@@ -416,3 +416,108 @@ def test_bypass_with_a_reason_is_accepted(repo):
         bypass={"reason": "the deploy window closed", "author": "someone"},
     )
     assert run(repo, "lint") == 0
+
+
+# --- the parallel decomposition has to be self-consistent before it runs ------------------
+
+
+def two_lanes(**over):
+    lanes = [
+        {"id": "L1", "owns": ["src/loader/"], "model_tier": "mid"},
+        {"id": "L2", "owns": ["src/report/"], "model_tier": "light"},
+    ]
+    lanes[0].update(over)
+    return lanes
+
+
+def with_lanes(repo, lanes, **front):
+    write_contract(
+        repo,
+        [criterion("C-01"), criterion("C-02", kind="negative")],
+        lanes=lanes,
+        **front,
+    )
+
+
+def test_lanes_disjoint_ownership_is_accepted(repo):
+    with_lanes(repo, two_lanes())
+    assert run(repo, "lint") == 0
+
+
+def test_lanes_overlapping_ownership_is_refused(repo):
+    """Five lanes sliced by kind of change all landed in the same documents once.
+
+    Sliced by file they cannot collide, and this is what says so before they start.
+    """
+    with_lanes(repo, two_lanes(owns=["src/"]))
+    assert run(repo, "lint") == 2
+
+
+def test_lanes_identical_ownership_is_refused(repo):
+    with_lanes(repo, two_lanes(owns=["src/report/"]))
+    assert run(repo, "lint") == 2
+
+
+@pytest.mark.parametrize("entry", ["src/**", "src/*.py", "src/[ab]/"])
+def test_lanes_glob_ownership_is_refused(repo, entry):
+    """A glob is expanded against the files that exist now and misses the new ones."""
+    with_lanes(repo, two_lanes(owns=[entry]))
+    assert run(repo, "lint") == 2
+
+
+def test_lanes_named_cross_cutting_file_is_accepted(repo):
+    """A README belongs to no directory, so a prefix rule cannot assign it."""
+    with_lanes(repo, two_lanes(owns=["README.md", "mkdocs.yml"]))
+    assert run(repo, "lint") == 0
+
+
+def test_lanes_model_tier_must_be_a_tier_not_a_model_id(repo):
+    with_lanes(repo, two_lanes(model_tier="claude-opus-5"))
+    assert run(repo, "lint") == 2
+
+
+def test_lanes_below_two_is_refused(repo):
+    with_lanes(repo, [{"id": "L1", "owns": ["src/"]}])
+    assert run(repo, "lint") == 2
+
+
+def test_lanes_sequential_owner_may_not_also_belong_to_a_lane(repo):
+    with_lanes(repo, two_lanes(owns=["pyproject.toml"]), sequential_owner=["pyproject.toml"])
+    assert run(repo, "lint") == 2
+
+
+def test_lanes_sequential_owner_outside_every_lane_is_accepted(repo):
+    with_lanes(repo, two_lanes(), sequential_owner=["pyproject.toml", "uv.lock"])
+    assert run(repo, "lint") == 0
+
+
+def test_decomposition_fields_without_lanes_are_refused(repo):
+    """`integration` describes a decomposition; without lanes there is none to describe."""
+    write_contract(
+        repo,
+        [criterion("C-01"), criterion("C-02", kind="negative")],
+        integration="merge L1 then L2",
+    )
+    assert run(repo, "lint") == 2
+
+
+def test_integration_and_checkpoints_are_accepted_with_lanes(repo):
+    """18 §3 calls checkpoints a marker, not a trigger — there is nothing to enforce."""
+    with_lanes(repo, two_lanes(), integration="merge L1 then L2", checkpoints=["after L1"])
+    assert run(repo, "lint") == 0
+
+
+def test_no_lane_execution_surface_exists():
+    """Reading a decomposition is not running one.
+
+    What this runner adds is a check that the decomposition contradicts itself before the
+    lanes start. Spawning them, or enforcing ownership while they write, is a separate
+    mechanism — and one that would need its own contract before it appears here.
+    """
+    names = dir(contract)
+    assert "validate_lanes" in names
+    for forbidden in ("run_lane", "spawn_lane", "cmd_lanes", "enforce_owns"):
+        assert forbidden not in names, f"{forbidden} is lane execution, which is out of scope"
+    parser = contract.build_parser()
+    subcommands = {name for action in parser._subparsers._group_actions for name in action.choices}
+    assert subcommands == {"lint", "red", "verify", "human", "status"}, subcommands
