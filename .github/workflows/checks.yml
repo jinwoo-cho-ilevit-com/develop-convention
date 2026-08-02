@@ -13,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0   # `contract.py red` checks out the contract's base commit
 
       - uses: astral-sh/setup-uv@v9.0.0
         with:
@@ -25,8 +23,8 @@ jobs:
           uv run --group dev ruff check .
           uv run --group dev ruff format --check .
 
-      # Covers both testpaths: the contract toolkit under templates/scripts/, and the
-      # repository invariants under tests/ that stand in for the checklist in CLAUDE.md.
+      # The repository invariants under tests/ stand in for the checklist in CLAUDE.md,
+      # and drive the plugin's guard and workflow rather than reading them.
       - name: Test
         run: uv run --group dev pytest
 

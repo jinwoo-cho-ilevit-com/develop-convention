@@ -4,8 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A development-conventions documentation repository. The deliverable is documents, and the only code is the work-contract toolkit under `templates/scripts/`, which projects copy out — so there is a test suite, and `uv run --group dev pytest` runs both it and the repository invariants under `tests/`.
-`README.md` is the doc map + full rules summary; the actual rules live in `conventions/NN-*.md`, split by topic. Other projects consume these docs by excerpting the "Core Rules" sections into their CLAUDE.md/AGENTS.md, and `templates/` (AGENTS.md, CLAUDE.md, pyproject.toml, contract.md, `.pre-commit-config.yaml`, `.python-version`, `scripts/`, `skills/`) is the starting point for new projects. When changing a convention rule, also check consistency with templates/.
+A development-conventions repository that also ships the harness running them. The rules live in `conventions/NN-*.md`; `README.md` is the doc map (grouped, numbers being stable identifiers rather than a reading order) plus the full rules summary.
+
+The code is the `dev-harness` plugin: `.claude-plugin/` manifests, `hooks/delegate-guard.sh`, `commands/`, `workflows/build.js`, `skills/`. `uv run --group dev pytest` runs the repository invariants under `tests/`, which drive the guard and the workflow rather than reading them. `templates/` is down to what a plugin cannot supply — a short `AGENTS.md` and the local tool configuration.
+
+Projects consume this by installing the plugin, not by copying rules out. An excerpt is a copy, and 15 requires a copy to carry its source and be checked; when changing a rule, check whether the plugin that delivers it needs the same change.
 
 ## Document format (must follow when editing/adding docs)
 

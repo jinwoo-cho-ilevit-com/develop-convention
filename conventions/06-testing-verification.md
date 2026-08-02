@@ -4,6 +4,8 @@
 
 - Write the smallest set of tests that catches real regressions. Don't chase line-coverage numbers, and don't write a test per function.
 - Use three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests that exercise the assembled project through its real entry point.
+- When work splits into parallel lanes, write each boundary's contract test **before** the lanes start, and give it no lane as owner. Disjoint file ownership stops two lanes writing the same file; it does nothing about the two of them holding contradictory assumptions about what crosses between them, and each lane's own tests pass under its own assumption. The test written first is that assumption in executable form (→ [21-development-loop.md](21-development-loop.md)).
+- Store each boundary's representative payload as a file and have the fixture factory load it, rather than building the boundary shape in code. Two lanes can read a written specification differently; they have a much harder time reading the same `parser_out.sample.json` differently. The file is the truth and the factory supplies the variations — NaN, edge values, bulk.
 - Justify each test by three questions: is there a realistic change that would break it, does another test already catch that, and could it ever fail? A test that answers no to any of them should not exist.
 - Cover every completion criterion with an executable check, but not one test per criterion — one test may satisfy several. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
 - Observe every new test failing before it passes: run it at the base commit and keep the output. A test that was never seen red is indistinguishable from one that asserts nothing.
@@ -72,7 +74,7 @@ A test that has never failed, in any run, is a deletion candidate. Either it gua
 
 ### 5. ML test patterns
 
-- **Small-sample fixtures**: a realistic ~100-row sample (NaN, skew, mixed types) built by a fixture factory, not a toy dict.
+- **Small-sample fixtures**: a realistic ~100-row sample (NaN, skew, mixed types), never a toy dict. Keep the representative payload for each boundary in `tests/fixtures/<boundary>.sample.json` and have the factory load and vary it — a stored sample is reviewable and is what two lanes can both look at, while a factory alone hides what actually crosses the boundary. Samples extracted from real data go through the masking rules in [13-secret-management.md](13-secret-management.md) before they are committed.
 - **Tolerance bands**: `assert 0.85 <= auc <= 0.90`, not `assert auc == 0.874`. Bit-exact reproducibility is not guaranteed across hardware (→ [07-ml-development.md](07-ml-development.md)).
 - **Golden files**: store reference outputs and compare with a tolerant diff. Update only via an explicit flag (`--update-golden`).
 - **Seeds**: `PYTHONHASHSEED`, numpy, torch, and CUDA determinism in one session-scoped fixture. Non-deterministic code cannot be tested.

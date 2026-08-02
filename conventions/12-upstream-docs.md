@@ -1,4 +1,6 @@
-# 12. Latest Documentation Reference Procedure + Canonical URL Registry
+# 12. Upstream Documentation: Reference Procedure + Canonical URL Registry
+
+How to check someone else's official documentation before writing against their SDK or API. Keeping *this* project's own docs in step with its code is [15-doc-tracking.md](15-doc-tracking.md).
 
 Provider API knowledge goes stale on a timescale of months (the silent `output_format`→`output_config.format` migration, DeepSeek model name deprecations, torchtune's development sunset). This document defines not a "structure that trusts memory" but a **"structure that forces verification."** To follow the numbering scheme, the registry and the procedure are consolidated into one document.
 
@@ -73,7 +75,7 @@ Combinations the docs are silent on (e.g., a given provider's thinking × struct
 The following three lines in each project's CLAUDE.md/AGENTS.md are enough:
 
 ```
-- Before writing/modifying provider API code: fetch and verify the corresponding provider's official docs per develop-convention conventions/12-docs-reference.md
+- Before writing/modifying provider API code: fetch and verify the corresponding provider's official docs per develop-convention conventions/12-upstream-docs.md
 - For SDK usage use ctx7; for exceptions/signatures, the installed SDK source is authoritative
 - Don't guess at undocumented behavior — confirm it with a provider smoke test
 ```

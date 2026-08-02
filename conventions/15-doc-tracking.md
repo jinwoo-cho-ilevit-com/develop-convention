@@ -36,7 +36,7 @@ Summary principle: **Generate whatever can be generated, have humans write only 
 
 ### 2. The docsync Skill — Incremental Sync
 
-The update procedure is packaged as a skill in [templates/skills/docsync/SKILL.md](../templates/skills/docsync/SKILL.md). SKILL.md is a tool-neutral markdown procedure — in Claude Code it's copied to `.claude/skills/docsync/` and run as a skill; in Codex/Cursor and similar tools, the same file is referenced as a prompt to carry out the identical procedure.
+The update procedure is packaged as a skill in [skills/docsync/SKILL.md](../skills/docsync/SKILL.md). SKILL.md is a tool-neutral markdown procedure — Claude Code gets it from the `dev-harness` plugin, and Codex/Cursor and similar tools reference the same file as a prompt to carry out the identical procedure.
 
 - **State file** (`.docsync/state.json`): the last documented commit + a content hash per managed section. If state exists, process only the modules changed between the last commit and HEAD; if not (first run), process all modules — bootstrap is just the special case of sync with empty state, so there's no dependency on a separate bootstrap tool (self-contained).
 - **sync pipeline**: detect RMA → compute scope → update per-module managed sections → global pass (regenerate dependency graph, update ARCHITECTURE.md, check for cross-module contradictions) → report a list of ADR-candidate questions → fresh-context verification → update state.
@@ -80,6 +80,5 @@ Sources: [GitHub — Include diagrams in your Markdown files with Mermaid](https
 
 ### 6. Applying This to a Project
 
-1. Copy [templates/skills/docsync/SKILL.md](../templates/skills/docsync/SKILL.md) to the project's `.claude/skills/docsync/SKILL.md` (for tools other than Claude Code, reference this file's path from AGENTS.md).
-2. Keep the docsync opt-in block in AGENTS.md (→ [templates/AGENTS.md](../templates/AGENTS.md)).
-3. The first `/docsync` run is the bootstrap — there is no separate initialization procedure.
+1. Install the `dev-harness` plugin; [skills/docsync/SKILL.md](../skills/docsync/SKILL.md) comes with it. Tools that do not read plugins get a one-line pointer to the published copy from AGENTS.md instead.
+2. The first `/docsync` run is the bootstrap — there is no separate initialization procedure.

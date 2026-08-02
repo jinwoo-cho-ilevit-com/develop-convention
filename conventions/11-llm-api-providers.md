@@ -1,6 +1,6 @@
 # 11. LLM API Provider Considerations + Structured Output Fallback
 
-Rules for handling API differences across providers, and strategies for providers that don't support (or only weakly support) structured output. Core conventions are in [10-llm-api-inference.md](10-llm-api-inference.md). Provider facts in this document can go stale — when developing, follow the up-to-date documentation reference procedure in [12-docs-reference.md](12-docs-reference.md).
+Rules for handling API differences across providers, and strategies for providers that don't support (or only weakly support) structured output. Core conventions are in [10-llm-api-inference.md](10-llm-api-inference.md). Provider facts in this document can go stale — when developing, follow the up-to-date documentation reference procedure in [12-upstream-docs.md](12-upstream-docs.md).
 
 ## Core Rules
 

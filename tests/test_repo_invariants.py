@@ -79,6 +79,38 @@ def test_format_doc_map_lists_every_convention():
     assert not missing, f"README's doc map omits {missing}"
 
 
+def test_every_convention_sits_under_a_doc_map_group():
+    """The check above passes on a doc named anywhere in the README — a prose arrow counts.
+
+    The map is grouped now because the numbers are identifiers rather than a reading order,
+    so a doc outside every group is unreachable by the only ordering a reader is given.
+    """
+    body = read("README.md")
+    doc_map = body[body.index("## Document Map") : body.index("## How to Apply")]
+    grouped = set()
+    for block in re.split(r"^### ", doc_map, flags=re.M)[1:]:
+        # Table rows only. Counting every mention inside the section lets a sentence of
+        # prose stand in for a row, which is the same hole this test exists to close.
+        rows = [line for line in block.splitlines() if line.startswith("| [")]
+        grouped |= set(re.findall(r"conventions/(\d\d-[a-z-]+\.md)", "\n".join(rows)))
+    missing = sorted({d.name for d in CONVENTIONS} - grouped)
+    assert not missing, f"these docs are in no group's table: {missing}"
+
+
+@pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)
+def test_links_inside_a_convention_resolve(doc):
+    """Only the README's links were checked, so a doc could point at a deleted file.
+
+    The strict site build catches this in CI by accident; a repository invariant should not
+    depend on a docs job that a reader may not run.
+    """
+    broken = []
+    for target in re.findall(r"\]\((?!https?:|#)([^)#]+)", read(doc)):
+        if not (doc.parent / target).resolve().exists():
+            broken.append(target)
+    assert not broken, f"{doc.name} links to files that do not exist: {broken}"
+
+
 # --- the published site ----------------------------------------------------------------
 
 
@@ -101,10 +133,17 @@ def test_nav_lists_the_adr_directory():
     assert not missing, f"mkdocs nav omits {missing}"
 
 
-def test_nav_lists_the_contract_template_and_runner():
-    """18 §4 and 19 §6 describe a toolkit a reader is expected to be able to look at."""
+def test_nav_lists_what_a_project_still_takes():
+    """15: when something ships, update what distributes it in the same change.
+
+    The published site is one of those distribution paths, and it went on listing a
+    contract template and a bootstrap skill after both were retired.
+    """
     listed = set(nav_paths(mkdocs_config()["nav"]))
-    assert "templates/contract.md" in listed
+    assert "templates/AGENTS.md" in listed
+    assert "skills/docsync/SKILL.md" in listed
+    retired = {p for p in listed if p.endswith("templates/contract.md") or "conv-init" in p}
+    assert not retired, f"mkdocs nav still publishes retired paths: {sorted(retired)}"
 
 
 # --- conventions/03's first Core Rule ---------------------------------------------------
@@ -149,11 +188,16 @@ def test_claude_md_does_not_claim_there_are_no_test_commands():
     assert "there are no build/test commands" not in read("CLAUDE.md")
 
 
-def test_claude_md_enumerates_templates_completely():
-    """The same sentence instructs the reader to check consistency with `templates/`."""
+def test_claude_md_names_the_code_this_repository_ships():
+    """It told an agent the only code was a toolkit that no longer exists.
+
+    An agent that believes the repository is documents-only will not run, or update, the
+    plugin that now delivers them.
+    """
     body = read("CLAUDE.md")
-    for entry in ("scripts/", "skills/"):
-        assert entry in body, f"CLAUDE.md never mentions templates/{entry}"
+    for entry in ("hooks/", "commands/", "workflows/", ".claude-plugin/"):
+        assert entry in body, f"CLAUDE.md never mentions {entry}"
+    assert "templates/scripts" not in body, "CLAUDE.md still points at the retired toolkit"
 
 
 # --- conventions/03 and 13: enforcement in CI --------------------------------------------
@@ -189,16 +233,16 @@ def test_workflow_runs_lint_tests_and_secret_scan(tool):
     assert tool in run_steps(workflow("checks.yml"))
 
 
-def test_workflow_fetches_history_for_the_red_check():
-    """`contract.py red` checks out the contract's base commit in a worktree."""
-    config = workflow("checks.yml")
-    depths = [
-        step.get("with", {}).get("fetch-depth")
-        for job in config["jobs"].values()
-        for step in job.get("steps", [])
-        if str(step.get("uses", "")).startswith("actions/checkout")
-    ]
-    assert 0 in depths, "no checkout fetches full history"
+def test_no_step_still_configures_for_the_retired_runner():
+    """CI fetched full history so `contract.py red` could check out a base commit.
+
+    The runner is gone (ADR 0004) and the red check now runs inside a lane's own worktree,
+    so the setting is cost with no reader. A leftover knob is a claim about a mechanism
+    that no longer exists.
+    """
+    body = read(".github/workflows/checks.yml")
+    assert "contract.py" not in body
+    assert "fetch-depth" not in body, "checks.yml still fetches history for the retired red check"
 
 
 # --- the negative criterion ---------------------------------------------------------------

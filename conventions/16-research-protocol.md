@@ -19,7 +19,7 @@
 ### 1. Scope and relationship to neighboring docs
 
 - [00-principles.md](00-principles.md) states the general principle: never judge from prior knowledge; verify against current sources.
-- [12-docs-reference.md](12-docs-reference.md) covers **how to look up SDK/API usage** for implementation (tier: official skill > ctx7 > installed SDK source > smoke test).
+- [12-upstream-docs.md](12-upstream-docs.md) covers **how to look up SDK/API usage** for implementation (tier: official skill > ctx7 > installed SDK source > smoke test).
 - This document governs **factual-spec research as a deliverable** — building comparisons, lineups, recommendations, or any document whose claims are facts about external products. The failure mode it prevents is different from 12's: not "wrong API call" but "confidently wrong facts assembled from memory."
 
 ### 2. Prior knowledge: queries only, never results (governing rule)
