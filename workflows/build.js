@@ -87,7 +87,7 @@ const TOUCHED_SCHEMA = {
 
 const FROZEN_SCHEMA = {
   type: 'object',
-  required: ['missing'],
+  required: ['missing', 'head'],
   additionalProperties: false,
   properties: {
     missing: {
@@ -95,6 +95,7 @@ const FROZEN_SCHEMA = {
       items: { type: 'string' },
       description: 'only the given paths that do not exist; a path that exists is left out entirely',
     },
+    head: { type: 'string', description: 'the sha printed by git rev-parse HEAD after the reset' },
   },
 }
 
@@ -161,6 +162,9 @@ const planDir = args?.planDir ?? '.plans'
 // The conventions travel with the plugin, not with the project the lanes run in, so the
 // absolute path has to be handed in — a bare `conventions/…` resolves to nothing there.
 const conventionsDir = args?.conventionsDir ?? 'conventions'
+// The commit the reviewers diff against and every lane is told to reset to. A worktree is
+// cut from `origin/main`, so nothing else puts a lane on this commit.
+const base = args?.base ?? 'main'
 const lanes = args?.lanes ?? []
 const boundaries = args?.boundaries ?? []
 
@@ -205,6 +209,11 @@ function lensesFor(lane) {
 
 function developPrompt(lane) {
   return [
+    `Before anything else, run \`git reset --hard ${base}\` in your worktree, then \`git log --oneline -1\``,
+    'and confirm you are on that commit.',
+    `Your worktree is cut from origin/main, which may be behind ${base} and may carry neither the frozen`,
+    `contracts under tests/contract/ nor the lane briefs under ${planDir}.`,
+    '',
     `You own lane "${lane.name}". Read ${planDir}/lane-${lane.name}.md and ${planDir}/PLAN.md.`,
     '',
     `Work only inside your owned paths: ${(lane.owns ?? []).join(', ')}.`,
@@ -344,7 +353,7 @@ async function reviewLoop(dev, lane) {
     }
   }
 
-  const ctx = { ...lane, worktree: dev.worktree, branch: dev.branch, base: args?.base ?? 'main' }
+  const ctx = { ...lane, worktree: dev.worktree, branch: dev.branch, base }
   const lenses = lensesFor(lane)
   const carried = []
   let fixSummary = ''
@@ -550,28 +559,36 @@ async function reviewLoop(dev, lane) {
 const frozenPaths = boundaries.flatMap((b) => [b?.test, b?.sample].filter(Boolean))
 // A plan with no boundaries has nothing to freeze, so nothing is checked and no agent runs.
 if (frozenPaths.length) {
+  // Isolated and reset exactly as a lane is, because the question is what a lane sees. Read
+  // from the orchestrator's tree the check answers about a different tree than the one the
+  // work happens in, and passes while every lane starts on a commit holding none of it.
   const frozen = await agent(
     [
-      'From the repository root, report which of these paths do not exist as files:',
+      `Run \`git reset --hard ${base}\` in your worktree before looking at anything. Your worktree is`,
+      `cut from origin/main, which may be behind ${base}, and this check is about what a lane sees`,
+      'after the same reset — not about what the orchestrator has in its tree.',
+      '',
+      'Then, from the repository root, report which of these paths do not exist as files:',
       ...frozenPaths.map((p) => `- ${p}`),
       '',
       'Check existence only. Create nothing and judge nothing — not whether a file is the right',
-      'test, not whether it is empty. Report the paths exactly as they are given here.',
+      'test, not whether it is empty. Report the paths exactly as they are given here, and report',
+      'the sha `git rev-parse HEAD` prints after the reset as `head`.',
     ].join('\n'),
-    { label: 'freeze-check', phase: 'Develop', schema: FROZEN_SCHEMA },
+    { label: 'freeze-check', phase: 'Develop', schema: FROZEN_SCHEMA, isolation: 'worktree' },
   )
   if (!frozen) {
     log('The freeze check returned nothing, so nothing about the contract tests was measured.')
     return {
       lanes: [],
-      note: 'refused: the freeze check returned nothing, so whether the contract tests exist is unmeasured. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.',
+      note: 'refused: the freeze check returned nothing, so whether the contract tests exist is unmeasured, and with them the commit every lane starts on. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.',
     }
   }
   if (frozen.missing?.length) {
-    log(`${frozen.missing.length} of ${frozenPaths.length} contract test paths do not exist.`)
+    log(`${frozen.missing.length} of ${frozenPaths.length} contract test paths do not exist at ${frozen.head}.`)
     return {
       lanes: [],
-      note: `refused: the boundaries were declared frozen but these contract tests do not exist: ${frozen.missing.join(', ')}. Write them before fanning out — until they do, nothing holds the interfaces still and every lane is told otherwise.`,
+      note: `refused: the boundaries were declared frozen but these contract tests do not exist: ${frozen.missing.join(', ')} — not at ${frozen.head}, the commit the lanes start from. If they were written they are not in that commit, so commit and push the freeze; otherwise every lane starts where nothing holds the interfaces still and writes its own copy.`,
     }
   }
 }

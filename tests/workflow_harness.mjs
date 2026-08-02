@@ -35,7 +35,7 @@ function finding(over = {}) {
 // a verdict are reachable too.
 const keyOf = (f) => `${f.file}:${f.line ?? ''}:${f.summary}`
 
-function makeAgent(rounds, over = {}, seen = { labels: [] }) {
+function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompts: {} }) {
   // The round advances on the verify call, which happens once after a round's lenses have
   // all answered. Counting review calls instead would hand each lens of one round a
   // different entry from `rounds`, so a multi-lens case would stop modelling a round.
@@ -46,14 +46,18 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
   let touchedCalls = 0
   const findingsNow = () => rounds[Math.min(round, rounds.length - 1)] ?? []
 
-  return async (_prompt, opts = {}) => {
+  return async (prompt, opts = {}) => {
     const label = opts.label ?? ''
     seen.labels.push(label)
+    // Where a call runs and what it was told are as much of the dispatch as the label is, and
+    // an outcome assertion cannot see either: a check reading the wrong tree still answers.
+    seen.isolation[label] = opts.isolation
+    seen.prompts[label] = prompt
     // Stands in for the agent that stats the contract test paths. `missingFrozen` is what it
     // reports absent; `freezeCheckDies` makes it answer nothing, which must not read as "none".
     if (label === 'freeze-check') {
       if (over.freezeCheckDies) return null
-      return { missing: over.missingFrozen ?? [] }
+      return { missing: over.missingFrozen ?? [], head: over.frozenHead ?? 'f00dbabe' }
     }
     if (label.startsWith('develop:')) {
       // eslint-disable-next-line no-throw-literal
@@ -104,7 +108,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
 
 async function run(rounds, over = {}) {
   const wf = loadWorkflow()
-  const seen = { labels: [] }
+  const seen = { labels: [], isolation: {}, prompts: {} }
   // `rawArgs` hands the workflow whatever the case says, object or not — the way an agent
   // that JSON-encoded its arguments reaches it. Everything else builds the normal object.
   const args =
@@ -120,7 +124,21 @@ async function run(rounds, over = {}) {
           ...(over.omitFrozen ? {} : { boundariesFrozen: true }),
         }
   const out = await wf(args, makeAgent(rounds, over, seen), parallel, pipeline, () => {}, () => {})
-  return { ...out, labels: seen.labels }
+  return { ...out, labels: seen.labels, isolation: seen.isolation, prompts: seen.prompts }
+}
+
+// How a call was dispatched, checked on both the refusal path and the lane path — a refusal
+// is decided by the freeze check, so the case that pins where that check ran never gets to
+// the lane results.
+function dispatchChecks(expect, out) {
+  const why = []
+  for (const [label, want] of Object.entries(expect.isolation ?? {})) {
+    if (out.isolation[label] !== want) why.push(`isolation[${label}]=${out.isolation[label]}`)
+  }
+  for (const [label, re] of Object.entries(expect.prompt ?? {})) {
+    if (!re.test(out.prompts[label] ?? '')) why.push(`prompt[${label}] does not match ${re}`)
+  }
+  return why
 }
 
 const cases = [
@@ -348,10 +366,48 @@ const cases = [
     expect: { refused: /declared frozen but these contract tests do not exist: tests\/test_api_contract\.py/ },
   },
   {
+    // The same paths, and the sha they were absent at. Without it the refusal names files a
+    // reader then finds in the orchestrator's tree and concludes the check is wrong.
+    name: 'the missing-path refusal names the commit the lanes start from',
+    rounds: [[]],
+    over: {
+      boundaries: [{ name: 'api', test: 'tests/test_api_contract.py' }],
+      missingFrozen: ['tests/test_api_contract.py'],
+      frozenHead: 'deadbee',
+    },
+    expect: { refused: /not at deadbee, the commit the lanes start from/ },
+  },
+  {
     name: 'boundaries whose contract tests all exist fan out normally',
     rounds: [[]],
     over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }] },
     expect: { outcome: 'passed', rounds: 1, hasLabel: 'freeze-check' },
+  },
+  {
+    // A freeze check reading the orchestrator's tree answers about a tree no lane works in,
+    // and passes while every lane starts on a commit holding none of the contracts. It has to
+    // be isolated and reset the way a lane is, and only the dispatch shows whether it was.
+    name: 'the freeze check measures from a lane-shaped worktree reset to base',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py' }] },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      isolation: { 'freeze-check': 'worktree' },
+      prompt: { 'freeze-check': /git reset --hard main/ },
+    },
+  },
+  {
+    // A worktree is cut from origin/main, which may hold neither the frozen contracts nor the
+    // briefs. Nothing but this instruction puts the lane on `base`, and no outcome shows it.
+    name: 'a lane is told to reset to base before it reads anything',
+    rounds: [[]],
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      isolation: { 'develop:a': 'worktree' },
+      prompt: { 'develop:a': /^Before anything else, run `git reset --hard main`/ },
+    },
   },
   {
     // Fail closed: a check that answered nothing measured nothing, and reading its silence as
@@ -400,6 +456,7 @@ for (const c of cases) {
     // Each case pins the words naming its own cause: a refusal for the wrong reason sends the
     // caller to fix the wrong thing, and one shared pattern could not tell them apart.
     if (!c.expect.refused.test(out.note ?? '')) why.push(`note=${out.note}`)
+    why.push(...dispatchChecks(c.expect, out))
     if (why.length) failed++
     console.log(`${why.length ? 'FAIL' : 'OK  '} ${c.name}${why.length ? ' -> ' + why.join(', ') : ''}`)
     continue
@@ -434,6 +491,7 @@ for (const c of cases) {
   if (c.expect.noLabel) {
     check(!out.labels.some((l) => l.startsWith(c.expect.noLabel)), `labels=${JSON.stringify(out.labels)}`)
   }
+  why.push(...dispatchChecks(c.expect, out))
 
   if (why.length) failed++
   console.log(`${why.length ? 'FAIL' : 'OK  '} ${c.name}${why.length ? ' -> ' + why.join(', ') : ''}`)
