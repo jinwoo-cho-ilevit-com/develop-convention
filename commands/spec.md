@@ -5,7 +5,11 @@ argument-hint: '<what you want to build>'
 
 Specify: $ARGUMENTS
 
-Call `EnterPlanMode` first. Everything below happens inside plan mode, and `ExitPlanMode` is the end signal — the user decides when the interview is over, not you.
+Interview first, plan mode second. Sections 1 and 2 run in the ordinary session; call `EnterPlanMode` only once the axes are settled, present the plan there, and write section 3's files after `ExitPlanMode` is approved. Plan mode refuses every write, `.plans/` included, so a plan drafted inside it cannot land — and the interview does not need that block, because this plugin's own hook already holds the main session to reading and asking.
+
+The hook does not hold subagents: anything carrying an `agent_id` goes through. Interview with read-only agents only, and dispatch nothing that writes until the plan is approved. That is a norm rather than a boundary (→ `${CLAUDE_PLUGIN_ROOT}/conventions/21-development-loop.md` §3).
+
+The user decides when the interview is over, not you.
 
 The conventions this command refers to are in `${CLAUDE_PLUGIN_ROOT}/conventions/`. Read them from there — the project you are working in does not have a copy.
 
@@ -32,7 +36,7 @@ One question at a time. For each:
 
 ## 3. Write the artifacts
 
-On approval, write `.plans/<feature>/`:
+After `ExitPlanMode` is approved — not before, because plan mode blocks these writes — write `.plans/<feature>/`:
 
 **`PLAN.md`** — decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, and the whole-project completion condition (every lane plus end-to-end).
 

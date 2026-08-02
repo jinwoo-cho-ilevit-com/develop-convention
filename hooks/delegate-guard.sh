@@ -9,6 +9,7 @@ set -uo pipefail
 
 DEFAULT_READ_LINE_LIMIT=500
 PLAN_DIR_NAME=".plans"
+AGENTS_FILE_NAME="AGENTS.md"
 
 payload=$(cat)
 
@@ -49,18 +50,15 @@ esac
 tool=$(jq -r '.tool_name // ""' <<<"$payload")
 path=$(jq -r '.tool_input.file_path // ""' <<<"$payload")
 
-# The plan and the lane briefs are the orchestrator's own artifacts — it writes them and
-# reads them, and blocking either defeats what the guard exists for. Matched on the path
-# segment so an absolute and a relative spelling of the same file get the same verdict.
-#
-# A `..` *segment* forfeits the exemption rather than being resolved: `.plans/../src/app.js`
-# holds the exempt name and lands outside it, which turned this exemption into a way past
-# the one refusal that was previously exact. Matching two dots anywhere instead was too
-# wide — it refused `.plans/f/release..notes.md`, a plan file whose name comes from the
-# feature and which no rule forbids.
+# The plan, the lane briefs and AGENTS.md are the orchestrator's own artifacts: it writes
+# them and reads them, and refusing any of them defeats what the guard exists for. A `..`
+# segment forfeits the exemption instead of being resolved, because `.plans/../src/app.js`
+# holds the exempt name and lands outside it. Matching two dots anywhere was too wide — it
+# refused `.plans/f/release..notes.md`, a plan file named after its feature.
 case "$path" in
 .. | ../* | */../* | */..) ;;
 "$PLAN_DIR_NAME"/* | */"$PLAN_DIR_NAME"/*) exit 0 ;;
+"$AGENTS_FILE_NAME" | */"$AGENTS_FILE_NAME") exit 0 ;;
 esac
 
 case "$tool" in
