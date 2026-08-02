@@ -23,7 +23,7 @@ Every change goes through a review that its author did not perform. This documen
 - **Evidence-based completion.** A completion report carries the commands run and their output. Evidence is tool execution, not produced prose (→ [06-testing-verification.md](06-testing-verification.md), [19-evidence.md](19-evidence.md)).
 - **A gate that passes is not evidence the gate works.** Confirm at least once that it fails when it should. A green gate over a broken check is indistinguishable from a green gate over correct work.
 - **Check doc-code synchronization** where docsync tracking is adopted: were the managed docs for the changed module updated with it (→ [15-doc-tracking.md](15-doc-tracking.md))?
-- Attach a deterministic gate — a Stop hook that blocks exit until a verification script passes — to unattended runs.
+- Have a hook run the verification and feed the result back, rather than trying to hold the session open until it passes. A blocked `Stop` hook does not end a run — the model takes another turn and the hook fires again — and the documentation describes no recursion limit and no field that reveals how many times it has already blocked, so a check the model cannot satisfy loops. Nor is there a documented signal for whether a run is unattended, so "only on unattended runs" is not expressible in the hook at all. Inject the failure as context and leave the blocking to a gate a person reads: CI, or the review itself ([Claude Code hooks reference](https://code.claude.com/docs/en/hooks), as of 2026-08).
 
 ### 2. Parallel review lanes
 

@@ -18,13 +18,13 @@ Visualization tiers, `figure ↔ criterion ↔ code anchor` linking and a self-c
 
 *What would settle it:* enough evidence packs to see which figures a reviewer actually opens. Not a design session.
 
-### 2. The runner does not implement `lanes`, `sequential_owner`, `integration` or `checkpoints`
+### 2. The runner reads the lane fields but does not execute a lane
 
-`18` defines all four. The runner refuses a contract carrying any of them, and names the field.
+**Superseded in part.** This entry originally recorded that the runner refused `lanes`, `sequential_owner`, `integration` and `checkpoints` outright. It now reads them and checks that the decomposition holds together — disjoint `owns`, no globs, nothing claimed by both a lane and `sequential_owner`, a tier rather than a model id — while `integration` and `checkpoints` are read and left alone, `18 §3` calling a checkpoint a marker rather than a trigger.
 
-*Reason:* refusing is louder than ignoring. An author who writes `sequential_owner` believes it is enforced; a runner that accepts and ignores it leaves that belief intact and unfounded. The parallel-lane machinery is real work with its own contract, and until it exists the honest answer to a lane field is no.
+*What is still not done, and why:* running a lane, or enforcing ownership while lanes write. That is a separate mechanism and it gets its own contract. The check added here answers a different question — whether the decomposition contradicts itself — and answers it before the lanes start rather than when they collide.
 
-*Alternative rejected:* accepting them inertly, which is what the withdrawn first runner did and is the shape of six of its seven blockers.
+*What changed the decision:* the session that wrote this entry then nearly broke the ownership rule itself, slicing five lanes by kind of change so that all five landed in the same three documents. Re-slicing per file avoided it. A rule that is easy to break while writing the document that states it is a rule worth making mechanical.
 
 ### 3. `review_rounds` is not in the manifest
 
@@ -32,11 +32,11 @@ Visualization tiers, `figure ↔ criterion ↔ code anchor` linking and a self-c
 
 *Reason:* the count belongs to a review subcommand this runner does not have. A field the tool cannot derive would be filled by hand, and a hand-filled provenance field is the thing `19` exists to replace.
 
-### 4. `created_at` is the render timestamp, not the creation timestamp
+### 4. `created_at` was the render timestamp — resolved
 
-Disclosed in `19 §6` rather than fixed.
+**Closed.** Recorded here as a defect rather than a decision, and fixed on that basis: the value is written once into the state directory by whichever phase runs first and read back from there, so it is the time the evidence began. The mechanism is the one `verify_runs` introduced, which is why the entry said it was cheap.
 
-*Reason:* every render rewrites `manifest.json` whole. Making it a creation time needs the value to survive a render, which is the same run-log mechanism `verify_runs` now uses — so this is cheap to fix and simply was not in scope. It is a defect, not a decision, and is recorded here so the next reader knows which.
+Kept in this list because the distinction it drew is the useful part — a gap recorded as "not decided, just undone" is one the next reader may close without reopening an argument.
 
 ### 5. The review-tool selection rules are complete
 
