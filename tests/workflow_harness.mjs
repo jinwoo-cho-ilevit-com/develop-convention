@@ -47,6 +47,8 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
     const label = opts.label ?? ''
     seen.labels.push(label)
     if (label.startsWith('develop:')) {
+      // eslint-disable-next-line no-throw-literal
+      if ('throws' in over) throw over.throws
       return over.develop ?? { worktree: '/tmp/wt', branch: 'lane-a', criteria: [] }
     }
     if (label.startsWith('fix:')) return { summary: 'fixed it', touchedFiles: over.fixTouched ?? ['src/a.py'] }
@@ -181,6 +183,30 @@ const cases = [
     expect: { outcome: 'passed', rounds: 3, carried: ['m1', 'm2'] },
   },
   {
+    // The reviewer and the fixer spell the same file differently, which is ordinary. A
+    // plain string compare found nothing in common and quietly switched causation off.
+    name: 'causation still counts when the two sides spell the path differently',
+    rounds: [
+      [finding({ file: './src/a.py', summary: 'A' })],
+      [finding({ file: '/tmp/wt/src/a.py', summary: 'B', causedByPreviousFix: true })],
+    ],
+    over: { fixTouched: ['src/a.py'] },
+    expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human' },
+  },
+  {
+    // JavaScript lets anything be thrown, and reading `.message` off a thrown null threw
+    // again — so the guard against one case hiding the rest hid the rest.
+    name: 'a case throwing a non-Error is reported, not fatal',
+    rounds: [[]],
+    over: { throws: null },
+    expect: { threw: true },
+  },
+  {
+    name: 'the case after a thrown non-Error still runs',
+    rounds: [[]],
+    expect: { outcome: 'passed', rounds: 1 },
+  },
+  {
     name: 'a lane touching a trust boundary gets a security lens',
     rounds: [[]],
     over: { lane: { name: 'a', owns: ['src/auth/'] } },
@@ -234,8 +260,15 @@ for (const c of cases) {
   try {
     out = await run(c.rounds, c.over)
   } catch (err) {
-    failed++
-    console.log(`FAIL ${c.name} -> threw: ${err.message}`)
+    // `err.message` on a thrown null is itself a throw, so the guard against one case
+    // hiding the rest hid the rest. JavaScript lets anything be thrown; render defensively.
+    const shown = err instanceof Error ? err.message : String(err)
+    if (c.expect.threw) {
+      console.log(`OK   ${c.name} (threw ${shown}, run continues)`)
+    } else {
+      failed++
+      console.log(`FAIL ${c.name} -> threw: ${shown}`)
+    }
     continue
   }
   const got = (out.passed[0] ?? out.halted[0]) ?? {}

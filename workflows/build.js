@@ -117,6 +117,20 @@ const TRUST_BOUNDARY = /auth|secret|credential|token|login|session|permission|ho
 // rounds — which is what makes repetition measurable without asking a reviewer.
 const keyOf = (f) => `${f.file}:${f.line ?? ''}:${f.summary}`
 
+// A reviewer writes `./src/a.py` where the fixer writes `src/a.py` or an absolute path
+// inside the worktree, and a plain string compare then finds nothing in common. That fails
+// safe — an unmatched claim never halts — but it disables the causation rule entirely and
+// says nothing while doing it.
+function repoPath(p, worktree) {
+  let out = String(p ?? '').replace(/\\/g, '/')
+  if (worktree) {
+    const root = String(worktree).replace(/\\/g, '/').replace(/\/+$/, '')
+    if (out === root) return ''
+    if (out.startsWith(root + '/')) out = out.slice(root.length + 1)
+  }
+  return out.replace(/^\.\//, '').replace(/^\/+/, '')
+}
+
 function dedupe(findings) {
   const seen = new Set()
   return findings.filter((f) => (seen.has(keyOf(f)) ? false : (seen.add(keyOf(f)), true)))
@@ -216,9 +230,11 @@ function fixPrompt(lane, blockers) {
     'change here forces the whole lane through another review round.',
     'Re-run the criteria commands from your brief before returning.',
     '',
-    'Return a short summary of what you changed and the list of files you changed. The next',
-    'round checks a claim that your fix caused a defect against that list — a file you never',
-    'touched cannot hold a defect you introduced.',
+    'Return a short summary and the file list, and derive the list with',
+    '`git diff --name-only <commit you started from>..HEAD` rather than from memory —',
+    'repository-relative paths, both sides of any rename. The next round checks a claim that',
+    'your fix caused a defect against that list, so a list you guessed at decides whether a',
+    'real defect gets fixed.',
   ].join('\n')
 }
 
@@ -391,8 +407,10 @@ async function reviewLoop(dev, lane) {
     // the file cannot have caused a defect in it, so the flag only counts where the
     // previous fix actually reached.
     const repeated = blockers.filter((f) => previousKeys.has(keyOf(f)))
-    const fromFix = blockers.filter((f) => f.causedByPreviousFix && lastFixTouched.has(f.file))
-    const misattributed = blockers.filter((f) => f.causedByPreviousFix && !lastFixTouched.has(f.file))
+    const touched = new Set([...lastFixTouched].map((p) => repoPath(p, ctx.worktree)))
+    const claimsFix = (f) => f.causedByPreviousFix && touched.has(repoPath(f.file, ctx.worktree))
+    const fromFix = blockers.filter(claimsFix)
+    const misattributed = blockers.filter((f) => f.causedByPreviousFix && !claimsFix(f))
     if (misattributed.length) {
       log(
         `lane ${lane.name} round ${round}: ${misattributed.length} finding(s) claimed the previous fix caused them in files it never touched`,
