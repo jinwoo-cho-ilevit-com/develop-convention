@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # tests/test_release.py reads back to the commit that last set the plugin
+          # version. The default depth of 1 makes that check skip.
+          fetch-depth: 0
 
       - uses: astral-sh/setup-uv@v9.0.0
         with:

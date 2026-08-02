@@ -234,15 +234,12 @@ def test_workflow_runs_lint_tests_and_secret_scan(tool):
 
 
 def test_no_step_still_configures_for_the_retired_runner():
-    """CI fetched full history so `contract.py red` could check out a base commit.
+    """The runner is gone (ADR 0004) and the red check now runs inside a lane's own worktree.
 
-    The runner is gone (ADR 0004) and the red check now runs inside a lane's own worktree,
-    so the setting is cost with no reader. A leftover knob is a claim about a mechanism
-    that no longer exists.
+    A step invoking it is a claim about a mechanism that no longer exists. The full-history
+    fetch it also wanted stayed, under a new reader: `tests/test_release.py`.
     """
-    body = read(".github/workflows/checks.yml")
-    assert "contract.py" not in body
-    assert "fetch-depth" not in body, "checks.yml still fetches history for the retired red check"
+    assert "contract.py" not in read(".github/workflows/checks.yml")
 
 
 # --- the negative criterion ---------------------------------------------------------------
