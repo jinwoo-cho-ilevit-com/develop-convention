@@ -19,17 +19,17 @@ emit_deny() {
   exit 0
 }
 
-# The declared bypass is checked first and needs nothing to work. It used to sit below the
-# jq check, whose own message told the reader to use it — so on a machine without jq the
-# escape the guard advertised was the one path it had already refused, including the Bash
-# call that would have installed jq. Recorded on stderr, never silent (→ 19-evidence.md).
+# The declared bypass is read from this hook's own environment, which a PreToolUse hook has
+# before the tool call runs: it is session-scoped, set at launch or through the settings env
+# block, and has no per-call form. Checked first so it needs nothing — the jq check below
+# would otherwise refuse the very call that installs jq. Recorded on stderr (→ 19-evidence.md).
 if [ "${DEV_HARNESS_ALLOW_MAIN:-}" = "1" ]; then
   echo "dev-harness: main-session guard bypassed via DEV_HARNESS_ALLOW_MAIN" >&2
   exit 0
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  emit_deny "dev-harness cannot run: jq is not on PATH, and without it this guard cannot read the hook payload. Install jq, or set DEV_HARNESS_ALLOW_MAIN=1 to work unguarded. Refusing rather than allowing, because a guard that silently stops guarding is worse than no guard."
+  emit_deny "dev-harness cannot run: jq is not on PATH, and without it this guard cannot read the hook payload. Install jq from a lane (the Agent tool). To work unguarded instead, the session needs DEV_HARNESS_ALLOW_MAIN=1 in its environment — the settings env block, then restart; there is no per-call form. Refusing rather than allowing, because a guard that silently stops guarding is worse than no guard."
 fi
 
 if ! jq -e . >/dev/null 2>&1 <<<"$payload"; then
@@ -65,7 +65,7 @@ esac
 
 case "$tool" in
 Edit | MultiEdit | Write | NotebookEdit)
-  emit_deny "The main session does not edit files. Spawn a lane with the Agent tool using isolation: worktree, hand it the brief from ${PLAN_DIR_NAME}/<feature>/lane-*.md, and fan the result back in. One-off bypass: DEV_HARNESS_ALLOW_MAIN=1"
+  emit_deny "The main session does not edit files. Spawn a lane with the Agent tool using isolation: worktree, hand it the brief from ${PLAN_DIR_NAME}/<feature>/lane-*.md, and fan the result back in. Working unguarded is a whole-session decision, not a per-call one: put DEV_HARNESS_ALLOW_MAIN=1 in the settings env block and restart, or launch the session with it set."
   ;;
 Read)
   limit="${DEV_HARNESS_READ_LIMIT:-$DEFAULT_READ_LINE_LIMIT}"
@@ -93,7 +93,7 @@ Read)
   bytes=$(wc -c <"$path" | tr -d ' ')
   # A minified bundle is one line and still costs the context the limit exists to protect.
   if [ "$lines" -gt "$limit" ] || [ "$bytes" -gt $((limit * 200)) ]; then
-    emit_deny "$path is $lines lines / $bytes bytes; reading it here burns orchestrator context. Send an Explore subagent and take its summary instead. Raise DEV_HARNESS_READ_LIMIT (now $limit) or set DEV_HARNESS_ALLOW_MAIN=1 to override."
+    emit_deny "$path is $lines lines / $bytes bytes; reading it here burns orchestrator context. Send an Explore subagent and take its summary instead. Both overrides are session-scoped, read from the environment before the call runs: raise DEV_HARNESS_READ_LIMIT (now $limit) or set DEV_HARNESS_ALLOW_MAIN=1 in the settings env block, then restart."
   fi
   ;;
 Bash)
@@ -107,7 +107,7 @@ Bash)
   scrubbed=$(printf '%s' "$command_line" | sed -E 's#[0-9]*>>?[[:space:]]*/dev/[A-Za-z0-9]+##g')
   if printf '%s' "$scrubbed" | grep -Eq \
     '(^|[[:space:]])(tee|patch|truncate|touch|install|mkdir|rmdir)([[:space:]]|$)|(^|[[:space:]])(cp|mv|rm|ln)[[:space:]]+-?|(^|[[:space:]])(sed|perl|ruby)[[:space:]]+-[A-Za-z]*i|(^|[[:space:]])dd[[:space:]][^|]*of=|(^|[[:space:]])git[[:space:]]+(apply|restore|checkout)([[:space:]]|$)|(^|[^0-9&])>[^&]'; then
-    emit_deny "That shell command writes files, and the main session does not edit. Delegate it to a lane with the Agent tool, or set DEV_HARNESS_ALLOW_MAIN=1 for this one call. Read-only shell work (git, ls, grep, test runs) is not affected."
+    emit_deny "That shell command writes files, and the main session does not edit. Delegate it to a lane with the Agent tool. Read-only shell work (git, ls, grep, test runs) is not affected. Prefixing this command with the bypass will not help — the hook reads its environment before your command runs, so DEV_HARNESS_ALLOW_MAIN=1 has to be in the session environment already (the settings env block, then restart)."
   fi
   ;;
 esac
