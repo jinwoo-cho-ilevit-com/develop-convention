@@ -26,7 +26,7 @@ Catalogue product-name matching pipeline.
 Rules:
 
 - **Never overwrite an existing `AGENTS.md`.** Show a diff and merge only the missing sections after confirmation.
-- **Do not paste convention rules into it.** The harness reads `conventions/` directly, and a copied excerpt drifts from its source while being loaded everywhere (→ `conventions/15-doc-tracking.md`). Every line here must be something no one could infer from the repository.
+- **Do not paste convention rules into it.** The harness reads `conventions/` directly, and a copied excerpt drifts from its source while being loaded everywhere (→ `${CLAUDE_PLUGIN_ROOT}/conventions/15-doc-tracking.md`). Every line here must be something no one could infer from the repository.
 - Leave a command you genuinely cannot determine as a visible `TODO` rather than guessing.
 
-This normally runs on its own, the first time the harness needs a command and finds no file. Invoking it by hand is the way to redo it after the commands change.
+Nothing triggers this automatically. `/dev-harness:spec` and `/dev-harness:build` call for it when they need a command and find no `AGENTS.md`, and you run it yourself the first time and again after the commands change.

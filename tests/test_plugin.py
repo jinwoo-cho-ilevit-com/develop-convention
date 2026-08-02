@@ -135,6 +135,99 @@ def test_a_binary_read_is_not_judged_by_line_count(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize(
+    "agent_id",
+    [[], {}, 0, "null", " ", "\t"],
+    ids=["array", "object", "zero", "str-null", "space", "tab"],
+)
+def test_only_a_real_agent_id_counts_as_a_subagent(agent_id):
+    """The gate hangs on this one field, so anything but a non-blank string must not open it.
+
+    jq renders `[]`, `{}` and `0` as non-empty text, so a bare emptiness test read every one
+    of them as a subagent marker and allowed the edit.
+    """
+    payload = {"agent_id": agent_id, "tool_name": "Edit", "tool_input": {"file_path": "a.py"}}
+    assert decision(payload) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize(
+    "command",
+    ["echo x > f", "cat a >> b", "sed -i '' s/a/b/ f", "cat x | tee f", "git apply p.patch"],
+)
+def test_the_shell_write_forms_it_claims_to_catch_are_caught(command):
+    """Editing through Bash is editing. The guard cannot catch every form (→ 21 §3), but a
+    form it advertises and misses is worse than an admitted gap."""
+    assert decision({"tool_name": "Bash", "tool_input": {"command": command}}) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git status --short",
+        "uv run pytest -q 2>/dev/null",
+        "grep -q x f >/dev/null",
+        "make 2>&1 | tail -5",
+    ],
+)
+def test_read_only_shell_work_is_not_blocked(command):
+    """The orchestrator lives in the shell. A guard that stops `git status` gets turned off."""
+    assert decision({"tool_name": "Bash", "tool_input": {"command": command}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_the_orchestrator_may_write_its_own_plan(tmp_path):
+    """The plugin's own commands tell the main session to write these files.
+
+    The exemption used to sit inside the Read branch, so `/dev-harness:spec` was instructed
+    to produce a plan the same plugin's hook refused to let it write.
+    """
+    brief = tmp_path / ".plans" / "feature" / "PLAN.md"
+    for path in (str(brief), ".plans/feature/PLAN.md"):
+        assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "allow"
+
+
+def test_the_guard_refuses_rather_than_vanishes_without_jq(tmp_path):
+    """Without jq every branch read empty and the call fell through to allow — and the
+    other guard tests skip in exactly that environment, so CI was green where the gate was
+    dead. A guard that cannot decide must not be the one that says yes.
+    """
+    empty_bin = tmp_path / "bin"
+    empty_bin.mkdir()
+    for tool in ("bash", "cat", "grep", "sed", "wc", "tr", "printf"):
+        for root in ("/bin", "/usr/bin"):
+            if Path(root, tool).exists():
+                (empty_bin / tool).symlink_to(Path(root, tool))
+                break
+    if not (empty_bin / "bash").exists():
+        pytest.skip("no bash to build an isolated PATH with")
+
+    result = subprocess.run(
+        [str(empty_bin / "bash"), str(GUARD)],
+        input=json.dumps({"tool_name": "Edit", "tool_input": {"file_path": "a.py"}}),
+        capture_output=True,
+        text=True,
+        env={"PATH": str(empty_bin)},
+    )
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "jq" in result.stdout
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_an_unparseable_payload_is_refused_not_waved_through():
+    result = subprocess.run(
+        [str(GUARD)],
+        input="not json",
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"},
+    )
+    assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_the_bypass_is_recorded_not_silent():
     """19: a bypass that leaves no trace is a blocker; a recorded one is a decision."""
     result = subprocess.run(

@@ -72,6 +72,9 @@ const REVIEW_LENSES = [
 ]
 
 const planDir = args?.planDir ?? '.plans'
+// The conventions travel with the plugin, not with the project the lanes run in, so the
+// absolute path has to be handed in — a bare `conventions/…` resolves to nothing there.
+const conventionsDir = args?.conventionsDir ?? 'conventions'
 const lanes = args?.lanes ?? []
 const boundaries = args?.boundaries ?? []
 
@@ -97,7 +100,7 @@ function developPrompt(lane) {
     '',
     'Create a branch for this lane, commit your work to it, and run every command listed under',
     'the brief\'s completion criteria. Update the AGENTS.md of each directory you own in the same pass',
-    '(→ conventions/15-doc-tracking.md).',
+    `(→ ${conventionsDir}/15-doc-tracking.md).`,
     '',
     'Return the absolute path of the worktree you worked in — later rounds continue in it.',
     'Report each criterion with the command you ran and whether it passed. A [human] criterion has no',
@@ -108,13 +111,15 @@ function developPrompt(lane) {
 function reviewPrompt(lane, lens, round, fixSummary) {
   return [
     `Review lane "${lane.name}" through one lens only: ${lens.key}.`,
-    `Your input is ${lens.input}. Work in ${lane.worktree ?? 'the lane worktree'} on branch ${lane.branch ?? ''}.`,
+    `Your input is ${lens.input}.`,
+    `cd into ${lane.worktree} before running anything — that is where this lane's work is.`,
+    'Running the test command anywhere else tests a tree without the change and reports it as your verdict.',
     '',
-    'Read the change with `git diff <base>..<branch>` and `git show <ref>:<path>`. Never switch branches',
-    'in a shared worktree — one checkout erases every other lane\'s subject.',
+    `Read the change with \`git diff ${lane.base}..${lane.branch}\` and \`git show ${lane.branch}:<path>\`.`,
+    "Never switch branches in a shared worktree — one checkout erases every other lane's subject.",
     '',
-    'You did not write this code and you do not get the author\'s reasoning. Judge the diff against',
-    `${planDir}/lane-${lane.name}.md and the convention docs.`,
+    "You did not write this code and you do not get the author's reasoning. Judge the diff against",
+    `${planDir}/lane-${lane.name}.md and the convention docs in ${conventionsDir}/.`,
     '',
     'Run the code. You have the test command and the tool under review; report how many commands you',
     'actually executed. A verdict from a lane that ran none is a reading, not a review.',
@@ -146,7 +151,20 @@ function fixPrompt(lane, blockers) {
 async function reviewLoop(dev, lane) {
   if (!dev) return { lane: lane.name, outcome: 'develop-failed' }
 
-  const ctx = { ...lane, worktree: dev.worktree, branch: dev.branch }
+  // A lane whose own criteria failed is not a lane to review and merge; the brief says
+  // what done means and it is not done (→ conventions/18-work-contract.md).
+  const failed = (dev.criteria ?? []).filter((c) => c.command && !c.passed)
+  if (failed.length) {
+    return {
+      lane: lane.name,
+      outcome: 'criteria-failed',
+      branch: dev.branch,
+      criteria: dev.criteria,
+      note: `${failed.length} criteria with a command did not pass: ${failed.map((c) => c.criterion).join('; ')}`,
+    }
+  }
+
+  const ctx = { ...lane, worktree: dev.worktree, branch: dev.branch, base: args?.base ?? 'main' }
   const lenses = lensesFor(lane)
   const carried = []
   let fixSummary = ''
@@ -164,12 +182,33 @@ async function reviewLoop(dev, lane) {
       )
     ).filter(Boolean)
 
-    // A lane that finished is not a lane that answered (→ 20 Core Rules).
+    // A lane that finished is not a lane that answered, and a verdict from a lane that
+    // ran nothing is a reading (→ 20 Core Rules). Both are detected here and both stop
+    // the loop — detecting them and passing anyway is how a short review gets merged.
     if (reviews.length < lenses.length) {
-      log(`lane ${lane.name} round ${round}: ${lenses.length - reviews.length} review lane(s) returned nothing`)
+      return {
+        lane: lane.name,
+        outcome: 'review-incomplete',
+        rounds: round,
+        branch: ctx.branch,
+        criteria: dev.criteria,
+        note: `${lenses.length - reviews.length} of ${lenses.length} review lanes returned nothing. Re-run them rather than merging a short review.`,
+      }
     }
-    const readOnly = reviews.filter((r) => !r.commandsRun).length
-    if (readOnly) log(`lane ${lane.name} round ${round}: ${readOnly} lane(s) ran no commands — those verdicts are readings`)
+    const readings = reviews.filter((r) => !r.commandsRun)
+    if (readings.length === reviews.length) {
+      return {
+        lane: lane.name,
+        outcome: 'review-unexecuted',
+        rounds: round,
+        branch: ctx.branch,
+        criteria: dev.criteria,
+        note: 'Every review lane ran zero commands. These verdicts are readings, not reviews.',
+      }
+    }
+    if (readings.length) {
+      log(`lane ${lane.name} round ${round}: ${readings.length} lane(s) ran no commands — those verdicts are readings`)
+    }
 
     // Dedupe across lenses: the same defect seen twice is one defect.
     const seen = new Set()
@@ -183,9 +222,11 @@ async function reviewLoop(dev, lane) {
       })
 
     const blockers = findings.filter((f) => f.severity === 'blocker')
+    // Non-blockers are carried out of every round, not only the last. 20 §3: the merge may
+    // downgrade a finding but never silently drops one.
+    carried.push(...findings.filter((f) => f.severity !== 'blocker'))
 
     if (!blockers.length) {
-      carried.push(...findings)
       return { lane: lane.name, outcome: 'passed', rounds: round, branch: ctx.branch, criteria: dev.criteria, carried }
     }
 
@@ -206,10 +247,13 @@ async function reviewLoop(dev, lane) {
       return { lane: lane.name, outcome: 'round-cap', rounds: round, branch: ctx.branch, blockers, note: 'Round cap reached; a person decides what happens next.' }
     }
 
+    // No `isolation` here on purpose: a fresh worktree is the opposite of what the prompt
+    // asks for. 20 requires findings to go back "in the tree it already has", and a fix
+    // committed anywhere else is a fix the next reviewer never sees and the merge never
+    // takes.
     const fix = await agent(fixPrompt(ctx, blockers), {
       label: `fix:${lane.name}#${round}`,
       phase: 'Review',
-      isolation: 'worktree',
     })
     if (!fix) return { lane: lane.name, outcome: 'fix-failed', rounds: round, branch: ctx.branch, blockers }
     fixSummary = fix

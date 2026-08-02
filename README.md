@@ -86,7 +86,7 @@ claude plugin marketplace add jinwoo-cho-ilevit-com/develop-convention
 claude plugin install dev-harness@develop-convention
 ```
 
-That is the whole setup. The first time the harness needs a command it cannot guess, it writes a short `AGENTS.md` naming the project and its run/test/lint/smoke commands, and asks you to confirm — `/dev-harness:setup` redoes that by hand. Python projects can also copy [templates/pyproject.toml](templates/pyproject.toml) and [templates/.pre-commit-config.yaml](templates/.pre-commit-config.yaml) for the local tool configuration, which is the one thing a plugin cannot supply.
+Then run `/dev-harness:setup` once in each project. It reads the repository, proposes the run/test/lint/smoke commands, and writes a short `AGENTS.md` with them — the only thing the plugin cannot know. Python projects can also copy [templates/pyproject.toml](templates/pyproject.toml) and `templates/.pre-commit-config.yaml` for the local tool configuration.
 
 Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste convention rules into it: an excerpt is a copy, and a copy drifts from its source while being loaded in every session (→ [15-doc-tracking.md](conventions/15-doc-tracking.md), [09-agentic-workflow.md](conventions/09-agentic-workflow.md)).
 
@@ -222,7 +222,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Agentic Workflow
 
 - Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills.
-- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §7) rather than restarting everything; assign locks/migrations to a single owner. Confirm a subagent answered with content, not merely that it finished.
+- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §4) rather than restarting everything; assign locks/migrations to a single owner. Confirm a subagent answered with content, not merely that it finished.
 - Merge each branch only after its tests pass, then do one integration verification pass. Route models by difficulty (mechanical → lightweight, standard → mid-tier, architecture → top-tier).
 - Write heavyweight spec documents only when they are an asset shared across PRs or workers; small or exploratory work uses lightweight iteration.
 

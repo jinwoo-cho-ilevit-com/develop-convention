@@ -7,11 +7,13 @@ Specify: $ARGUMENTS
 
 Call `EnterPlanMode` first. Everything below happens inside plan mode, and `ExitPlanMode` is the end signal — the user decides when the interview is over, not you.
 
+The conventions this command refers to are in `${CLAUDE_PLUGIN_ROOT}/conventions/`. Read them from there — the project you are working in does not have a copy.
+
 ## 1. Derive the axes
 
 What to ask about comes from this project, never from a fixed checklist. A checklist can only cover what someone already knew to list.
 
-1. **Infer.** Read what the user gave you and, if the repository exists, what is actually in it — dependencies, directory layout, CI, data paths. From that, infer what decisions will shape this work. An axis is a hypothesis about where to look, not a factual claim, so prior knowledge is the right tool here (→ `conventions/16-research-protocol.md`).
+1. **Infer.** Read what the user gave you and, if the repository exists, what is actually in it — dependencies, directory layout, CI, data paths. From that, infer what decisions will shape this work. An axis is a hypothesis about where to look, not a factual claim, so prior knowledge is the right tool here (→ `${CLAUDE_PLUGIN_ROOT}/conventions/16-research-protocol.md`).
 2. **Check for what you missed.** One narrow research pass, and its question is not "what is the answer" but "what has recently become standard that is absent from my list". Practices newer than your training data do not surface any other way.
 3. **Filter by failure.** For each candidate ask whether this project could plausibly fail because of it. Keep what survives. A CLI tool produces no design-failure scenario, so no design axis appears; an ML pipeline produces an evaluation one, so it does.
 
@@ -36,9 +38,9 @@ On approval, write `.plans/<feature>/`:
 
 **`lane-<name>.md`** per lane — scope, owned files, completion criteria, out of scope.
 
-Split as far as file ownership allows. `owns` entries are directory prefixes or individually named files, never globs — a glob is expanded against the files that exist now and misses the ones the work is about to create. Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `conventions/18-work-contract.md`).
+Split as far as file ownership allows. `owns` entries are directory prefixes or individually named files, never globs — a glob is expanded against the files that exist now and misses the ones the work is about to create. Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
 
-List every boundary between lanes with the contract test that will pin it. Those test files belong to no lane; the orchestrator writes them before fan-out, which is what freezes the interface (→ `conventions/06-testing-verification.md`).
+List every boundary between lanes with the contract test that will pin it. Those test files belong to no lane and are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches an agent per boundary to write them (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
 
 Write each completion criterion as a sentence paired with the command that checks it:
 
@@ -56,6 +58,6 @@ Write each completion criterion as a sentence paired with the command that check
 - Normalisation rules (lane-b owns them)
 ```
 
-The sentence is not decoration. Without it nothing can be judged against the criterion, and a test that checks the wrong thing still passes (→ 18, `conventions/20-review-gate.md`).
+The sentence is not decoration. Without it nothing can be judged against the criterion, and a test that checks the wrong thing still passes (→ 18, `${CLAUDE_PLUGIN_ROOT}/conventions/20-review-gate.md`).
 
 Then tell the user that `/dev-harness:build` runs it.
