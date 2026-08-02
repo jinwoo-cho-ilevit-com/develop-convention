@@ -11,7 +11,9 @@ Every change goes through a review that its author did not perform. This documen
 - Lanes are independent — no lane sees another's output — and the dispatching orchestrator must fan them back in: confirm every lane answered *with content*, dedupe by `file:line`, resolve conflicting advice, verify each finding against the code, and rank by severity. A lane that finished is not a lane that answered; depending on the runtime an agent can end with its report undelivered, and a fan-in that counts finishers drops it in silence. Unsynthesized parallel output is noise, not a review.
 - Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. Read the change with `git diff <base>..<branch>` and `git show <ref>:<path>`, or take a separate worktree.
 - A finding that depends on a tool's behaviour names the version you tested with, and that version must be the one the project pins. A refutation produced by a different version refutes nothing.
+- Start a lane's review the moment that lane finishes, not when every lane has. Reviewing on each finish overlaps the review with the lanes still working and the wait never forms; collecting all lanes first creates the pause and then raises the question of what to do during it (→ [14-context-management.md](14-context-management.md) §1).
 - A review terminates on evidence, not on output: confirmed blocker-severity findings are fixed and re-reviewed by the lane that raised them, and the remainder is reported with the completion evidence. Producing a findings list is not completing a review.
+- Send findings back to the agent that wrote the code, in the tree it already has, and end the fix-and-recheck loop three ways: no blocker remains, or most of this round's findings are defects the previous round's fix introduced — stop and change the approach — or a runaway cap is reached, which calls a person rather than declaring the lane done. Ask each reviewer to mark whether a finding came from the previous fix; that mark is what makes the second exit measurable (→ [18-work-contract.md](18-work-contract.md) §2). Round count is not an exit condition.
 - Run at least one lane on a different vendor's model family. Where only one family is reachable, record that in the review report rather than dropping the lane.
 
 ## Details
@@ -53,6 +55,14 @@ Fan-out without fan-in is not a review, and the orchestrator that dispatched the
 Step 3 matters most. The "reviewers manufacture issues" failure mode is amplified once per lane, so an unfiltered merge hands the noise to the human. The merge may downgrade a finding but never silently drops one — unverified findings are reported as unverified.
 
 Severity carries an action, not just a label: **blocker** blocks the merge and is re-reviewed by the lane that raised it, **major** is fixed in the same work, **minor** becomes a follow-up, **nit** may be ignored. A finding with no concrete failing scenario is a nit regardless of how it was filed.
+
+Fix the exit before the first round, because a loop whose condition is "until the reviewers stop finding things" has no fixed point and prose review does not converge on its own:
+
+- Only a **blocker** holds the gate. Everything else is recorded and carried into the work.
+- Between rounds, count how many of this round's findings are defects the previous round's fix introduced. When that is most of them, the fix rate has become the defect source: stop and change the approach rather than run another round.
+- Narrowing what counts as a blocker mid-gate is legitimate, and it is a decision — write it down, because a rule invented to end a round is invisible to the next one.
+
+Round count is not an exit condition. One loop here ran eleven rounds without converging, and what ended it was noticing the findings had changed in kind — from gates opening wrongly to prose being imprecise — not their number. A round cap is still worth setting as a runaway guard, but reaching it calls a person rather than declaring the lane done.
 
 ### 4. Review tools
 

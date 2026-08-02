@@ -1,6 +1,6 @@
-# This repository's deliverable is documentation. The only code it carries is the
-# contract toolkit under templates/scripts/, which projects copy out. This file
-# exists so that code can be linted and tested here before it is copied anywhere.
+# This repository's deliverable is documentation plus the dev-harness plugin that runs
+# it. This file exists so the plugin's guard and workflow can be linted and driven by
+# tests here, rather than only read.
 [project]
 name = "develop-convention"
 version = "0"
@@ -38,5 +38,5 @@ quote-style = "double"
 # asserts about itself. A bare `uv run pytest` is what CI runs, so both are covered
 # without the workflow having to name them.
 [tool.pytest.ini_options]
-testpaths = ["templates/scripts/tests", "tests"]
+testpaths = ["tests"]
 addopts = "--strict-markers -q"

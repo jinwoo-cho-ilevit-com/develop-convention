@@ -1,0 +1,25 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "develop-convention",
+  "description": "Development conventions as documents, plus the harness that runs them.",
+  "owner": {
+    "name": "Jinwoo Cho",
+    "email": "jinwoo.cho@ilevit.com"
+  },
+  "plugins": [
+    {
+      "name": "dev-harness",
+      "description": "Interview-driven planning, delegated execution in parallel lanes, and review that starts the moment a lane finishes. The conventions it enforces live in the same repository under conventions/.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Jinwoo Cho",
+        "email": "jinwoo.cho@ilevit.com"
+      },
+      "source": "./",
+      "category": "workflow",
+      "homepage": "https://jinwoo-cho-ilevit-com.github.io/develop-convention/",
+      "tags": ["conventions", "planning", "delegation", "review"]
+    }
+  ],
+  "version": "0.1.0"
+}

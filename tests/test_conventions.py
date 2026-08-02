@@ -94,32 +94,23 @@ def test_the_stamp_check_would_catch_an_old_stamp():
 # four where one cries wolf.
 
 
-# --- a doc must not tell an author to do what the runner rejects ---------------------------
+# --- no document sends a reader to a tool that was retired --------------------------------
 
-import sys  # noqa: E402
-
-sys.path.insert(0, str(ROOT / "templates" / "scripts"))
-import contract as runner  # noqa: E402
-
-REFUSED = set(runner.UNSUPPORTED_FIELDS) | {"evidence_todo"}
+RETIRED = ("templates/scripts", "contract.py", "verify: human", "`revision`", "schema_version")
 
 
 @pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)
-def test_no_doc_instructs_writing_fields_the_runner_refuses(doc):
-    """19 §7 told authors to use `evidence_todo`; 18 §4 says the runner refuses it.
+def test_no_doc_points_at_the_retired_runner(doc):
+    """19 §7 once told authors to write a field 18 §4 said the runner refused.
 
     Following one document made the other's tool reject the contract, which is the worst
-    kind of disagreement between two rules — both are readable, and doing as told fails.
+    kind of disagreement between two rules — both readable, and doing as told fails. The
+    runner is gone (ADR 0004); a document still naming it reproduces that shape against a
+    tool that no longer exists at all.
     """
     body = read(doc)
-    told = [
-        field
-        for field in REFUSED
-        if re.search(
-            rf"records? .{{0,40}}`{re.escape(field)}`|write .{{0,20}}`{re.escape(field)}`", body
-        )
-    ]
-    assert not told, f"{doc.name} instructs writing {told}, which the runner refuses"
+    named = [token for token in RETIRED if token in body]
+    assert not named, f"{doc.name} still points at the retired contract runner: {named}"
 
 
 # --- a convention resting on an optional mechanism says what happens without it ------------
@@ -138,10 +129,20 @@ def test_optional_mechanism_names_its_fallback():
     )
 
 
-# --- the visualization format stays unspecified, on purpose --------------------------------
+# --- a superseded decision is reachable from the one that replaced it -----------------------
 
 
-def test_evidence_visualization_is_still_unspecified():
-    """The absence is the decision. Inventing a format with no evidence is what 19 warns of."""
-    body = read(BY_NAME["19-evidence.md"])
-    assert "not specified here yet" in body
+def test_the_supersession_chain_resolves():
+    """15 requires ADRs be superseded rather than edited, and read to the end of the chain.
+
+    A replacement that does not name what it replaces leaves the old decision looking
+    current to whoever finds it first.
+    """
+    adr = ROOT / "adr"
+    replacements = {path: read(path) for path in adr.glob("0*.md") if "Supersedes" in read(path)}
+    assert replacements, "no ADR in the chain claims to supersede another"
+    for path, body in replacements.items():
+        targets = re.findall(r"Supersedes \[(\d{4})\]\(([^)]+)\)", body)
+        assert targets, f"{path.name} says Supersedes without naming a linked ADR"
+        for _, link in targets:
+            assert (adr / link).is_file(), f"{path.name} supersedes a missing ADR: {link}"

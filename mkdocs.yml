@@ -52,7 +52,7 @@ nav:
       - conventions/09-agentic-workflow.md
       - conventions/10-llm-api-inference.md
       - conventions/11-llm-api-providers.md
-      - conventions/12-docs-reference.md
+      - conventions/12-upstream-docs.md
       - conventions/13-secret-management.md
       - conventions/14-context-management.md
       - conventions/15-doc-tracking.md
@@ -61,13 +61,12 @@ nav:
       - conventions/18-work-contract.md
       - conventions/19-evidence.md
       - conventions/20-review-gate.md
-  - Templates:
+      - conventions/21-development-loop.md
+  - Harness:
+      - skills/docsync/SKILL.md
       - templates/AGENTS.md
-      - templates/CLAUDE.md
-      - templates/contract.md
-      - templates/skills/docsync/SKILL.md
-      - templates/skills/conv-init/SKILL.md
   - Decisions:
       - adr/0001-contract-runner.md
       - adr/0002-invariants-as-tests.md
       - adr/0003-deliberate-omissions.md
+      - adr/0004-retiring-the-contract-runner.md

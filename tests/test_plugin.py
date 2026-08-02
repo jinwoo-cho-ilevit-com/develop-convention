@@ -1,0 +1,168 @@
+"""The plugin is the delivery path, and 15 requires the delivery path to be checked.
+
+Reading a manifest tells you it parses. The hook checks below run it, because a guard that
+was never observed refusing is indistinguishable from one that never fires
+(→ conventions/20-review-gate.md).
+"""
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
+MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
+GUARD = ROOT / "hooks" / "delegate-guard.sh"
+
+
+def load(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+# --- manifests ------------------------------------------------------------------------------
+
+
+def test_marketplace_entry_matches_the_plugin_name():
+    """The marketplace entry name is what `enabledPlugins` keys and `/plugin` uses.
+
+    A mismatch installs under one name and namespaces its commands under another.
+    """
+    entries = {entry["name"] for entry in load(MARKETPLACE)["plugins"]}
+    assert load(PLUGIN)["name"] in entries
+
+
+@pytest.mark.skipif(shutil.which("claude") is None, reason="the Claude Code CLI is not installed")
+def test_the_cli_accepts_the_manifests():
+    """Our own parse agreeing with the schema is not the runtime agreeing with it."""
+    result = subprocess.run(
+        ["claude", "plugin", "validate", str(ROOT), "--strict"], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_declared_component_paths_exist():
+    """A manifest naming a directory that is not there installs a plugin with nothing in it."""
+    declared = ("commands", "hooks", "workflows", "skills")
+    missing = [name for name in declared if not (ROOT / name).is_dir()]
+    assert not missing, f"the plugin declares components that do not exist: {missing}"
+
+
+def test_hook_config_points_at_a_file_that_exists():
+    config = load(ROOT / "hooks" / "hooks.json")
+    for entry in config["hooks"]["PreToolUse"]:
+        for hook in entry["hooks"]:
+            target = hook["command"].replace('"${CLAUDE_PLUGIN_ROOT}"', str(ROOT)).strip('"')
+            assert Path(target).is_file(), f"hook command is not a file: {target}"
+
+
+def test_the_guard_is_executable():
+    """A plugin hook is invoked directly, so a non-executable script fails silently at runtime."""
+    assert GUARD.stat().st_mode & 0o111, "hooks/delegate-guard.sh is not executable"
+
+
+@pytest.mark.parametrize("path", sorted((ROOT / "commands").glob("*.md")), ids=lambda p: p.name)
+def test_every_command_declares_a_description(path):
+    """Without one the command is listed with no way to tell what it does."""
+    body = path.read_text(encoding="utf-8")
+    assert body.startswith("---\n"), f"{path.name} has no front matter"
+    front = body.split("---", 2)[1]
+    assert "description:" in front, f"{path.name} declares no description"
+
+
+# --- the guard, executed --------------------------------------------------------------------
+
+
+def run_guard(payload: dict, env: dict | None = None) -> dict | None:
+    result = subprocess.run(
+        [str(GUARD)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin", **(env or {})},
+    )
+    assert result.returncode == 0, f"the guard exited {result.returncode}: {result.stderr}"
+    return json.loads(result.stdout) if result.stdout.strip() else None
+
+
+def decision(payload: dict, env: dict | None = None) -> str:
+    out = run_guard(payload, env)
+    return out["hookSpecificOutput"]["permissionDecision"] if out else "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("tool", ["Edit", "Write", "NotebookEdit"])
+def test_the_main_session_may_not_edit(tool):
+    assert decision({"tool_name": tool, "tool_input": {"file_path": "a.py"}}) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("tool", ["Edit", "Write", "NotebookEdit"])
+def test_a_subagent_may_edit(tool):
+    """`agent_id` is present only inside a subagent call. That is the whole test."""
+    payload = {"agent_id": "a1", "agent_type": "executor", "tool_name": tool, "tool_input": {}}
+    assert decision(payload) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_a_large_read_is_refused_and_a_small_one_is_not(tmp_path):
+    big, small = tmp_path / "big.py", tmp_path / "small.py"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    small.write_text("x = 1\n" * 10, encoding="utf-8")
+    read = lambda p: {"tool_name": "Read", "tool_input": {"file_path": str(p)}}  # noqa: E731
+    assert decision(read(big)) == "deny"
+    assert decision(read(small)) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_the_orchestrator_may_read_its_own_plan(tmp_path):
+    """Blocking the orchestrator from its own brief defeats what the guard exists for."""
+    plan = tmp_path / ".plans" / "feature"
+    plan.mkdir(parents=True)
+    brief = plan / "PLAN.md"
+    brief.write_text("# plan\n" * 900, encoding="utf-8")
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(brief)}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_a_binary_read_is_not_judged_by_line_count(tmp_path):
+    """Line counts are meaningless for an image; a small screenshot must not be refused."""
+    image = tmp_path / "shot.png"
+    image.write_bytes(bytes([0x89, 0x50, 0x4E, 0x47]) + bytes([0, 10]) * 3000)
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(image)}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_the_bypass_is_recorded_not_silent():
+    """19: a bypass that leaves no trace is a blocker; a recorded one is a decision."""
+    result = subprocess.run(
+        [str(GUARD)],
+        input=json.dumps({"tool_name": "Edit", "tool_input": {"file_path": "a.py"}}),
+        capture_output=True,
+        text=True,
+        env={
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "DEV_HARNESS_ALLOW_MAIN": "1",
+        },
+    )
+    assert result.returncode == 0
+    assert not result.stdout.strip(), "the bypass still denied the call"
+    assert "bypassed" in result.stderr, "the bypass left no trace"
+
+
+# --- the build workflow ----------------------------------------------------------------------
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="the harness needs node")
+def test_the_review_loop_ends_three_ways():
+    """Blockers cleared, the fix became the defect source, or the cap called a person.
+
+    Driven by tests/workflow_harness.mjs against scripted review rounds, because the three
+    exits are the part of workflows/build.js that a reader cannot confirm by reading.
+    """
+    result = subprocess.run(
+        ["node", str(ROOT / "tests" / "workflow_harness.mjs")], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

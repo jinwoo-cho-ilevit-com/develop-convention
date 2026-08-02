@@ -29,6 +29,7 @@ jobs:
           cp README.md docs/index.md
           cp -r conventions docs/conventions
           cp -r templates docs/templates
+          cp -r skills docs/skills
           cp -r adr docs/adr
 
       - name: Build site

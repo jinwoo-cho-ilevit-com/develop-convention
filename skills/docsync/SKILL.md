@@ -5,7 +5,7 @@ description: Incrementally syncs code changes into docs. Updates the managed sec
 
 # docsync — Incremental Doc-Code Synchronization
 
-Execution procedure for convention [15-doc-tracking.md](../../../conventions/15-doc-tracking.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
+Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc-tracking.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
 
 ## Scope of Responsibility
 
@@ -164,10 +164,11 @@ Insert a banner at the top of the managed block for any doc whose verification s
 
 ## Use From Other Tools
 
-For Codex/Cursor etc., put the following line in AGENTS.md to point to this file:
+Claude Code gets this skill from the `dev-harness` plugin; nothing is copied into the project. Tools that do not read plugins need a pointer in AGENTS.md instead:
 
 ```
-When doc sync is needed, follow the procedure in .claude/skills/docsync/SKILL.md.
+When doc sync is needed, follow the procedure at
+https://jinwoo-cho-ilevit-com.github.io/develop-convention/skills/docsync/SKILL/
 ```
 
 The procedure itself is tool-independent. Only the trigger (slash command, scheduled run) is tool-specific.

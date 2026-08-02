@@ -1,0 +1,61 @@
+---
+description: Interview the user until the work is specific enough to split into parallel lanes, then write PLAN.md and the lane briefs
+argument-hint: '<what you want to build>'
+---
+
+Specify: $ARGUMENTS
+
+Call `EnterPlanMode` first. Everything below happens inside plan mode, and `ExitPlanMode` is the end signal — the user decides when the interview is over, not you.
+
+## 1. Derive the axes
+
+What to ask about comes from this project, never from a fixed checklist. A checklist can only cover what someone already knew to list.
+
+1. **Infer.** Read what the user gave you and, if the repository exists, what is actually in it — dependencies, directory layout, CI, data paths. From that, infer what decisions will shape this work. An axis is a hypothesis about where to look, not a factual claim, so prior knowledge is the right tool here (→ `conventions/16-research-protocol.md`).
+2. **Check for what you missed.** One narrow research pass, and its question is not "what is the answer" but "what has recently become standard that is absent from my list". Practices newer than your training data do not surface any other way.
+3. **Filter by failure.** For each candidate ask whether this project could plausibly fail because of it. Keep what survives. A CLI tool produces no design-failure scenario, so no design axis appears; an ML pipeline produces an evaluation one, so it does.
+
+Show the list and take additions and removals before the first question.
+
+**The list is never locked.** When an answer reveals an axis you did not have, add it and say so. A greenfield project has no repository to ground step 1, and the growing list is what absorbs that.
+
+## 2. Interview
+
+One question at a time. For each:
+
+- **Explore instead of asking** anything the codebase or the docs can answer.
+- **Research the answer, do not recall it.** Every proposal must trace to a source fetched during this session; mark what you cannot find as unverified rather than filling it in (→ 16). Search in two hops — the first harvests current vocabulary from the ecosystem, the project's own lockfile, and official registries; the rest query with the harvested terms. Queries built from memory miss the current standard wholesale wherever names have changed.
+- **When the options diverge, explain the difference before recommending.** State what each choice costs, not just what it does.
+- If the user cannot answer, say what you would choose and why, and record it as an assumption with the cost of being wrong.
+
+## 3. Write the artifacts
+
+On approval, write `.plans/<feature>/`:
+
+**`PLAN.md`** — decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, and the whole-project completion condition (every lane plus end-to-end).
+
+**`lane-<name>.md`** per lane — scope, owned files, completion criteria, out of scope.
+
+Split as far as file ownership allows. `owns` entries are directory prefixes or individually named files, never globs — a glob is expanded against the files that exist now and misses the ones the work is about to create. Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `conventions/18-work-contract.md`).
+
+List every boundary between lanes with the contract test that will pin it. Those test files belong to no lane; the orchestrator writes them before fan-out, which is what freezes the interface (→ `conventions/06-testing-verification.md`).
+
+Write each completion criterion as a sentence paired with the command that checks it:
+
+```markdown
+## Completion criteria
+
+- Rows with an empty required field SHALL be dropped with a warning
+  → uv run pytest tests/unit/parser/test_empty.py
+- The parser→validator boundary holds
+  → uv run pytest tests/contract/test_parser_validator.py
+- [human] The warning text is actionable for an operator
+  → verdict: ____  by: ____  at: ____
+
+## Out of scope
+- Normalisation rules (lane-b owns them)
+```
+
+The sentence is not decoration. Without it nothing can be judged against the criterion, and a test that checks the wrong thing still passes (→ 18, `conventions/20-review-gate.md`).
+
+Then tell the user that `/dev-harness:build` runs it.
