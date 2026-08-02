@@ -63,6 +63,20 @@ const FINDINGS_SCHEMA = {
   },
 }
 
+const FIX_SCHEMA = {
+  type: 'object',
+  required: ['summary', 'touchedFiles'],
+  additionalProperties: false,
+  properties: {
+    summary: { type: 'string' },
+    touchedFiles: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'every file your fix changed, as the reviewer will see them in the diff',
+    },
+  },
+}
+
 const VERDICT_SCHEMA = {
   type: 'object',
   required: ['verdicts'],
@@ -202,8 +216,9 @@ function fixPrompt(lane, blockers) {
     'change here forces the whole lane through another review round.',
     'Re-run the criteria commands from your brief before returning.',
     '',
-    'Return a short summary of what you changed. The next reviewer reads it to tell which findings',
-    'your fix caused.',
+    'Return a short summary of what you changed and the list of files you changed. The next',
+    'round checks a claim that your fix caused a defect against that list — a file you never',
+    'touched cannot hold a defect you introduced.',
   ].join('\n')
 }
 
@@ -255,6 +270,8 @@ async function reviewLoop(dev, lane) {
   const carried = []
   let fixSummary = ''
   let previousKeys = new Set()
+  // Round 1 has no previous fix, so nothing can be attributed to one.
+  let lastFixTouched = new Set()
 
   for (let round = 1; round <= ROUND_CAP; round++) {
     const reviews = (
@@ -322,22 +339,38 @@ async function reviewLoop(dev, lane) {
       phase: 'Review',
       schema: VERDICT_SCHEMA,
     })
-    // Only an explicit refutation drops a blocker. Keying off `confirmed` instead meant a
-    // verifier that answered `{verdicts: []}` — truncated, or simply omitting them — read
-    // as refuting every blocker, and one real blocker reached `passed` with no fix and no
-    // escalation. A missing verdict is a missing verdict, not a clearance.
-    const refutedKeys = new Set(
-      (verdicts?.verdicts ?? []).filter((v) => v.confirmed === false).map((v) => v.key),
-    )
-    const blockers = rawBlockers.filter((f) => !refutedKeys.has(keyOf(f)))
-    const refuted = rawBlockers.filter((f) => refutedKeys.has(keyOf(f)))
+    // Exactly one verdict per submitted blocker, and nothing else. Filtering for refutations
+    // instead let a schema-valid answer carrying both a true and a false row for the same
+    // key drop that blocker and reach `passed`; missing rows were merely logged. Missing,
+    // duplicated, unknown or self-contradicting output is a verification that did not
+    // happen, and a verification that did not happen decides nothing.
+    const submitted = rawBlockers.map(keyOf)
+    const rows = verdicts?.verdicts ?? []
+    const byKey = new Map()
+    rows.forEach((v) => byKey.set(v.key, (byKey.get(v.key) ?? []).concat(v)))
+    const missing = submitted.filter((k) => !byKey.has(k))
+    const duplicated = submitted.filter((k) => (byKey.get(k) ?? []).length > 1)
+    const unknown = [...byKey.keys()].filter((k) => !submitted.includes(k))
+    if (!verdicts || missing.length || duplicated.length || unknown.length) {
+      return {
+        lane: lane.name,
+        outcome: 'verification-incomplete',
+        rounds: round,
+        branch: ctx.branch,
+        criteria: dev.criteria,
+        blockers: rawBlockers,
+        carried: dedupe(carried),
+        escalation: 'human',
+        note: !verdicts
+          ? 'The verifier returned nothing.'
+          : `Verification did not cover the blockers one to one: ${missing.length} missing, ${duplicated.length} duplicated, ${unknown.length} unknown keys.`,
+      }
+    }
+    const refuted = rawBlockers.filter((f) => byKey.get(keyOf(f))[0].confirmed === false)
+    const blockers = rawBlockers.filter((f) => byKey.get(keyOf(f))[0].confirmed !== false)
     if (refuted.length) {
       refuted.forEach((f) => carried.push({ ...f, severity: 'minor', summary: `[refuted] ${f.summary}` }))
       log(`lane ${lane.name} round ${round}: ${refuted.length} blocker(s) were refuted on verification`)
-    }
-    const uncovered = blockers.length - (verdicts?.verdicts ?? []).filter((v) => v.confirmed).length
-    if (uncovered > 0) {
-      log(`lane ${lane.name} round ${round}: ${uncovered} blocker(s) came back without a verdict — kept as blockers`)
     }
 
     if (!blockers.length) return clean(lane, dev, ctx, round, carried)
@@ -351,8 +384,20 @@ async function reviewLoop(dev, lane) {
     // that are carried round after round — by design, since only blockers get fixed —
     // form the majority and halt a lane whose actual blocker had changed and was fixable.
     // The loop this exit governs is the blocker loop; its denominator has to be the same.
+    // The causation claim is checked, not taken. Confirming a blocker establishes that the
+    // defect is real; it says nothing about who introduced it, and those are different
+    // claims. A real pre-existing blocker in untouched code, mislabelled as fix-induced,
+    // used to halt the loop by itself and was then never fixed. A fix that never touched
+    // the file cannot have caused a defect in it, so the flag only counts where the
+    // previous fix actually reached.
     const repeated = blockers.filter((f) => previousKeys.has(keyOf(f)))
-    const fromFix = blockers.filter((f) => f.causedByPreviousFix)
+    const fromFix = blockers.filter((f) => f.causedByPreviousFix && lastFixTouched.has(f.file))
+    const misattributed = blockers.filter((f) => f.causedByPreviousFix && !lastFixTouched.has(f.file))
+    if (misattributed.length) {
+      log(
+        `lane ${lane.name} round ${round}: ${misattributed.length} finding(s) claimed the previous fix caused them in files it never touched`,
+      )
+    }
     const stuckKeys = new Set([...repeated, ...fromFix].map(keyOf))
     if (round > 1 && stuckKeys.size * 2 > blockers.length) {
       return {
@@ -388,9 +433,11 @@ async function reviewLoop(dev, lane) {
     const fix = await agent(fixPrompt(ctx, blockers), {
       label: `fix:${lane.name}#${round}`,
       phase: 'Review',
+      schema: FIX_SCHEMA,
     })
     if (!fix) return { lane: lane.name, outcome: 'fix-failed', rounds: round, branch: ctx.branch, blockers }
-    fixSummary = fix
+    fixSummary = fix.summary
+    lastFixTouched = new Set(fix.touchedFiles ?? [])
   }
 }
 

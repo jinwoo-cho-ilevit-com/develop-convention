@@ -49,16 +49,19 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
     if (label.startsWith('develop:')) {
       return over.develop ?? { worktree: '/tmp/wt', branch: 'lane-a', criteria: [] }
     }
-    if (label.startsWith('fix:')) return 'fixed the thing'
+    if (label.startsWith('fix:')) return { summary: 'fixed it', touchedFiles: over.fixTouched ?? ['src/a.py'] }
     if (label.startsWith('verify:')) {
       if (over.verifierDies) return null
       // Confirms whatever it was handed unless the case says otherwise, so the loop under
       // test is the review loop and not this stub.
-      const verdicts = over.emptyVerdicts
-        ? []
-        : findingsNow()
-            .filter((f) => f.severity === 'blocker')
-            .map((f) => ({ key: keyOf(f), confirmed: !over.refuteBlockers, evidence: 'stub' }))
+      const blockers = findingsNow().filter((f) => f.severity === 'blocker')
+      let verdicts = blockers.map((f) => ({ key: keyOf(f), confirmed: !over.refuteBlockers, evidence: 'stub' }))
+      if (over.emptyVerdicts) verdicts = []
+      if (over.dropOneVerdict) verdicts = verdicts.slice(1)
+      // Both a true and a false row for the same key — schema-valid, self-contradicting.
+      if (over.contradictoryVerdicts && blockers.length) {
+        verdicts = [...verdicts, { key: keyOf(blockers[0]), confirmed: false, evidence: 'stub' }]
+      }
       round++
       lensInRound = 0
       return { verdicts }
@@ -137,7 +140,34 @@ const cases = [
     name: 'a verifier returning no verdicts leaves the blocker standing',
     rounds: [[finding()]],
     over: { emptyVerdicts: true },
-    expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human', hasLabel: 'fix:a#1' },
+    expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
+  },
+  {
+    // Schema-valid and self-contradicting: a true and a false row for the same key. The
+    // refutation used to win, dropping a real blocker into a clean pass.
+    name: 'a verifier contradicting itself decides nothing',
+    rounds: [[finding()]],
+    over: { contradictoryVerdicts: true },
+    expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
+  },
+  {
+    name: 'a verdict missing for one of two blockers stops the round',
+    rounds: [[finding({ summary: 'b1' }), finding({ summary: 'b2' })]],
+    over: { dropOneVerdict: true },
+    expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
+  },
+  {
+    // Confirming a blocker establishes the defect is real; it says nothing about who caused
+    // it. A real pre-existing blocker in a file the fix never touched, mislabelled as
+    // fix-induced, used to halt the loop by itself and was then never fixed.
+    name: 'a fix-causation claim about an untouched file does not halt the loop',
+    rounds: [
+      [finding({ file: 'src/a.py', summary: 'A' })],
+      [finding({ file: 'src/untouched.py', summary: 'B', causedByPreviousFix: true })],
+      [],
+    ],
+    over: { fixTouched: ['src/a.py'] },
+    expect: { outcome: 'passed', rounds: 3, hasLabel: 'fix:a#2' },
   },
   {
     // Majors are carried by design and never fixed, so counting them let two of them
@@ -197,7 +227,17 @@ const cases = [
 
 let failed = 0
 for (const c of cases) {
-  const out = await run(c.rounds, c.over)
+  // A throw is this case's failure, not the run's. Letting it escape aborted the loop, so
+  // one broken case hid every case after it — the same shape as every other defect this
+  // harness exists to catch.
+  let out
+  try {
+    out = await run(c.rounds, c.over)
+  } catch (err) {
+    failed++
+    console.log(`FAIL ${c.name} -> threw: ${err.message}`)
+    continue
+  }
   const got = (out.passed[0] ?? out.halted[0]) ?? {}
   const why = []
   const check = (cond, msg) => {

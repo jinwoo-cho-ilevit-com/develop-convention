@@ -24,6 +24,7 @@ It returns `{ passed, halted, unanswered, escalations, vendorDiversity }`. **Han
    - `pending-human` — the lane is clean but a `[human]` criterion has no verdict. **Ask for it now, before merging.** Record verdict, author and timestamp in the lane brief. A merged lane is past the point where a rejection can act (→ `19-evidence.md`).
    - `review-incomplete` — a review lens returned nothing. Re-run it; do not merge a short review.
    - `review-unexecuted` — a review lens ran zero commands. That verdict is a reading, not a review.
+   - `verification-incomplete` — the verifier's answer did not map one to one onto the blockers it was given: missing, duplicated, unknown or self-contradicting rows. A verification that did not happen decides nothing, so nothing was decided.
    - `regression-halt` — the findings are repeating or coming from the last fix. This needs a different approach, not another round.
    - `round-cap` — the runaway guard fired. **This is a call for a person, not a completion.**
    - `develop-failed` / `fix-failed` — the agent died. Re-run or investigate.
