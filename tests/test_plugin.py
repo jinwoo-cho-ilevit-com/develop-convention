@@ -94,8 +94,8 @@ def decision(payload: dict, env: dict | None = None) -> str:
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize("tool", ["Edit", "Write", "NotebookEdit"])
-def test_the_main_session_may_not_edit(tool):
-    assert decision({"tool_name": tool, "tool_input": {"file_path": "a.py"}}) == "deny"
+def test_the_main_session_is_asked_before_it_edits(tool):
+    assert decision({"tool_name": tool, "tool_input": {"file_path": "a.py"}}) == "ask"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
@@ -147,7 +147,7 @@ def test_only_a_real_agent_id_counts_as_a_subagent(agent_id):
     of them as a subagent marker and allowed the edit.
     """
     payload = {"agent_id": agent_id, "tool_name": "Edit", "tool_input": {"file_path": "a.py"}}
-    assert decision(payload) == "deny"
+    assert decision(payload) == "ask"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
@@ -158,7 +158,7 @@ def test_only_a_real_agent_id_counts_as_a_subagent(agent_id):
 def test_the_shell_write_forms_it_claims_to_catch_are_caught(command):
     """Editing through Bash is editing. The guard cannot catch every form (→ 21 §3), but a
     form it advertises and misses is worse than an admitted gap."""
-    assert decision({"tool_name": "Bash", "tool_input": {"command": command}}) == "deny"
+    assert decision({"tool_name": "Bash", "tool_input": {"command": command}}) == "ask"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
@@ -201,12 +201,12 @@ def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(path):
     ],
 )
 def test_the_plan_exemption_does_not_reach_outside_the_plan(path):
-    """The exemption made the one exact refusal in this guard bypassable.
+    """The exemption made a guarded path bypassable.
 
     `.plans/../src/app.js` contains the exempt segment and resolves outside it, so a Write
-    that the guard refuses by name was allowed by spelling it through a parent.
+    that the guard would otherwise ask about was allowed by spelling it through a parent.
     """
-    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "deny"
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "ask"
 
 
 def test_the_declared_bypass_works_without_jq(tmp_path):
@@ -260,7 +260,22 @@ def test_the_orchestrator_may_write_agents_md(path):
 @pytest.mark.parametrize("path", ["AGENTS.md.bak", "src/AGENTS.mdx", "notAGENTS.md"])
 def test_the_agents_exemption_matches_the_whole_name(path):
     """A prefix or suffix match would exempt any file whose name merely contains it."""
-    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "deny"
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "ask"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_a_guess_asks_and_an_exact_test_refuses(tmp_path):
+    """The heuristic paths escalate to the person; the one exact budget check does not.
+
+    A shell command cannot be judged without a shell parser, so a refusal there is a guess
+    with no cheap appeal. An over-budget read has no false positive and a better
+    alternative, so it stays a refusal.
+    """
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": "src/app.py"}}) == "ask"
+    assert decision({"tool_name": "Bash", "tool_input": {"command": "echo hi > out.txt"}}) == "ask"
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(big)}}) == "deny"
 
 
 def test_the_guard_refuses_rather_than_vanishes_without_jq(tmp_path):

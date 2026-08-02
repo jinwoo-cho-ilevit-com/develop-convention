@@ -88,6 +88,16 @@ claude plugin install dev-harness@develop-convention
 
 Then run `/dev-harness:setup` once in each project. It reads the repository, proposes the run/test/lint/smoke commands, and writes a short `AGENTS.md` with them — the only thing the plugin cannot know. Python projects can also copy [templates/pyproject.toml](templates/pyproject.toml) and `templates/.pre-commit-config.yaml` for the local tool configuration.
 
+### Updating
+
+```bash
+claude plugin update dev-harness
+```
+
+Then run `/reload-plugins`, or restart. Skills take effect immediately in a running session; hooks, MCP servers, agents and output styles do not (→ <https://code.claude.com/docs/en/plugins-reference>). Between the update and the reload the hooks do not fire at all, so the delegation guard is off rather than merely stale — measured in this repository, not documented upstream.
+
+`/plugin update` keys on the version string in `.claude-plugin/plugin.json` and exits silently when it has not moved, which is indistinguishable from success. Bump it whenever anything under `hooks/`, `commands/`, `workflows/`, `skills/` or `.claude-plugin/` changes; `tests/test_release.py` fails the build if you do not.
+
 Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste convention rules into it: an excerpt is a copy, and a copy drifts from its source while being loaded in every session (→ [15-doc-tracking.md](conventions/15-doc-tracking.md), [09-agentic-workflow.md](conventions/09-agentic-workflow.md)).
 
 ### What the Harness Adds
@@ -99,7 +109,7 @@ Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste co
 | `/dev-harness:setup` | Writes the short `AGENTS.md` by hand |
 | `/docsync` | Syncs module docs with the code that changed (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)) |
 
-A hook keeps the main session an orchestrator: it plans, splits and judges, and every edit goes to a subagent. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
+A hook keeps the main session an orchestrator: it plans, splits and judges. The editing tools and shell commands that look like writes prompt for approval, so the default path is a subagent; only a read past the context budget is refused outright. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
 
 `/dev-harness:build` reports one outcome per lane. Only the first is a completion:
 
