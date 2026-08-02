@@ -4,7 +4,7 @@
 [project]
 name = "develop-convention"
 version = "0"
-description = "Development convention documents and the work-contract toolkit"
+description = "Development convention documents and the dev-harness plugin that runs them"
 requires-python = ">=3.13"
 dependencies = []
 
@@ -34,9 +34,8 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.format]
 quote-style = "double"
 
-# Two paths: the contract toolkit projects copy out, and the invariants this repository
-# asserts about itself. A bare `uv run pytest` is what CI runs, so both are covered
-# without the workflow having to name them.
+# The invariants this repository asserts about itself. A bare `uv run pytest` is what CI
+# runs, so this is covered without the workflow having to name it.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers -q"
