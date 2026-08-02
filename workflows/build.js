@@ -13,11 +13,12 @@ const ROUND_CAP = 5
 
 const DEVELOP_SCHEMA = {
   type: 'object',
-  required: ['worktree', 'branch', 'criteria'],
+  required: ['worktree', 'branch', 'head', 'criteria'],
   additionalProperties: false,
   properties: {
     worktree: { type: 'string', description: 'absolute path of the worktree you worked in' },
     branch: { type: 'string' },
+    head: { type: 'string', description: 'the commit sha on your lane branch after your work' },
     criteria: {
       type: 'array',
       items: {
@@ -65,15 +66,22 @@ const FINDINGS_SCHEMA = {
 
 const FIX_SCHEMA = {
   type: 'object',
-  required: ['summary', 'touchedFiles'],
+  required: ['summary'],
   additionalProperties: false,
   properties: {
     summary: { type: 'string' },
-    touchedFiles: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'every file your fix changed, as the reviewer will see them in the diff',
-    },
+  },
+}
+
+// What the fix changed is measured by an agent that did not do the fixing. The fixer is
+// never asked, because an actor reporting on its own work is not evidence about it.
+const TOUCHED_SCHEMA = {
+  type: 'object',
+  required: ['files', 'head'],
+  additionalProperties: false,
+  properties: {
+    files: { type: 'array', items: { type: 'string' }, description: 'repository-relative paths, verbatim from the commands' },
+    head: { type: 'string', description: 'the sha printed by git rev-parse HEAD' },
   },
 }
 
@@ -183,7 +191,8 @@ function developPrompt(lane) {
     'the brief\'s completion criteria. Update the AGENTS.md of each directory you own in the same pass',
     `(→ ${conventionsDir}/15-doc-tracking.md).`,
     '',
-    'Return the absolute path of the worktree you worked in — later rounds continue in it.',
+    'Return the absolute path of the worktree you worked in — later rounds continue in it — and the',
+    'commit sha on your lane branch after your work, which is the baseline the first round measures from.',
     'Report each criterion with the command you ran and whether it passed. A [human] criterion has no',
     'command: report it as not passed and leave the command empty.',
   ].join('\n')
@@ -241,11 +250,30 @@ function fixPrompt(lane, blockers) {
     'change here forces the whole lane through another review round.',
     'Re-run the criteria commands from your brief before returning.',
     '',
-    'Return a short summary and the file list, and derive the list with',
-    '`git diff --name-only <commit you started from>..HEAD` rather than from memory —',
-    'repository-relative paths, both sides of any rename. The next round checks a claim that',
-    'your fix caused a defect against that list, so a list you guessed at decides whether a',
-    'real defect gets fixed.',
+    'Return a short summary of what you changed.',
+  ].join('\n')
+}
+
+// The measurement the causation rule runs on. Its whole job is to read git and copy the
+// answer out, so it is dispatched separately from the fix — a fixer reporting which files
+// it touched is the actor grading itself, and under- or over-reporting either hides a real
+// regression or halts a lane over a pre-existing blocker.
+function touchedPrompt(ctx, since) {
+  return [
+    `Report which files changed in the worktree ${ctx.worktree}. Work there and nowhere else.`,
+    '',
+    'Run exactly these three commands:',
+    `1. git --no-pager diff --name-only ${since}`,
+    '2. git ls-files --others --exclude-standard',
+    '3. git rev-parse HEAD',
+    '',
+    'Return the union of the first two as `files` and the output of the third as `head`.',
+    'The diff is taken against the working tree on purpose, so a fix that was never committed',
+    'still counts.',
+    '',
+    'Change nothing and judge nothing. Report every path exactly as the commands printed it,',
+    'without filtering to what looks relevant — the next round decides whether a defect is',
+    'fix-induced by matching against this list.',
   ].join('\n')
 }
 
@@ -299,6 +327,9 @@ async function reviewLoop(dev, lane) {
   let previousKeys = new Set()
   // Round 1 has no previous fix, so nothing can be attributed to one.
   let lastFixTouched = new Set()
+  // What each round's measurement diffs against: develop's head first, then the head the
+  // previous measurement read, so a round sees its own fix and not the ones before it.
+  let sinceSha = dev.head
 
   for (let round = 1; round <= ROUND_CAP; round++) {
     const reviews = (
@@ -414,9 +445,11 @@ async function reviewLoop(dev, lane) {
     // The causation claim is checked, not taken. Confirming a blocker establishes that the
     // defect is real; it says nothing about who introduced it, and those are different
     // claims. A real pre-existing blocker in untouched code, mislabelled as fix-induced,
-    // used to halt the loop by itself and was then never fixed. A fix that never touched
-    // the file cannot have caused a defect in it, so the flag only counts where the
-    // previous fix actually reached.
+    // would halt the loop by itself and never be fixed. A fix that never touched the file
+    // cannot have caused a defect in it, so the flag only counts where the previous fix
+    // actually reached. Where it reached comes from a separate agent that read git in the
+    // lane's worktree — the fixer is not asked about its own diff, since an actor grading
+    // itself can hide a regression by omission or halt a fixable lane by overclaiming.
     const repeated = blockers.filter((f) => previousKeys.has(keyOf(f)))
     const touched = new Set([...lastFixTouched].map((p) => repoPath(p, ctx.worktree)))
     const claimsFix = (f) => f.causedByPreviousFix && touched.has(repoPath(f.file, ctx.worktree))
@@ -466,7 +499,24 @@ async function reviewLoop(dev, lane) {
     })
     if (!fix) return { lane: lane.name, outcome: 'fix-failed', rounds: round, branch: ctx.branch, blockers }
     fixSummary = fix.summary
-    lastFixTouched = new Set(fix.touchedFiles ?? [])
+
+    // Measured by an agent that did no work in this lane, without `isolation` for the same
+    // reason the fix call has none: the evidence is in the worktree the lane already has.
+    const measured = await agent(touchedPrompt(ctx, sinceSha), {
+      label: `touched:${lane.name}#${round}`,
+      phase: 'Review',
+      schema: TOUCHED_SCHEMA,
+    })
+    // An empty set is the fail-safe direction, since an unmatched claim never halts. Carrying
+    // the previous round's set forward would attribute this round's findings to a fix that
+    // was not measured.
+    if (!measured) {
+      log(
+        `lane ${lane.name} round ${round}: the touched-file measurement returned nothing, so the causation check is off for the next round; repetition still applies`,
+      )
+    }
+    lastFixTouched = new Set(measured?.files ?? [])
+    sinceSha = measured?.head ?? sinceSha
   }
 }
 
