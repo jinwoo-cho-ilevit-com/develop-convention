@@ -41,6 +41,9 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
   // different entry from `rounds`, so a multi-lens case would stop modelling a round.
   let round = 0
   let lensInRound = 0
+  // The measurement is one call per fix, so its own counter is what indexes a per-round
+  // file set. `round` cannot: it advances on verify, before the fix this measures.
+  let touchedCalls = 0
   const findingsNow = () => rounds[Math.min(round, rounds.length - 1)] ?? []
 
   return async (_prompt, opts = {}) => {
@@ -49,9 +52,21 @@ function makeAgent(rounds, over = {}, seen = { labels: [] }) {
     if (label.startsWith('develop:')) {
       // eslint-disable-next-line no-throw-literal
       if ('throws' in over) throw over.throws
-      return over.develop ?? { worktree: '/tmp/wt', branch: 'lane-a', criteria: [] }
+      return over.develop ?? { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria: [] }
     }
-    if (label.startsWith('fix:')) return { summary: 'fixed it', touchedFiles: over.fixTouched ?? ['src/a.py'] }
+    if (label.startsWith('fix:')) return { summary: 'fixed it' }
+    // Stands in for the agent that reads git in the lane's worktree. It answers
+    // independently of what the fix stub returned, which is the separation under test.
+    if (label.startsWith('touched:')) {
+      // `true` kills every measurement; a number kills the call at that index and every one
+      // after, which is how a round that measured is followed by a round that did not.
+      if (over.touchedDies === true || touchedCalls >= over.touchedDies) return null
+      const files = over.fixTouchedSeq
+        ? (over.fixTouchedSeq[touchedCalls] ?? over.fixTouchedSeq[over.fixTouchedSeq.length - 1])
+        : (over.fixTouched ?? ['src/a.py'])
+      touchedCalls++
+      return { files, head: `sha${touchedCalls}` }
+    }
     if (label.startsWith('verify:')) {
       if (over.verifierDies) return null
       // Confirms whatever it was handed unless the case says otherwise, so the loop under
@@ -197,6 +212,46 @@ const cases = [
     expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human' },
   },
   {
+    // The fix agent is no longer asked which files it touched, so the only thing that can
+    // supply the file list is the separate measurement — the halt here is proof it ran and
+    // was read, and the label assertion pins which agent produced it.
+    name: 'the causation check reads a measurement, not the fixer\'s word',
+    rounds: [
+      [finding({ file: 'src/measured.py', summary: 'A' })],
+      [finding({ file: 'src/measured.py', summary: 'B', causedByPreviousFix: true })],
+    ],
+    over: { fixTouched: ['src/measured.py'] },
+    expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human', hasLabel: 'touched:a#1' },
+  },
+  {
+    // Round 1 measures, round 2's measurement dies. The next round's causation claim then
+    // has nothing to match against and must not halt: an empty set is the fail-safe side,
+    // and carrying round 1's list forward would blame a fix nobody measured.
+    name: 'a failed measurement disables causation without ending the loop',
+    rounds: [
+      [finding({ file: 'src/a.py', summary: 'A' })],
+      [finding({ file: 'src/b.py', summary: 'B' })],
+      [finding({ file: 'src/a.py', summary: 'C', causedByPreviousFix: true })],
+      [],
+    ],
+    over: { touchedDies: 1 },
+    expect: { outcome: 'passed', rounds: 4, notOutcome: 'regression-halt' },
+  },
+  {
+    // Each measurement diffs from the head the previous one reported, so a round sees its
+    // own fix only. An accumulated set would still hold src/a.py from round 1 and halt on
+    // round 3's claim about it.
+    name: 'each round measures only its own fix',
+    rounds: [
+      [finding({ file: 'src/a.py', summary: 'A' })],
+      [finding({ file: 'src/b.py', summary: 'B' })],
+      [finding({ file: 'src/a.py', summary: 'C', causedByPreviousFix: true })],
+      [],
+    ],
+    over: { fixTouchedSeq: [['src/a.py'], ['src/b.py'], ['src/b.py']] },
+    expect: { outcome: 'passed', rounds: 4, notOutcome: 'regression-halt' },
+  },
+  {
     // JavaScript lets anything be thrown, and reading `.message` off a thrown null threw
     // again — so the guard against one case hiding the rest hid the rest.
     name: 'a case throwing a non-Error is reported, not fatal',
@@ -218,7 +273,7 @@ const cases = [
   {
     name: 'a lane whose own criteria failed never reaches review',
     rounds: [[]],
-    over: { develop: { worktree: '/tmp/wt', branch: 'lane-a', criteria: [{ criterion: 'parser drops empties', command: 'pytest x', passed: false }] } },
+    over: { develop: { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria: [{ criterion: 'parser drops empties', command: 'pytest x', passed: false }] } },
     expect: { outcome: 'criteria-failed' },
   },
   {
@@ -244,7 +299,7 @@ const cases = [
   {
     name: 'a lane awaiting a human verdict is held out of passed',
     rounds: [[]],
-    over: { develop: { worktree: '/tmp/wt', branch: 'lane-a', criteria: [{ criterion: 'the warning reads well', command: '', passed: false }] } },
+    over: { develop: { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria: [{ criterion: 'the warning reads well', command: '', passed: false }] } },
     expect: { outcome: 'pending-human', escalation: 'human' },
   },
   {
@@ -302,6 +357,9 @@ for (const c of cases) {
   }
 
   check(got.outcome === c.expect.outcome, `outcome=${got.outcome}`)
+  // Stated separately from the expected outcome because the point of some cases is the exit
+  // they must not take, and an equality check alone does not say which one was at stake.
+  if (c.expect.notOutcome) check(got.outcome !== c.expect.notOutcome, `outcome=${got.outcome}`)
   if (c.expect.rounds !== undefined) check(got.rounds === c.expect.rounds, `rounds=${got.rounds}`)
   if (c.expect.carried) {
     check(
