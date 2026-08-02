@@ -89,6 +89,9 @@ async function run(rounds, over = {}) {
     base: 'main',
     lanes: [over.lane ?? { name: 'a', owns: ['src/a/'] }],
     boundaries: over.boundaries ?? [],
+    // What `/dev-harness:build` declares after writing the contract tests. A case can drop it
+    // to reach the refusal.
+    ...(over.omitFrozen ? {} : { boundariesFrozen: true }),
   }
   const out = await wf(args, makeAgent(rounds, over, seen), parallel, pipeline, () => {}, () => {})
   return { ...out, labels: seen.labels }
@@ -249,6 +252,15 @@ const cases = [
     rounds: [[finding(), finding({ summary: 'keep me', severity: 'major' })], []],
     expect: { outcome: 'passed', rounds: 2, carried: ['keep me'] },
   },
+  {
+    // Installed, the workflow is invokable as a skill beside the command. That path skips the
+    // contract tests that freeze the boundaries, so the lanes would fan out onto interfaces
+    // nothing holds still — no agent may be dispatched at all.
+    name: 'a caller that did not freeze the boundaries never reaches an agent',
+    rounds: [[]],
+    over: { omitFrozen: true },
+    expect: { refused: true },
+  },
 ]
 
 let failed = 0
@@ -271,6 +283,18 @@ for (const c of cases) {
     }
     continue
   }
+  // A refusal returns before the pipeline, so there is no lane result to read. What it has to
+  // show is that nothing ran: an early return that still dispatched agents refused nothing.
+  if (c.expect.refused) {
+    const why = []
+    if (out.passed !== undefined) why.push('the workflow ran the lanes')
+    if (out.labels.length) why.push(`agents were dispatched: ${JSON.stringify(out.labels)}`)
+    if (!/boundariesFrozen/.test(out.note ?? '')) why.push(`note=${out.note}`)
+    if (why.length) failed++
+    console.log(`${why.length ? 'FAIL' : 'OK  '} ${c.name}${why.length ? ' -> ' + why.join(', ') : ''}`)
+    continue
+  }
+
   const got = (out.passed[0] ?? out.halted[0]) ?? {}
   const why = []
   const check = (cond, msg) => {

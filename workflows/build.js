@@ -1,6 +1,6 @@
 export const meta = {
   name: 'dev-harness-build',
-  description: 'Run each lane in its own worktree, review it the moment it finishes, and loop fix-and-recheck until the blockers are gone',
+  description: 'Lane engine behind /dev-harness:build — not the entry point. Run the command instead; this refuses unless the boundaries were already frozen',
   phases: [
     { title: 'Develop', detail: 'one worktree-isolated agent per lane' },
     { title: 'Review', detail: 'review, fix and recheck — per lane, no barrier' },
@@ -142,6 +142,17 @@ const planDir = args?.planDir ?? '.plans'
 const conventionsDir = args?.conventionsDir ?? 'conventions'
 const lanes = args?.lanes ?? []
 const boundaries = args?.boundaries ?? []
+
+// One contract test per boundary, owned by no lane, is written before fan-out — that is what
+// holds the interfaces still while every lane edits at once. Invoking this workflow directly
+// skips it, so the caller has to declare it happened.
+if (args?.boundariesFrozen !== true) {
+  log('Boundaries are not frozen. Run /dev-harness:build instead of invoking this workflow.')
+  return {
+    lanes: [],
+    note: 'refused: boundariesFrozen was not true. /dev-harness:build writes one contract test per boundary, owned by no lane, before fanning out; invoking this workflow directly skips that and lets the lanes move the interfaces they are working against.',
+  }
+}
 
 if (!lanes.length) {
   log('No lanes in args. Nothing to build.')
