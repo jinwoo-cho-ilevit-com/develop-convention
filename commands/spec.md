@@ -44,7 +44,9 @@ After `ExitPlanMode` is approved — not before, because plan mode blocks these 
 
 Split as far as file ownership allows. `owns` entries are directory prefixes or individually named files, never globs — a glob is expanded against the files that exist now and misses the ones the work is about to create. Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
 
-List every boundary between lanes with the contract test that will pin it. Those test files belong to no lane and are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches an agent per boundary to write them (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
+List every boundary between lanes with the contract test that will pin it. Those test files belong to no lane and are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches a single agent to write them all, so an object reaching two boundaries gets one definition instead of two (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
+
+Decide here, not at freeze time, which objects cross more than one boundary: give those rows the same `sample` value. One file listed twice is what the two contracts both load, and `build.js` checks each row's path and finds it. Two paths for one object is the shape that cannot be fixed later — the freeze cannot merge them without leaving a path the existence check refuses the build over, and if it does not merge them the object has two definitions that no test compares.
 
 Write the boundary table with these exact keys, because `build.js` reads them and a boundary spelled another way silently drops that lane from three review lenses to one:
 
