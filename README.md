@@ -8,7 +8,7 @@ The [`dev-harness` plugin](#how-to-apply-to-a-new-project) in this repository ru
 
 ## Document Map
 
-Numbers are stable identifiers, not a reading order — the groups below are the order.
+Numbers are stable identifiers, not a reading order. The groups below are the order, and every group after Principles is also a skill: install the harness and it loads itself when that kind of work starts. The skill routes to these documents and never copies them, so what you read here is what an agent reads.
 
 ### Principles
 
@@ -16,7 +16,18 @@ Numbers are stable identifiers, not a reading order — the groups below are the
 |---|---|
 | [00-principles.md](conventions/00-principles.md) | Core principles: fresh start, fresh-context, evidence over claims, fact-based judgment, empirical measurement first |
 
-### Codebase
+Takes precedence over every other document, so it belongs to no single skill and every skill points back at it.
+
+### Plan and delegate — `plan-and-delegate`
+
+| Doc | Contents |
+|---|---|
+| [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, boundary contract tests, worktree fan-out, review on each lane's finish, merge and end-to-end verification |
+| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict), lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
+| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, model routing, spec gating |
+| [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
+
+### Code and config — `code-and-config`
 
 | Doc | Contents |
 |---|---|
@@ -25,57 +36,47 @@ Numbers are stable identifiers, not a reading order — the groups below are the
 | [03-environment.md](conventions/03-environment.md) | uv/ruff toolchain, local↔RunPod portability, device abstraction (CPU fallback) |
 | [13-secret-management.md](conventions/13-secret-management.md) | No hardcoding/committing secrets, central manager (Infisical) injection, reading env in code, container/CI machine identity, scanning/rotation |
 
-### Execution
+### Commit — `commit`
+
+| Doc | Contents |
+|---|---|
+| [17-commit-protocol.md](conventions/17-commit-protocol.md) | Commit protocol: Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting — git log doubles as a research note |
+
+Its own skill rather than part of the group above, because it fires on nearly every change and the rest of that group does not.
+
+### Verify and review — `verify-and-review`
+
+| Doc | Contents |
+|---|---|
+| [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, one fixture per object that crosses boundaries, golden files, tolerance bands, CPU smoke tests, completion verification |
+| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, lanes defined by input (module/project/absence/security), fan-in and severity, review tool paths without pinned model ids |
+| [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, command output with secret masking, provenance, human verdict records, recorded bypasses |
+
+### Data and ML pipelines — `ml-pipeline`
 
 | Doc | Contents |
 |---|---|
 | [04-pipeline.md](conventions/04-pipeline.md) | Small-sample debugging, atomic save + resume, streaming, progress monitoring |
 | [05-performance.md](conventions/05-performance.md) | Async/parallel selection, DataLoader tuning, GPU/RAM profiling, structured logging |
-
-### Verification
-
-| Doc | Contents |
-|---|---|
-| [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, golden files, tolerance bands, CPU smoke tests, completion verification |
-
-### ML and LLM
-
-| Doc | Contents |
-|---|---|
 | [07-ml-development.md](conventions/07-ml-development.md) | Seed/reproducibility, train-serve skew prevention, experiment tracking, checkpoints/spot pods |
 | [08-llm-development.md](conventions/08-llm-development.md) | Training framework routing, FSDP2/bf16, chat template consistency, evaluation reproducibility, LLM-as-judge, data |
 
-### LLM API
+### External sources — `external-sources`
 
 | Doc | Contents |
 |---|---|
-| [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API inference module: adapter structure, calls/rate limits, errors/retries, ensembles, caching/resume, cost/evaluation |
-| [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider-specific considerations (OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + structured output tiered fallback |
 | [12-upstream-docs.md](conventions/12-upstream-docs.md) | Latest-docs reference procedure (4 tiers) + per-provider canonical URL registry + smoke-test confirmation |
+| [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider-specific considerations (OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + structured output tiered fallback |
+| [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API inference module: adapter structure, calls/rate limits, errors/retries, ensembles, caching/resume, cost/evaluation |
+| [16-research-protocol.md](conventions/16-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim requires a source from this research, source tiers (official registry), verification of negative/universal claims, coverage·contradiction resolution |
 
-### Agent collaboration
+Trained-and-served-by-you models are the group above; this one is everything you call over someone else's API, plus the case where external facts are the deliverable rather than an input.
 
-| Doc | Contents |
-|---|---|
-| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, model routing, spec gating |
-| [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
-| [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, boundary contract tests, worktree fan-out, review on each lane's finish, merge and end-to-end verification |
-
-### Work discipline
-
-| Doc | Contents |
-|---|---|
-| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict), lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
-| [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, command output with secret masking, provenance, human verdict records, recorded bypasses |
-| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, lanes defined by input (module/project/absence/security), fan-in and severity, review tool paths without pinned model ids |
-
-### Record-keeping
+### Doc tracking — `docsync`
 
 | Doc | Contents |
 |---|---|
 | [15-doc-tracking.md](conventions/15-doc-tracking.md) | Doc-code synchronization: 4-tier tracking (contract·module·flow·history), docsync skill (incremental sync + audit), managed/human markers, blind rebuild·RMA verification, ADR supersession |
-| [16-research-protocol.md](conventions/16-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim requires a source from this research, source tiers (official registry), verification of negative/universal claims, coverage·contradiction resolution |
-| [17-commit-protocol.md](conventions/17-commit-protocol.md) | Commit protocol: Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting — git log doubles as a research note |
 
 ## How to Apply to a New Project
 
@@ -109,7 +110,18 @@ Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste co
 | `/dev-harness:spec` | Interviews you until the work is specific enough to split, then writes `PLAN.md` and one brief per lane |
 | `/dev-harness:build` | Freezes each boundary with a contract test, fans the lanes out to worktree-isolated agents, reviews each lane the moment it finishes, merges and verifies |
 | `/dev-harness:setup` | Writes the short `AGENTS.md` by hand |
-| `/docsync` | Syncs module docs with the code that changed (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)) |
+
+Seven skills load themselves when the work matches, so you do not have to remember which rules apply. Each routes to the documents in its Document Map group and copies none of them — a rule stays in exactly one place, where it can only be wrong once:
+
+| Skill | Loads when |
+|---|---|
+| `plan-and-delegate` | Work larger than one edit begins — planning, splitting into lanes, deciding what done means, dispatching a subagent |
+| `code-and-config` | Files appear or move, config or dependencies change, a credential is in scope |
+| `commit` | A commit is about to be written |
+| `verify-and-review` | Tests are being chosen or run, a diff is being reviewed, completion is about to be claimed |
+| `ml-pipeline` | A preprocessing, training, or evaluation pipeline is being built, or a model is trained or served here |
+| `external-sources` | Code calls someone else's model API, or external facts are the deliverable |
+| `docsync` | Module docs need to catch up with the code that changed (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)) |
 
 A hook keeps the main session an orchestrator: it plans, splits and judges. The editing tools and shell commands that look like writes prompt for approval, so the default path is a subagent; only a read past the context budget is refused outright. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
 
@@ -225,6 +237,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 - Three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests through the project's real entry point. Only the third catches integration failures.
 - An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order.
+- Store each boundary's representative payload as a file the fixture factory loads. An object crossing more than one boundary gets a single fixture and a single source for its field names and literals: two fixtures for one object are two definitions, both green, because a contract test reads only its own.
 - Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? A test that has never failed is a deletion candidate.
 - Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
 - Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such.

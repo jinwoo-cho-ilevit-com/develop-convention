@@ -6,6 +6,7 @@
 - Use three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests that exercise the assembled project through its real entry point.
 - When work splits into parallel lanes, write each boundary's contract test **before** the lanes start, and give it no lane as owner. Disjoint file ownership stops two lanes writing the same file; it does nothing about the two of them holding contradictory assumptions about what crosses between them, and each lane's own tests pass under its own assumption. The test written first is that assumption in executable form (→ [21-development-loop.md](21-development-loop.md)).
 - Store each boundary's representative payload as a file and have the fixture factory load it, rather than building the boundary shape in code. Two lanes can read a written specification differently; they have a much harder time reading the same `parser_out.sample.json` differently. The file is the truth and the factory supplies the variations — NaN, edge values, bulk.
+- Give an object that crosses more than one boundary a single fixture and a single source for its field names and literal values, and have the other boundaries' contracts load that file. Two fixtures for one object are two definitions, each locally coherent, neither compared against the other, and both green because a contract test reads only its own fixture.
 - Justify each test by three questions: is there a realistic change that would break it, does another test already catch that, and could it ever fail? A test that answers no to any of them should not exist.
 - Cover every completion criterion with an executable check, but not one test per criterion — one test may satisfy several. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
 - Observe every new test failing before it passes: run it at the base commit and keep the output. A test that was never seen red is indistinguishable from one that asserts nothing.
@@ -28,6 +29,8 @@
 | End-to-end smoke | the assembled project | 1-3 per project | integration failures nothing else sees |
 
 The layers are not redundant. Unit tests pass while the pieces fail to fit; a contract test pins the shape of a boundary but not the behaviour across it. Only the third layer answers "does the thing work when it is all connected".
+
+One per boundary counts contracts, not objects. An object that crosses two boundaries appears in two contract tests, and if each carries its own fixture that object now has two definitions — both locally coherent, neither compared against the other, both green, because a contract test reads only its own fixture. Nothing in the suite can express the disagreement; it surfaces later as lanes built against shapes that cannot both be satisfied. Give the object one fixture and one source for its field names and literals, and have the second contract load the first's file.
 
 **What makes a test end-to-end.** All four, or it is a unit test wearing the name:
 
@@ -74,7 +77,7 @@ A test that has never failed, in any run, is a deletion candidate. Either it gua
 
 ### 5. ML test patterns
 
-- **Small-sample fixtures**: a realistic ~100-row sample (NaN, skew, mixed types), never a toy dict. Keep the representative payload for each boundary in `tests/fixtures/<boundary>.sample.json` and have the factory load and vary it — a stored sample is reviewable and is what two lanes can both look at, while a factory alone hides what actually crosses the boundary. Samples extracted from real data go through the masking rules in [13-secret-management.md](13-secret-management.md) before they are committed.
+- **Small-sample fixtures**: a realistic ~100-row sample (NaN, skew, mixed types), never a toy dict. Keep the representative payload in `tests/fixtures/<boundary>.sample.json` — one file per boundary, or one file named by every boundary that carries the same object — and have the factory load and vary it — a stored sample is reviewable and is what two lanes can both look at, while a factory alone hides what actually crosses the boundary. Samples extracted from real data go through the masking rules in [13-secret-management.md](13-secret-management.md) before they are committed.
 - **Tolerance bands**: `assert 0.85 <= auc <= 0.90`, not `assert auc == 0.874`. Bit-exact reproducibility is not guaranteed across hardware (→ [07-ml-development.md](07-ml-development.md)).
 - **Golden files**: store reference outputs and compare with a tolerant diff. Update only via an explicit flag (`--update-golden`).
 - **Seeds**: `PYTHONHASHSEED`, numpy, torch, and CUDA determinism in one session-scoped fixture. Non-deterministic code cannot be tested.

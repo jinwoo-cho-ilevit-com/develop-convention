@@ -141,7 +141,10 @@ def test_nav_lists_what_a_project_still_takes():
     """
     listed = set(nav_paths(mkdocs_config()["nav"]))
     assert "templates/AGENTS.md" in listed
-    assert "skills/docsync/SKILL.md" in listed
+    skills = {f"skills/{p.parent.name}/SKILL.md" for p in (ROOT / "skills").glob("*/SKILL.md")}
+    assert skills, "no skill to publish"
+    unpublished = sorted(skills - listed)
+    assert not unpublished, f"mkdocs nav omits {unpublished}"
     retired = {p for p in listed if p.endswith("templates/contract.md") or "conv-init" in p}
     assert not retired, f"mkdocs nav still publishes retired paths: {sorted(retired)}"
 

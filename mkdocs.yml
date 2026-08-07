@@ -63,6 +63,12 @@ nav:
       - conventions/20-review-gate.md
       - conventions/21-development-loop.md
   - Harness:
+      - skills/plan-and-delegate/SKILL.md
+      - skills/code-and-config/SKILL.md
+      - skills/commit/SKILL.md
+      - skills/verify-and-review/SKILL.md
+      - skills/ml-pipeline/SKILL.md
+      - skills/external-sources/SKILL.md
       - skills/docsync/SKILL.md
       - templates/AGENTS.md
   - Decisions:
