@@ -6,6 +6,7 @@ was never observed refusing is indistinguishable from one that never fires
 """
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -70,6 +71,90 @@ def test_every_command_declares_a_description(path):
     assert body.startswith("---\n"), f"{path.name} has no front matter"
     front = body.split("---", 2)[1]
     assert "description:" in front, f"{path.name} declares no description"
+
+
+SKILLS = sorted((ROOT / "skills").glob("*/SKILL.md"))
+
+
+@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
+def test_every_skill_declares_a_description(path):
+    """A skill is chosen by its description, so one without it never loads at all.
+
+    The name has to be the directory name: the two disagreeing installs a skill under
+    a name nothing points at.
+    """
+    body = path.read_text(encoding="utf-8")
+    assert body.startswith("---\n"), f"{path.parent.name} has no front matter"
+    front = body.split("---", 2)[1]
+    assert "description:" in front, f"{path.parent.name} declares no description"
+    assert f"name: {path.parent.name}\n" in front, (
+        f"{path.parent.name} declares a name that is not its directory"
+    )
+
+
+@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
+def test_every_skill_link_resolves(path):
+    """A skill routes rather than restates, so a dead link is the content gone.
+
+    `mkdocs build --strict` catches this too, but only on a push to main; the routing
+    is worth failing a pull request over.
+    """
+    targets = re.findall(r"\]\(([^)]+)\)", path.read_text(encoding="utf-8"))
+    broken = [
+        target
+        for target in targets
+        if not target.startswith(("http://", "https://", "#"))
+        and not (path.parent / target).exists()
+    ]
+    assert not broken, f"{path.parent.name} links to files that do not exist: {broken}"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [p for p in SKILLS if "Routing procedure" in p.read_text(encoding="utf-8")],
+    ids=lambda p: p.parent.name,
+)
+def test_a_routing_skill_does_not_copy_convention_text(path):
+    """A routing skill says which document decides what; the deciding stays there.
+
+    This catches copied sentences, not paraphrase — a short restatement still needs the
+    review lens (CLAUDE.md, verification item 6). A guard, so it holds at the base commit
+    by design (→ conventions/06-testing-verification.md).
+    """
+    conventions = " ".join(
+        p.read_text(encoding="utf-8") for p in (ROOT / "conventions").glob("*.md")
+    )
+    copied = [
+        line
+        for raw in path.read_text(encoding="utf-8").splitlines()
+        if len(line := raw.strip().lstrip("|-*# ").strip()) >= 40 and line in conventions
+    ]
+    assert not copied, f"{path.parent.name} copies convention text: {copied}"
+
+
+def test_every_convention_is_routed_by_exactly_one_skill():
+    """The skills are how a convention reaches an agent, so one nothing routes to is one
+    nobody loads. Two skills claiming it is the same rule arriving under two triggers.
+
+    00 is the exception by design: it takes precedence over all of them, so every skill
+    points back at it.
+    """
+    routed: dict[str, set[str]] = {}
+    for path in SKILLS:
+        body = path.read_text(encoding="utf-8")
+        for name in re.findall(r"\.\./\.\./conventions/(\d\d-[a-z-]+\.md)", body):
+            routed.setdefault(name, set()).add(path.parent.name)
+
+    everything = {p.name for p in (ROOT / "conventions").glob("*.md")} - {"00-principles.md"}
+    orphaned = sorted(everything - set(routed))
+    assert not orphaned, f"no skill routes to {orphaned}"
+
+    contested = sorted(
+        f"{name} claimed by {sorted(owners)}"
+        for name, owners in routed.items()
+        if name in everything and len(owners) > 1
+    )
+    assert not contested, f"more than one skill routes to the same convention: {contested}"
 
 
 # --- the guard, executed --------------------------------------------------------------------

@@ -17,10 +17,11 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 - Specific factual claims (a tool's deprecated status, research numbers, comparison results) must carry a source URL in that section. Numbers/claims not verified by research are omitted or marked "unverified". General engineering advice needs no source.
 - When editing a doc, check that README.md's doc map and full rules summary do not contradict it, and update them together.
 - New docs follow the `NN-topic.md` numbering scheme and are added to the README doc map.
+- A `skills/*/SKILL.md` is one of two kinds and declares which in its opening line. A **routing procedure** says which conventions govern a kind of work and in what order, and carries no rule text of its own — a copied Core Rule is the second copy 15 forbids. An **execution procedure** (`docsync`) carries the steps for running one convention, which that convention's Details does not hold. Neither restates what the other place already states. A new skill needs a Document Map group naming it and an entry in `mkdocs.yml`.
 
 ## Verification
 
-- Cross-check before completion: (1) every conventions doc has `## Core Rules` as its first body heading, (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) no tool-call residue and every doc-map link resolves.
+- Cross-check before completion: (1) every conventions doc has `## Core Rules` as its first body heading, (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) no tool-call residue and every doc-map link resolves, (6) no skill restates a rule it should be routing to.
 - A claim that two rules conflict, or that a rule lives somewhere, quotes the actual file. The same holds for refuting one: name the tool version you tested with, and make it the version this repo pins.
 - Sizable changes go through fresh-context review lanes (→ `conventions/20-review-gate.md`), which this repo applies to itself.
 
