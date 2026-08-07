@@ -1,8 +1,8 @@
 {
   "name": "dev-harness",
   "displayName": "Development Harness",
-  "version": "0.2.5",
-  "description": "Runs the development conventions in this repository: interview-driven planning, delegated execution in parallel lanes, and review that starts the moment a lane finishes.",
+  "version": "0.3.0",
+  "description": "Runs the development conventions in this repository: skills that load the rules the work at hand needs, interview-driven planning, delegated execution in parallel lanes, and review that starts the moment a lane finishes.",
   "author": {
     "name": "Jinwoo Cho",
     "email": "jinwoo.cho@ilevit.com"
