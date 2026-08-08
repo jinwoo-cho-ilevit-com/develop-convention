@@ -20,33 +20,50 @@ Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc
 
 | Command | Behavior |
 |---|---|
-| `/docsync` | Incrementally syncs only the modules changed between the last sync commit and HEAD. If no state file exists (first run), all modules = bootstrap |
+| `/docsync` | Syncs each module whose directory changed since that module's own last verified commit. With no state files at all (first run), every module = bootstrap |
 | `/docsync <path>` | Scoped run for that module only |
 | `/docsync --audit` | Audit mode: dead-man check + blind rebuild + global consistency |
 
 ## State Files
 
-`.docsync/` (do not gitignore — state is also subject to review):
+`.docsync/` is committed, not gitignored — the state is reviewable, and a teammate who cannot see it re-bootstraps from nothing every time.
+
+One file per documented directory. A single shared file was rewritten whole on every sync, so two people syncing unrelated modules collided on nearly every line, and a hand-merged result recorded hashes matching neither tree — which silently disables the RMA check those hashes exist for.
 
 ```json
-// .docsync/state.json
+// .docsync/src__parser__AGENTS.md.json
 {
-  "last_sync_commit": "<sha>",
-  "last_audit_commit": "<sha>",
+  "doc": "src/parser/AGENTS.md",
+  "verified_commit": "<sha>",
+  "verified_at": "<YYYY-MM-DD>",
+  "audited_at": "<YYYY-MM-DD>",
   "sections": {
-    "<doc-path>#<section-id>": {
-      "hash": "<sha256 of managed block content>",
-      "verified_commit": "<sha>",
-      "verified_at": "<YYYY-MM-DD>"
-    }
+    "overview": { "hash": "<sha256 of managed block content>" }
   }
 }
 ```
+
+**Flat, not under a subdirectory.** `.docsync/docs/` is swallowed by the bare `docs/` line most projects carry for their site build output, and state that is silently ignored is worse than state that is absent.
+
+**The file name** is the doc path with `/` replaced by `__`. Two agents must derive the same name from the same path, so the rule is mechanical. It is not injective — `a/b__c/AGENTS.md` and `a/b/c/AGENTS.md` produce one name, and `__tests__` directories are real — so when the name is taken by a file whose `doc` is a different path, append `-` and the first 8 hex characters of the sha256 of the doc path. `doc` is the authority; the file name is an index into it.
+
+**The verified commit is per document, not per section.** Scope, the dead-man check and staleness all judge a document as a whole, and a per-section commit leaves "the document's commit" undefined the moment one section is regenerated and another is not.
+
+**There is no global commit pointer.** A module skipped this round keeps its own older commit and stays in scope, instead of being marked synced by a pointer that moved without it.
+
+**Never hand-merge a state file.** Two people syncing the same document produce different hashes for the same section, and a merged result records hashes matching neither tree. Resolve by deleting the file and re-running sync for that module — the state is derived, so recomputing it is cheaper than reasoning about it.
 
 ```jsonl
 // .docsync/corrections.jsonl — append-only
 {"path": "...", "section": "...", "reason": "wrong|stale|unclear|granularity", "note": "...", "commit": "<sha>", "at": "<YYYY-MM-DD>"}
 ```
+
+```
+// .docsync/.gitattributes
+corrections.jsonl merge=union
+```
+
+`union` is a built-in git driver, so an append from each side survives a merge with nothing to configure. It is right for an append-only log and wrong for the state files, which is why they are separate files.
 
 ## Module Doc Format
 
@@ -82,9 +99,15 @@ Non-obvious constraints, easy-to-make mistakes.
 
 ## Sync Procedure
 
-### 0. RMA Detection (first step every run)
+### 0. Housekeeping (before anything reads state)
 
-Compare each managed block's current hash against state.json. **Hash mismatch + no corresponding code change for that doc = a human edited it.** Do not silently revert or overwrite — instead:
+1. **Migrate** if `.docsync/state.json` is present. Its section keys are `"<doc-path>#<section-id>"`: split on the last `#`, group by the doc path, and write one file per group — `doc` set to that path, each section keyed by the id alone, `verified_commit`/`verified_at` taken from any section of that document since they were written together. Drop the two global pointers and delete `state.json` in the same run. Audit history is not recoverable from them, so every document sorts first in the audit rotation once.
+2. **Write `.docsync/.gitattributes`** if it is missing — not only on a first run. A repo that migrates never passes through bootstrap, and those are exactly the repos whose corrections log is long enough to collide.
+3. **Drop orphans**: any state file whose `doc` path no longer exists. If `git log --diff-filter=R --name-status` shows that document was renamed, move the state file to the new name instead of deleting it — its section hashes are the RMA baseline, and losing them makes the next run read every block as a human edit. An orphan left in place also pins the dead-man check at a commit that will never advance.
+
+### 1. RMA Detection
+
+Compare each managed block's current hash against the hash recorded in that document's own state file. **Hash mismatch + no corresponding code change for that doc = a human edited it.** Do not silently revert or overwrite — instead:
 
 1. Show a summary of the before/after diff and ask the reason once, as multiple choice: `wrong` (content is incorrect) / `stale` (behind the code) / `unclear` (ambiguous) / `granularity` (wrong level of detail). The LLM proposes an estimated default and the user only confirms.
 2. Append to `.docsync/corrections.jsonl`.
@@ -92,13 +115,15 @@ Compare each managed block's current hash against state.json. **Hash mismatch + 
 
 If contradictory reason codes accumulate on the same section (e.g. once "too long", once "too short"), propose excluding that section from managed and demoting it to human ownership.
 
-### 1. Scope Calculation
+### 2. Scope Calculation
 
-- `state.json` exists: use `git diff --name-only <last_sync_commit>..HEAD` for changed files → list of owning modules (directories).
-- Does not exist (bootstrap): all modules. A module unit is "a directory with cohesive responsibility" — don't over-split (roughly 2+ Python files per directory, or an entry point).
+- A document with a state file: `git diff --name-only <its verified_commit>..HEAD -- <its directory>`. Non-empty puts that module in scope. Each document is judged against its own commit, so one that was skipped stays in scope until it is actually synced.
+- A directory with no state file has never been synced, so it is in scope. No state files at all is the first run: every module.
+- A document at the repository root, such as `ARCHITECTURE.md`, has the root as its directory, which changes on nearly every commit. Judge it by step 4's triggers instead — a changed dependency graph or entry-point flow — rather than by that diff being non-empty.
+- A module unit is "a directory with cohesive responsibility" — don't over-split (roughly 2+ Python files per directory, or an entry point).
 - Before editing docs, resolve symlinks to their canonical path (to prevent accidentally editing an alias).
 
-### 2. Per-Module Update
+### 3. Per-Module Update
 
 For each module (independent, so can run in parallel; delegate to a subagent if context is tight):
 
@@ -110,33 +135,37 @@ For each module (independent, so can run in parallel; delegate to a subagent if 
    - Reflect corrections' reason codes as negative examples (e.g. avoid the same mistake if there's a `granularity` history).
    - Update the verification stamp (`> Verified: <sha> (<date>)`).
 
-### 3. Global Pass
+### 4. Global Pass
 
 1. Regenerate the dependency graph with a deterministic tool: pydeps (Python) / madge (JS/TS) output → convert to Mermaid → insert into ARCHITECTURE.md. The LLM does not draw it.
 2. If the change touched entry-point flow, update the corresponding sequence diagram.
 3. Check for narrative contradictions among the module docs updated this round (both claiming the same responsibility, mismatched call direction, etc.).
 
-### 4. Flag ADR Candidates
+### 5. Flag ADR Candidates
 
 If the following are detected in this diff, report **only a list of questions** as ADR candidates (authoring happens after human approval): dependency added/removed, public interface changed, module structure changed, technology choice changed, rollback/revert. Attach a one-line question asking "why was this done this way" to each item.
 
-### 5. Verification
+### 6. Verification
 
 Hand the diff and criteria — never the authoring session's reasoning — to a fresh-context review (a separate subagent or session), which may read the referenced code to confirm: (1) no edits outside the managed block, (2) updated narrative matches the code, (3) no uncitable claims. Do not self-approve in the authoring context.
 
-### 6. Wrap-up
+### 7. Wrap-up
 
-Update `state.json` (last_sync_commit = HEAD, recompute section hashes), then report: list of updated files / ADR candidate questions / RMA handling record / unresolved flags.
+Write a state file for each document this run regenerated **and for each whose hash step 1 adopted**. An RMA-only document has no code diff, so it never enters scope; without persisting the adopted hash it re-prompts and appends a duplicate correction on every run, forever.
+
+Recompute section hashes in both cases. Advance `verified_commit` to HEAD and `verified_at` to today only for documents regenerated against the code — adopting a human edit records what the text now says, not that anyone checked it against the code. Documents nobody touched keep the commit they were verified at; writing HEAD to them is the shared-pointer bug in a new shape.
+
+Then report: list of updated files / ADR candidate questions / RMA handling record / unresolved flags.
 
 ## Audit Procedure (`--audit`)
 
 ### 1. Dead-Man Check
 
-If the elapsed time since `last_sync_commit` exceeds the threshold (recommended default: 30 commits or 14 days), **warn about that fact before inspecting the docs.** A dead sync looks identical to a healthy one.
+Run sync step 0's housekeeping first, so an orphaned state file cannot pin the answer. Then: if the oldest `verified_commit` across the state files is further behind HEAD than the threshold in commits, or the oldest `verified_at` is further back than the threshold in days (recommended defaults: 30 commits, 14 days), **warn about that fact before inspecting the docs.** A dead sync looks identical to a healthy one. The oldest rather than the newest, because one actively edited module keeps a newest-commit reading fresh while everything around it rots.
 
 ### 2. Target Selection
 
-Staleness score = time elapsed since last audit × that module's churn (commit count). Only inspect the top K (recommended default: 3-5, a cost cap) this round; rotate the rest to the next round.
+Staleness score = time elapsed since that document's `audited_at` × that module's churn (commit count). A document with no `audited_at` has never been audited and sorts first. Only inspect the top K (recommended default: 3-5, a cost cap) this round; rotate the rest to the next round.
 
 ### 3. Blind rebuild
 
@@ -155,6 +184,8 @@ Judgment results are submitted as a report, not auto-applied (hallucination dele
 ### 5. Freshness Banner
 
 Insert a banner at the top of the managed block for any doc whose verification stamp exceeds the threshold (recommended default: 90 days or 100 commits): `> STALE: this section has not been verified since <date> — may differ from the code`.
+
+Then set `audited_at` on every document inspected this round. Without it the rotation in step 2 keeps picking the same modules and the rest are never reached.
 
 ## Cost Cap
 

@@ -96,7 +96,18 @@ def test_the_stamp_check_would_catch_an_old_stamp():
 
 # --- no document sends a reader to a tool that was retired --------------------------------
 
-RETIRED = ("templates/scripts", "contract.py", "verify: human", "`revision`", "schema_version")
+RETIRED = (
+    "templates/scripts",
+    "contract.py",
+    "verify: human",
+    "`revision`",
+    "schema_version",
+    "state.json",
+    "last_sync_commit",
+    "last_audit_commit",
+    "the last sync commit",
+    "last documented commit",
+)
 
 
 @pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)

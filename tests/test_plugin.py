@@ -144,6 +144,39 @@ def test_a_routing_skill_does_not_copy_convention_text(path):
     assert not copied, f"{path.parent.name} copies convention text: {copied}"
 
 
+@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
+def test_no_skill_specifies_the_retired_shared_state(path):
+    """One `.docsync/state.json` for every document collided between people syncing
+    unrelated modules, and a hand-merged result recorded hashes matching neither tree —
+    which disables the RMA check that hash exists for.
+
+    The old filename survives in exactly one place, the migration step that reads it once
+    and deletes it, so the global fields are what this pins rather than the name.
+    """
+    body = path.read_text(encoding="utf-8")
+    for field in ("last_sync_commit", "last_audit_commit"):
+        assert field not in body, f"{path.parent.name} still carries the global {field}"
+    for line in body.splitlines():
+        if "state.json" in line:
+            assert "Migrate" in line, (
+                f"{path.parent.name} names state.json outside the migration step: {line.strip()}"
+            )
+
+
+def test_docsync_still_says_how_to_leave_the_shared_state_behind():
+    """The check above passes if the migration step is deleted outright — its loop body
+    simply never runs. A repository that upgrades mid-life needs the step to be there, and
+    needs it to say how the old keys split, which is the one thing a reader cannot infer
+    once the old layout is gone from the document.
+    """
+    body = (ROOT / "skills" / "docsync" / "SKILL.md").read_text(encoding="utf-8")
+    assert "state.json" in body, "the migration step naming the old layout is gone"
+    assert "<doc-path>#<section-id>" in body, "migration does not say how the old keys split"
+    assert "// .docsync/src__parser__AGENTS.md.json" in body, (
+        "the state file example is not flat under .docsync/, which a bare `docs/` ignore eats"
+    )
+
+
 def test_every_convention_is_routed_by_exactly_one_skill():
     """The skills are how a convention reaches an agent, so one nothing routes to is one
     nobody loads. Two skills claiming it is the same rule arriving under two triggers.
