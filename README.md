@@ -95,7 +95,7 @@ Then run `/dev-harness:setup` once in each project. It reads the repository, pro
 claude plugin update dev-harness
 ```
 
-Then run `/reload-plugins`, or restart. Skills take effect immediately in a running session; hooks, MCP servers, agents and output styles do not (→ <https://code.claude.com/docs/en/plugins-reference>). Between the update and the reload the hooks do not fire at all, so the delegation guard is off rather than merely stale — measured in this repository, not documented upstream.
+Then run `/reload-plugins`, or restart. Skills take effect immediately in a running session; hooks, MCP servers, agents and output styles do not (→ <https://code.claude.com/docs/en/plugins-reference>). Between the update and the reload the hooks do not fire at all, so the read budget is not merely stale but unenforced — measured in this repository, not documented upstream.
 
 To see which copy is actually running, read `~/.claude/plugins/installed_plugins.json` — it records the active install path, its version and the git commit it was built from, so the live copy is identifiable without inferring it from how a hook behaves.
 

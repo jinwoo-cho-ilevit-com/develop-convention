@@ -218,6 +218,60 @@ def test_a_large_read_is_refused_and_a_small_one_is_not(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_the_read_budget_is_the_one_the_environment_asks_for(tmp_path):
+    """The refusal message advertises this variable, so it has to move the threshold.
+
+    Metering reads is now the whole hook, and the override had no test at all.
+    """
+    page = tmp_path / "page.py"
+    page.write_text("x = 1\n" * 300, encoding="utf-8")
+    payload = {"tool_name": "Read", "tool_input": {"file_path": str(page)}}
+    assert decision(payload, {"DEV_HARNESS_READ_LIMIT": "100"}) == "deny"
+    assert decision(payload, {"DEV_HARNESS_READ_LIMIT": "900"}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("limit", ["", "lots", "500x"])
+def test_an_unusable_read_budget_falls_back_and_still_decides(limit, tmp_path):
+    """A limit that is not a line count must not leave the comparison to run on it.
+
+    An empty `limit` makes the arithmetic test error out, and with no `set -e` the script
+    would reach its final `exit 0` — a silent global allow, from a typo in a settings file.
+    """
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    payload = {"tool_name": "Read", "tool_input": {"file_path": str(big)}}
+    assert decision(payload, {"DEV_HARNESS_READ_LIMIT": limit}) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_a_bounded_read_costs_what_it_asks_for(tmp_path):
+    """Judging a 20-line window by the size of the file refuses the cheap request and
+    leaves raising the limit or bypassing the guard as the only ways through."""
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 5000, encoding="utf-8")
+    windowed = lambda n: {  # noqa: E731
+        "tool_name": "Read",
+        "tool_input": {"file_path": str(big), "limit": n},
+    }
+    assert decision(windowed(20)) == "allow"
+    assert decision(windowed(900)) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_one_enormous_line_is_judged_by_bytes(tmp_path):
+    """A minified bundle is one line and still costs the context the limit protects.
+
+    Every other fixture here is short lines, so the line clause always decided first and
+    the byte ceiling never did.
+    """
+    bundle = tmp_path / "bundle.min.js"
+    bundle.write_text("var a=1;" * 20_000, encoding="utf-8")
+    assert len(bundle.read_text().splitlines()) == 1
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(bundle)}}) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_the_orchestrator_may_read_its_own_plan(tmp_path):
     """Blocking the orchestrator from its own brief defeats what the guard exists for."""
     plan = tmp_path / ".plans" / "feature"
@@ -270,6 +324,33 @@ def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
     brief.parent.mkdir(parents=True, exist_ok=True)
     brief.write_text("# plan\n" * 900, encoding="utf-8")
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(brief)}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("path", [".plans/f/PLAN.md", "AGENTS.md"])
+def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
+    """Each exemption carries a leading alternative and a `*/` one.
+
+    Every fixture built under `tmp_path` is absolute, so only the second was ever reached
+    and the first could be deleted with the suite still green.
+    """
+    target = tmp_path / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("# long\n" * 900, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
+    """`../.plans/x.md` still matches `*/.plans/*`, so only the `../*` alternative stops it."""
+    brief = tmp_path / ".plans" / "x.md"
+    brief.parent.mkdir(parents=True)
+    brief.write_text("# plan\n" * 900, encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    monkeypatch.chdir(tmp_path / "sub")
+    assert Path("../.plans/x.md").is_file(), "the spelling must resolve, or this proves nothing"
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": "../.plans/x.md"}}) == "deny"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
@@ -351,6 +432,7 @@ def test_the_guard_refuses_and_never_prompts(tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(big)}}) == "deny"
     ungated = (
         {"tool_name": "Edit", "tool_input": {"file_path": str(big)}},
+        {"tool_name": "MultiEdit", "tool_input": {"file_path": str(big)}},
         {"tool_name": "Write", "tool_input": {"file_path": "src/app.py"}},
         {"tool_name": "NotebookEdit", "tool_input": {"file_path": "nb.ipynb"}},
         {"tool_name": "Bash", "tool_input": {"command": "echo hi > out.txt"}},

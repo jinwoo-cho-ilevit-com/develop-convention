@@ -8,8 +8,9 @@
 # 21-development-loop.md). Nothing here stops the main session from editing, so a run that
 # passed the hook is not evidence it stayed out of the tree.
 #
-# A guard that cannot decide must not be the one that says yes. Every path below either
-# reaches a decision or denies with a reason — none of them fall through to allow.
+# Falling through to allow is the normal outcome and always was the majority of them. The
+# two paths that must never do it are the ones where the guard cannot see: no jq, or a
+# payload that will not parse. A guard that cannot decide must not be the one that says yes.
 set -uo pipefail
 
 DEFAULT_READ_LINE_LIMIT=500
