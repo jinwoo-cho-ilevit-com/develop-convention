@@ -123,7 +123,7 @@ Seven skills load themselves when the work matches, so you do not have to rememb
 | `external-sources` | Code calls someone else's model API, or external facts are the deliverable |
 | `docsync` | Module docs need to catch up with the code that changed (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)) |
 
-A hook keeps the main session an orchestrator: it plans, splits and judges. The editing tools and shell commands that look like writes prompt for approval, so the default path is a subagent; only a read past the context budget is refused outright. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
+The main session orchestrates: it plans, splits and judges, and sends the editing to subagents. That is a convention the documents state rather than something the plugin enforces — the one hook it ships refuses a read past the context budget and lets everything else through, because a prompt on every edit is paid on the common path and still cannot hold a rule a pattern match is unable to judge. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
 
 `/dev-harness:build` reports one outcome per lane. Only the first is a completion:
 
