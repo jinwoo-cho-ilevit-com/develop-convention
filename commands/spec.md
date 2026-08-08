@@ -5,9 +5,9 @@ argument-hint: '<what you want to build>'
 
 Specify: $ARGUMENTS
 
-Interview first, plan mode second. Sections 1 and 2 run in the ordinary session; call `EnterPlanMode` only once the axes are settled, present the plan there, and write section 3's files after `ExitPlanMode` is approved. Plan mode refuses every write, `.plans/` included, so a plan drafted inside it cannot land — and the interview does not need that block, because this plugin's own hook already holds the main session to reading and asking.
+Interview first, plan mode second. Sections 1 and 2 run in the ordinary session; call `EnterPlanMode` only once the axes are settled, present the plan there, and write section 3's files after `ExitPlanMode` is approved. Plan mode refuses every write, `.plans/` included, so a plan drafted inside it cannot land — and the interview does not need that block, because sections 1 and 2 do nothing but read and ask.
 
-The hook does not hold subagents: anything carrying an `agent_id` goes through. Interview with read-only agents only, and dispatch nothing that writes until the plan is approved. That is a norm rather than a boundary (→ `${CLAUDE_PLUGIN_ROOT}/conventions/21-development-loop.md` §3).
+Nothing mechanical stops a write during the interview: the hook meters reads rather than edits, and anything carrying an `agent_id` is exempt from even that. Interview with read-only agents only, and dispatch nothing that writes until the plan is approved. That is a norm rather than a boundary (→ `${CLAUDE_PLUGIN_ROOT}/conventions/21-development-loop.md` §3).
 
 The user decides when the interview is over, not you.
 

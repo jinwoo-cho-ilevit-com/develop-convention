@@ -51,6 +51,18 @@ def test_declared_component_paths_exist():
     assert not missing, f"the plugin declares components that do not exist: {missing}"
 
 
+def test_the_hook_only_intercepts_reads():
+    """The guard decides one thing: whether a read fits the orchestrator's budget.
+
+    Matching the editing tools spent a prompt on every edit to enforce a norm the guard
+    cannot hold, and matching Bash spent a subprocess on every command to reach a pattern
+    match that called itself a speed bump (→ conventions/21-development-loop.md §3).
+    """
+    entries = load(ROOT / "hooks" / "hooks.json")["hooks"]["PreToolUse"]
+    matchers = {entry["matcher"] for entry in entries}
+    assert matchers == {"Read"}, f"the guard is wired to more than Read: {sorted(matchers)}"
+
+
 def test_hook_config_points_at_a_file_that_exists():
     config = load(ROOT / "hooks" / "hooks.json")
     for entry in config["hooks"]["PreToolUse"]:
@@ -178,16 +190,20 @@ def decision(payload: dict, env: dict | None = None) -> str:
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize("tool", ["Edit", "Write", "NotebookEdit"])
-def test_the_main_session_is_asked_before_it_edits(tool):
-    assert decision({"tool_name": tool, "tool_input": {"file_path": "a.py"}}) == "ask"
+def test_a_subagent_may_read_past_the_budget(tmp_path):
+    """`agent_id` is present only inside a subagent call. That is the whole test.
 
-
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize("tool", ["Edit", "Write", "NotebookEdit"])
-def test_a_subagent_may_edit(tool):
-    """`agent_id` is present only inside a subagent call. That is the whole test."""
-    payload = {"agent_id": "a1", "agent_type": "executor", "tool_name": tool, "tool_input": {}}
+    The budget belongs to the orchestrator. A lane reading the module it was given is the
+    thing the budget exists to make affordable, not the thing it guards against.
+    """
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    payload = {
+        "agent_id": "a1",
+        "agent_type": "executor",
+        "tool_name": "Read",
+        "tool_input": {"file_path": str(big)},
+    }
     assert decision(payload) == "allow"
 
 
@@ -199,6 +215,60 @@ def test_a_large_read_is_refused_and_a_small_one_is_not(tmp_path):
     read = lambda p: {"tool_name": "Read", "tool_input": {"file_path": str(p)}}  # noqa: E731
     assert decision(read(big)) == "deny"
     assert decision(read(small)) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_the_read_budget_is_the_one_the_environment_asks_for(tmp_path):
+    """The refusal message advertises this variable, so it has to move the threshold.
+
+    Metering reads is now the whole hook, and the override had no test at all.
+    """
+    page = tmp_path / "page.py"
+    page.write_text("x = 1\n" * 300, encoding="utf-8")
+    payload = {"tool_name": "Read", "tool_input": {"file_path": str(page)}}
+    assert decision(payload, {"DEV_HARNESS_READ_LIMIT": "100"}) == "deny"
+    assert decision(payload, {"DEV_HARNESS_READ_LIMIT": "900"}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("limit", ["", "lots", "500x"])
+def test_an_unusable_read_budget_falls_back_and_still_decides(limit, tmp_path):
+    """A limit that is not a line count must not leave the comparison to run on it.
+
+    An empty `limit` makes the arithmetic test error out, and with no `set -e` the script
+    would reach its final `exit 0` — a silent global allow, from a typo in a settings file.
+    """
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    payload = {"tool_name": "Read", "tool_input": {"file_path": str(big)}}
+    assert decision(payload, {"DEV_HARNESS_READ_LIMIT": limit}) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_a_bounded_read_costs_what_it_asks_for(tmp_path):
+    """Judging a 20-line window by the size of the file refuses the cheap request and
+    leaves raising the limit or bypassing the guard as the only ways through."""
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 5000, encoding="utf-8")
+    windowed = lambda n: {  # noqa: E731
+        "tool_name": "Read",
+        "tool_input": {"file_path": str(big), "limit": n},
+    }
+    assert decision(windowed(20)) == "allow"
+    assert decision(windowed(900)) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_one_enormous_line_is_judged_by_bytes(tmp_path):
+    """A minified bundle is one line and still costs the context the limit protects.
+
+    Every other fixture here is short lines, so the line clause always decided first and
+    the byte ceiling never did.
+    """
+    bundle = tmp_path / "bundle.min.js"
+    bundle.write_text("var a=1;" * 20_000, encoding="utf-8")
+    assert len(bundle.read_text().splitlines()) == 1
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(bundle)}}) == "deny"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
@@ -225,79 +295,84 @@ def test_a_binary_read_is_not_judged_by_line_count(tmp_path):
     [[], {}, 0, "null", " ", "\t"],
     ids=["array", "object", "zero", "str-null", "space", "tab"],
 )
-def test_only_a_real_agent_id_counts_as_a_subagent(agent_id):
+def test_only_a_real_agent_id_counts_as_a_subagent(agent_id, tmp_path):
     """The gate hangs on this one field, so anything but a non-blank string must not open it.
 
     jq renders `[]`, `{}` and `0` as non-empty text, so a bare emptiness test read every one
-    of them as a subagent marker and allowed the edit.
+    of them as a subagent marker and waved the read through.
     """
-    payload = {"agent_id": agent_id, "tool_name": "Edit", "tool_input": {"file_path": "a.py"}}
-    assert decision(payload) == "ask"
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    payload = {
+        "agent_id": agent_id,
+        "tool_name": "Read",
+        "tool_input": {"file_path": str(big)},
+    }
+    assert decision(payload) == "deny"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize(
-    "command",
-    ["echo x > f", "cat a >> b", "sed -i '' s/a/b/ f", "cat x | tee f", "git apply p.patch"],
-)
-def test_the_shell_write_forms_it_claims_to_catch_are_caught(command):
-    """Editing through Bash is editing. The guard cannot catch every form (→ 21 §3), but a
-    form it advertises and misses is worse than an admitted gap."""
-    assert decision({"tool_name": "Bash", "tool_input": {"command": command}}) == "ask"
-
-
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize(
-    "command",
-    [
-        "git status --short",
-        "uv run pytest -q 2>/dev/null",
-        "grep -q x f >/dev/null",
-        "make 2>&1 | tail -5",
-    ],
-)
-def test_read_only_shell_work_is_not_blocked(command):
-    """The orchestrator lives in the shell. A guard that stops `git status` gets turned off."""
-    assert decision({"tool_name": "Bash", "tool_input": {"command": command}}) == "allow"
-
-
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize(
-    "path", [".plans/f/release..notes.md", ".plans/f/v1..2.md", ".plans/f/PLAN.md"]
-)
-def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(path):
+@pytest.mark.parametrize("name", ["release..notes.md", "v1..2.md", "PLAN.md"])
+def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
     """The first traversal guard matched two dots anywhere, not a `..` path segment.
 
     Feature names come from the user and nothing forbids this spelling, so the orchestrator
-    was refused the plan file it was told to write — a fix that shut the door it opened and
-    one next to it.
+    was refused the plan file it was told to work from — a fix that shut the door it opened
+    and one next to it.
     """
-    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "allow"
+    brief = tmp_path / ".plans" / "f" / name
+    brief.parent.mkdir(parents=True, exist_ok=True)
+    brief.write_text("# plan\n" * 900, encoding="utf-8")
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(brief)}}) == "allow"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize(
-    "path",
-    [
-        ".plans/../src/app.js",
-        "/x/.plans/../../etc/passwd",
-        ".plans/a/../../src/b.py",
-        "../.plans/x.md",
-    ],
-)
-def test_the_plan_exemption_does_not_reach_outside_the_plan(path):
+@pytest.mark.parametrize("path", [".plans/f/PLAN.md", "AGENTS.md"])
+def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
+    """Each exemption carries a leading alternative and a `*/` one.
+
+    Every fixture built under `tmp_path` is absolute, so only the second was ever reached
+    and the first could be deleted with the suite still green.
+    """
+    target = tmp_path / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("# long\n" * 900, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "allow"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
+    """`../.plans/x.md` still matches `*/.plans/*`, so only the `../*` alternative stops it."""
+    brief = tmp_path / ".plans" / "x.md"
+    brief.parent.mkdir(parents=True)
+    brief.write_text("# plan\n" * 900, encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    monkeypatch.chdir(tmp_path / "sub")
+    assert Path("../.plans/x.md").is_file(), "the spelling must resolve, or this proves nothing"
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": "../.plans/x.md"}}) == "deny"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
+@pytest.mark.parametrize("spelling", [".plans/../src/app.js", ".plans/a/../../src/app.js"])
+def test_the_plan_exemption_does_not_reach_outside_the_plan(spelling, tmp_path):
     """The exemption made a guarded path bypassable.
 
-    `.plans/../src/app.js` contains the exempt segment and resolves outside it, so a Write
-    that the guard would otherwise ask about was allowed by spelling it through a parent.
+    `.plans/../src/app.js` contains the exempt segment and resolves outside it, so a read
+    the guard would otherwise refuse was allowed by spelling it through a parent.
     """
-    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "ask"
+    (tmp_path / ".plans" / "a").mkdir(parents=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.js").write_text("x = 1\n" * 900, encoding="utf-8")
+    path = f"{tmp_path}/{spelling}"
+    assert Path(path).is_file(), "the spelling must resolve, or the test proves nothing"
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "deny"
 
 
 def test_the_declared_bypass_works_without_jq(tmp_path):
     """Its own refusal message told the reader to set this variable, and the check that
-    read the variable sat below the refusal. With Bash hooked too, a jq-less machine denied
-    the command that would have installed jq."""
+    read the variable sat below the refusal, so a jq-less machine had no way to reach the
+    escape hatch its own error message advertised."""
     empty_bin = tmp_path / "bin"
     empty_bin.mkdir()
     for tool in ("bash", "cat", "grep", "sed", "wc", "tr", "printf"):
@@ -310,7 +385,7 @@ def test_the_declared_bypass_works_without_jq(tmp_path):
 
     result = subprocess.run(
         [str(empty_bin / "bash"), str(GUARD)],
-        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "brew install jq"}}),
+        input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
         capture_output=True,
         text=True,
         env={"PATH": str(empty_bin), "DEV_HARNESS_ALLOW_MAIN": "1"},
@@ -321,46 +396,49 @@ def test_the_declared_bypass_works_without_jq(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-def test_the_orchestrator_may_write_its_own_plan(tmp_path):
-    """The plugin's own commands tell the main session to write these files.
+@pytest.mark.parametrize("where", ["AGENTS.md", "src/parser/AGENTS.md"])
+def test_the_orchestrator_may_read_agents_md(where, tmp_path):
+    """`/dev-harness:setup` writes this file and the other two commands read it back.
 
-    The exemption used to sit inside the Read branch, so `/dev-harness:spec` was instructed
-    to produce a plan the same plugin's hook refused to let it write.
+    A project that documented its commands at length was then refused the file that holds
+    them, which is the one artifact the rest of the plugin depends on.
     """
-    brief = tmp_path / ".plans" / "feature" / "PLAN.md"
-    for path in (str(brief), ".plans/feature/PLAN.md"):
-        assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "allow"
+    path = tmp_path / where
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# commands\n" * 900, encoding="utf-8")
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(path)}}) == "allow"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize("path", ["AGENTS.md", "/x/y/AGENTS.md", "src/parser/AGENTS.md"])
-def test_the_orchestrator_may_write_agents_md(path):
-    """`/dev-harness:setup` writes this file from the main session, and the other two
-    commands ask for it when a command is missing. Refusing it made the guard block the
-    artifact the rest of the plugin depends on."""
-    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "allow"
-
-
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-@pytest.mark.parametrize("path", ["AGENTS.md.bak", "src/AGENTS.mdx", "notAGENTS.md"])
-def test_the_agents_exemption_matches_the_whole_name(path):
+@pytest.mark.parametrize("name", ["AGENTS.md.bak", "AGENTS.mdx", "notAGENTS.md"])
+def test_the_agents_exemption_matches_the_whole_name(name, tmp_path):
     """A prefix or suffix match would exempt any file whose name merely contains it."""
-    assert decision({"tool_name": "Write", "tool_input": {"file_path": path}}) == "ask"
+    path = tmp_path / name
+    path.write_text("# notes\n" * 900, encoding="utf-8")
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(path)}}) == "deny"
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-def test_a_guess_asks_and_an_exact_test_refuses(tmp_path):
-    """The heuristic paths escalate to the person; the one exact budget check does not.
+def test_the_guard_refuses_and_never_prompts(tmp_path):
+    """One refusal, no prompt.
 
-    A shell command cannot be judged without a shell parser, so a refusal there is a guess
-    with no cheap appeal. An over-budget read has no false positive and a better
-    alternative, so it stays a refusal.
+    It used to ask before the editing tools and before shell commands that looked like
+    writes, which spent a prompt on the common path to enforce a norm it could not actually
+    hold (→ conventions/21-development-loop.md §3). What is left has no false positive and a
+    strictly better alternative, so it refuses rather than asking.
     """
     big = tmp_path / "big.py"
     big.write_text("x = 1\n" * 900, encoding="utf-8")
-    assert decision({"tool_name": "Write", "tool_input": {"file_path": "src/app.py"}}) == "ask"
-    assert decision({"tool_name": "Bash", "tool_input": {"command": "echo hi > out.txt"}}) == "ask"
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(big)}}) == "deny"
+    ungated = (
+        {"tool_name": "Edit", "tool_input": {"file_path": str(big)}},
+        {"tool_name": "MultiEdit", "tool_input": {"file_path": str(big)}},
+        {"tool_name": "Write", "tool_input": {"file_path": "src/app.py"}},
+        {"tool_name": "NotebookEdit", "tool_input": {"file_path": "nb.ipynb"}},
+        {"tool_name": "Bash", "tool_input": {"command": "echo hi > out.txt"}},
+    )
+    for payload in ungated:
+        assert decision(payload) == "allow", f"{payload['tool_name']} is still gated"
 
 
 def test_the_guard_refuses_rather_than_vanishes_without_jq(tmp_path):
@@ -380,7 +458,7 @@ def test_the_guard_refuses_rather_than_vanishes_without_jq(tmp_path):
 
     result = subprocess.run(
         [str(empty_bin / "bash"), str(GUARD)],
-        input=json.dumps({"tool_name": "Edit", "tool_input": {"file_path": "a.py"}}),
+        input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
         capture_output=True,
         text=True,
         env={"PATH": str(empty_bin)},
@@ -403,11 +481,20 @@ def test_an_unparseable_payload_is_refused_not_waved_through():
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
-def test_the_bypass_is_recorded_not_silent():
-    """19: a bypass that leaves no trace is a blocker; a recorded one is a decision."""
+def test_the_bypass_is_recorded_not_silent(tmp_path):
+    """19: a bypass that leaves no trace is a blocker; a recorded one is a decision.
+
+    The payload has to be one the guard would otherwise refuse. Sent an ungated tool this
+    passes whether or not the bypass fires, which is a test that cannot fail.
+    """
+    big = tmp_path / "big.py"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    payload = json.dumps({"tool_name": "Read", "tool_input": {"file_path": str(big)}})
+    assert decision(json.loads(payload)) == "deny", "the payload must be refused without the bypass"
+
     result = subprocess.run(
         [str(GUARD)],
-        input=json.dumps({"tool_name": "Edit", "tool_input": {"file_path": "a.py"}}),
+        input=payload,
         capture_output=True,
         text=True,
         env={
