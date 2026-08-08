@@ -158,31 +158,43 @@ function dedupe(findings) {
   return findings.filter((f) => (seen.has(keyOf(f)) ? false : (seen.add(keyOf(f)), true)))
 }
 
-const planDir = args?.planDir ?? '.plans'
+// The arguments can reach the script as JSON text rather than as the value that was passed,
+// so parse before reading any field. Text that does not parse into an object stays as it
+// arrived and falls through to the shape refusal below.
+let input = args
+if (typeof input === 'string') {
+  try {
+    input = JSON.parse(input)
+  } catch {
+    // Not JSON. It stays the string it arrived as, for the refusal below to name.
+  }
+}
+
+const planDir = input?.planDir ?? '.plans'
 // The conventions travel with the plugin, not with the project the lanes run in, so the
 // absolute path has to be handed in — a bare `conventions/…` resolves to nothing there.
-const conventionsDir = args?.conventionsDir ?? 'conventions'
+const conventionsDir = input?.conventionsDir ?? 'conventions'
 // The commit the reviewers diff against and every lane is told to reset to. A worktree is
 // cut from `origin/main`, so nothing else puts a lane on this commit.
-const base = args?.base ?? 'main'
-const lanes = args?.lanes ?? []
-const boundaries = args?.boundaries ?? []
+const base = input?.base ?? 'main'
+const lanes = input?.lanes ?? []
+const boundaries = input?.boundaries ?? []
 
-// A caller that JSON-encoded its arguments arrives with a string, so every field reads as
-// undefined and the frozen check below would refuse in the name of a freeze that may well
-// have happened. The two causes are named apart because they need opposite fixes.
-if (args !== undefined && (typeof args !== 'object' || args === null)) {
-  log('args arrived as a string or scalar, not an object. Nothing can be read from it.')
+// Nothing can be read off a value that is not an object, so the frozen check below would
+// refuse in the name of a freeze that may well have happened. The two are named apart
+// because they need different fixes.
+if (input !== undefined && (typeof input !== 'object' || input === null)) {
+  log('args did not arrive as an object. Nothing can be read from it.')
   return {
     lanes: [],
-    note: 'refused: the arguments arrived as a string or scalar rather than an object, so every field including boundariesFrozen read as undefined. The Workflow tool takes actual JSON values, not a JSON-encoded string — pass { planDir, base, lanes, boundaries, conventionsDir, boundariesFrozen } as an object. This is not a reason to hardcode boundariesFrozen.',
+    note: 'refused: the arguments did not arrive as an object, so every field including boundariesFrozen read as undefined. Pass { planDir, base, lanes, boundaries, conventionsDir, boundariesFrozen } as an object, or as JSON text encoding one. This is not a reason to hardcode boundariesFrozen.',
   }
 }
 
 // One contract test per boundary, owned by no lane, is written before fan-out — that is what
 // holds the interfaces still while every lane edits at once. Invoking this workflow directly
 // skips it, so the caller has to declare it happened.
-if (args?.boundariesFrozen !== true) {
+if (input?.boundariesFrozen !== true) {
   log('Boundaries are not frozen. Run /dev-harness:build instead of invoking this workflow.')
   return {
     lanes: [],
