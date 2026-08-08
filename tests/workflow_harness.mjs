@@ -109,8 +109,8 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
 async function run(rounds, over = {}) {
   const wf = loadWorkflow()
   const seen = { labels: [], isolation: {}, prompts: {} }
-  // `rawArgs` hands the workflow whatever the case says, object or not — the way an agent
-  // that JSON-encoded its arguments reaches it. Everything else builds the normal object.
+  // `rawArgs` hands the workflow whatever the case says, object or not — the way arguments
+  // reach it when they arrive as text. Everything else builds the normal object.
   const args =
     'rawArgs' in over
       ? over.rawArgs
@@ -346,13 +346,37 @@ const cases = [
     expect: { refused: /boundariesFrozen was not true/ },
   },
   {
-    // The Workflow tool takes JSON values, so a caller that encoded them arrives with a string
-    // and every field reads as undefined. Refusing over the freeze here names a cause that did
-    // not happen, and the fix it suggests is to hardcode the flag.
-    name: 'args arriving as a JSON string is refused for its shape, not the freeze',
+    // The arguments can reach the script as JSON text rather than as the object that was
+    // passed. Refusing that over the shape sends a caller who did nothing wrong to fix the
+    // call, and the only fix it leaves them is to hardcode the flag.
+    name: 'args arriving as JSON text encoding an object is parsed and runs',
     rounds: [[]],
     over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }], boundariesFrozen: true }) },
-    expect: { refused: /arrived as a string or scalar rather than an object/ },
+    expect: { outcome: 'passed', rounds: 1 },
+  },
+  {
+    // Parsing the text must not become a way past the freeze. What the text encodes is the
+    // declaration, and text that omits it declares nothing.
+    name: 'JSON text that omits the freeze is still refused over the freeze',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }] }) },
+    expect: { refused: /boundariesFrozen was not true/ },
+  },
+  {
+    // Parsing invents no fields: `42` parses to a number, which still has none. A caller who
+    // really did send a scalar is the case that needs the call fixed rather than accommodated.
+    name: 'a value that parses to something other than an object is refused for its shape',
+    rounds: [[]],
+    over: { rawArgs: '42' },
+    expect: { refused: /did not arrive as an object/ },
+  },
+  {
+    // Text that is not JSON at all reaches the same refusal — the parse attempt must not throw
+    // out of the workflow on its way there.
+    name: 'a value that is not JSON is refused rather than thrown out of',
+    rounds: [[]],
+    over: { rawArgs: 'not json' },
+    expect: { refused: /did not arrive as an object/ },
   },
   {
     // Declaring the freeze is not doing it, and the lanes are told the contract tests exist on
