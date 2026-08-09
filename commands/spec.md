@@ -23,7 +23,9 @@ What to ask about comes from this project, never from a fixed checklist. A check
 
 Show the list and take additions and removals before the first question.
 
-**The list is never locked.** When an answer reveals an axis you did not have, add it and say so. A greenfield project has no repository to ground step 1, and the growing list is what absorbs that.
+**The list is never locked.** When an answer reveals an axis you did not have, add it and say so.
+
+**A greenfield project has no repository to ground step 1.** Derive the axes from the request alone — what is being built, how it runs, who uses it, what it stores — and open by proposing that list, each entry with the way it could sink the project. Propose rather than ask: a proposed list gives the user something to correct, where "what should we consider?" hands the blank page back. The interview then grows the list, which is what absorbs the weaker start.
 
 ## 2. Interview
 
@@ -31,7 +33,9 @@ One question at a time. For each:
 
 - **Explore instead of asking** anything the codebase or the docs can answer.
 - **Research the answer, do not recall it.** Every proposal must trace to a source fetched during this session; mark what you cannot find as unverified rather than filling it in (→ 16). Search in two hops — the first harvests current vocabulary from the ecosystem, the project's own lockfile, and official registries; the rest query with the harvested terms. Queries built from memory miss the current standard wholesale wherever names have changed.
-- **When the options diverge, explain the difference before recommending.** State what each choice costs, not just what it does.
+- **Ask and recommend in plain language.** "Axis", "lane", "boundary", "freeze", "EARS" name the artifact section 3 writes, not words to say to the user. Translate before speaking — reach for the term only once it lands in `PLAN.md`.
+- **When the options diverge, explain the difference before recommending — in terms of this project, not the framework's.** State what each choice costs in a scenario the user can picture, not in the vocabulary of the tradeoff itself.
+- **Change the angle per axis.** Running every axis through the same "pick A or B, here's the cost" shape reads as one question asked twice. Frame each from what actually differs about it — a failure scenario for one, a user-visible difference for another, a cost-if-wrong for a third.
 - If the user cannot answer, say what you would choose and why, and record it as an assumption with the cost of being wrong.
 
 ## 3. Write the artifacts
