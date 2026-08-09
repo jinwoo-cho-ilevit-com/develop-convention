@@ -158,17 +158,77 @@ function dedupe(findings) {
   return findings.filter((f) => (seen.has(keyOf(f)) ? false : (seen.add(keyOf(f)), true)))
 }
 
+// A lane name keys a brief path and a branch, so it may not carry a separator or traverse.
+const LANE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const isText = (v) => typeof v === 'string' && v !== ''
+// Both lists this validates decide something by being non-empty — which paths a lane may
+// touch, and which lanes a boundary pins. An empty one reads as "no restriction" and as
+// "pins nobody", neither of which any plan means to say.
+const isTextList = (v) => Array.isArray(v) && v.length > 0 && v.every(isText)
+
+// The whole argument contract, in one place. A key absent from a list is a key nothing reads,
+// so an object carrying it is a typo the caller has no other way to see. Guarding field by
+// field as each one surfaced left the next one down unchecked every time.
+const ARG_FIELDS = [
+  ['planDir', isText, 'a non-empty string'],
+  ['base', isText, 'a non-empty string'],
+  ['conventionsDir', isText, 'a non-empty string'],
+  ['lanes', Array.isArray, 'a list of lane objects'],
+  ['boundaries', Array.isArray, 'a list of boundary objects'],
+  // Type only. Whether it is true is policy, refused separately below in its own words.
+  ['boundariesFrozen', (v) => typeof v === 'boolean', 'a boolean'],
+]
+const LANE_FIELDS = [
+  ['name', (v) => isText(v) && LANE_NAME.test(v), `a name matching ${LANE_NAME.source}`],
+  ['owns', isTextList, 'a non-empty list of path strings'],
+  ['security', (v) => typeof v === 'boolean', 'a boolean'],
+]
+const BOUNDARY_FIELDS = [
+  ['name', isText, 'a non-empty string'],
+  ['test', isText, 'a path string'],
+  ['sample', isText, 'a path string'],
+  ['lanes', isTextList, 'a non-empty list of lane names'],
+]
+
+// Returns the sentence naming what is wrong, or null. `where` is what the caller has to look
+// at, so it carries the index of the element rather than just the field.
+function checkShape(value, where, fields, required = []) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return `${where} is ${JSON.stringify(value) ?? String(value)}, not an object`
+  }
+  const known = fields.map(([k]) => k)
+  for (const key of Object.keys(value)) {
+    if (!known.includes(key)) {
+      return `${where} carries an unknown key ${JSON.stringify(key)} — nothing reads it, so it is a typo for one of: ${known.join(', ')}`
+    }
+  }
+  for (const [key, ok, expectation] of fields) {
+    if (key in value && !ok(value[key])) {
+      return `${where}.${key} is ${JSON.stringify(value[key])}, and must be ${expectation}`
+    }
+  }
+  for (const key of required) {
+    if (!(key in value)) return `${where} declares no ${key}`
+  }
+  return null
+}
+
 // The arguments can reach the script as JSON text rather than as the value that was passed,
-// so parse before reading any field. Text that does not parse into an object stays as it
-// arrived and falls through to the shape refusal below.
+// so parse before reading any field. Whatever the text turns out to encode is then judged by
+// the same guards below as a value that arrived without the encoding.
 let input = args
+let parseError = null
 if (typeof input === 'string') {
   try {
     input = JSON.parse(input)
-  } catch {
-    // Not JSON. It stays the string it arrived as, for the refusal below to name.
+    log('args arrived as JSON text and were parsed before use.')
+  } catch (err) {
+    parseError = err instanceof Error ? err.message : String(err)
   }
 }
+// Text carrying no argument is the argument-less invocation, and needs its instruction, not a
+// complaint about shape.
+if (typeof input === 'string' && input.trim() === '') input = undefined
 
 const planDir = input?.planDir ?? '.plans'
 // The conventions travel with the plugin, not with the project the lanes run in, so the
@@ -181,15 +241,62 @@ const lanes = input?.lanes ?? []
 const boundaries = input?.boundaries ?? []
 
 // Nothing can be read off a value that is not an object, so the frozen check below would
-// refuse in the name of a freeze that may well have happened. The two are named apart
-// because they need different fixes.
-if (input !== undefined && (typeof input !== 'object' || input === null)) {
+// refuse in the name of a freeze that may well have happened. An array is not one either:
+// `typeof [] === 'object'` alone would send a mangled payload off to fix its freeze instead.
+if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
   log('args did not arrive as an object. Nothing can be read from it.')
   return {
     lanes: [],
-    note: 'refused: the arguments did not arrive as an object, so every field including boundariesFrozen read as undefined. Pass { planDir, base, lanes, boundaries, conventionsDir, boundariesFrozen } as an object, or as JSON text encoding one. This is not a reason to hardcode boundariesFrozen.',
+    note:
+      'refused: the arguments did not arrive as an object, so every field including boundariesFrozen read as undefined.' +
+      // Without the parser's own words, text that is merely malformed is indistinguishable
+      // from a scalar, and the note tells its caller to do what they already did.
+      (parseError ? ` They arrived as text that does not parse as JSON: ${parseError}.` : '') +
+      ' Pass { planDir, base, lanes, boundaries, conventionsDir, boundariesFrozen } as an object, or as JSON text encoding one. This is not a reason to hardcode boundariesFrozen.',
   }
 }
+
+// Parsing recovers only the top level, so a field that arrived as text of its own is still
+// text. Reading it as a list later throws, where every other unusable input here returns a
+// note naming what to fix.
+// One pass, before anything reads a field into a prompt, a path or a git command. Parsing
+// recovers only the top level, so every level below it is checked here rather than where it
+// is used, which is where an unvalidated field became a stack trace with no cause named.
+const complaint =
+  // An argument-less call has no shape to be wrong. It belongs to the freeze gate below,
+  // whose note is the one that names the command to run instead.
+  (input === undefined ? null : checkShape(input, 'args', ARG_FIELDS, ['lanes'])) ??
+  lanes.map((l, i) => checkShape(l, `args.lanes[${i}]`, LANE_FIELDS, ['name', 'owns'])).find(Boolean) ??
+  boundaries.map((b, i) => checkShape(b, `args.boundaries[${i}]`, BOUNDARY_FIELDS, ['lanes'])).find(Boolean) ??
+  // Two lanes of one name share a brief, a branch and every label, and the second silently
+  // becomes indistinguishable from the first in the results.
+  (new Set(lanes.map((l) => l?.name)).size !== lanes.length ? 'args.lanes declares the same name twice' : null) ??
+  // The freeze check measures these paths. A boundary offering none is skipped, and skipping
+  // it is what makes the sentence every lane is told — the contracts exist — untrue.
+  boundaries
+    .map((b, i) => (![b?.test, b?.sample].some(Boolean) ? `args.boundaries[${i}] names neither a test nor a sample path, so nothing would measure it` : null))
+    .find(Boolean) ??
+  // A boundary names the lanes it pins, and a pinned lane is reviewed through three lenses
+  // instead of one. A name matching no lane buys the shallower review and says nothing.
+  boundaries
+    .flatMap((b, i) =>
+      (b.lanes ?? []).map((n, j) =>
+        lanes.some((l) => l.name === n) ? null : `args.boundaries[${i}].lanes[${j}] is ${JSON.stringify(n)}, which no lane declares`,
+      ),
+    )
+    .find(Boolean)
+
+if (complaint) {
+  log(`${complaint}.`)
+  return {
+    lanes: [],
+    note: `refused: ${complaint}. Every lane brief, review prompt and git command is built from these fields, so one that is not what it claims reaches an agent rather than this message.`,
+  }
+}
+
+// What every prompt below is built from, once, so a run can be reconstructed from its log
+// rather than from the arguments nobody kept.
+log(`base ${base}, plans in ${planDir}, conventions in ${conventionsDir}, ${lanes.length} lane(s), ${boundaries.length} boundary(ies)`)
 
 // One contract test per boundary, owned by no lane, is written before fan-out — that is what
 // holds the interfaces still while every lane edits at once. Invoking this workflow directly
@@ -568,8 +675,9 @@ async function reviewLoop(dev, lane) {
 // Every lane is told its contract tests already exist, on the strength of the declaration
 // alone. Measuring it costs one agent that only stats files; skipping it means that sentence
 // is false for every lane whenever the freeze was skipped.
-const frozenPaths = boundaries.flatMap((b) => [b?.test, b?.sample].filter(Boolean))
-// A plan with no boundaries has nothing to freeze, so nothing is checked and no agent runs.
+// Validated above to name at least one path each, so this is empty only for a plan that
+// declares no boundaries — which has nothing to freeze, and dispatches no agent.
+const frozenPaths = boundaries.flatMap((b) => [b.test, b.sample].filter(Boolean))
 if (frozenPaths.length) {
   // Isolated and reset exactly as a lane is, because the question is what a lane sees. Read
   // from the orchestrator's tree the check answers about a different tree than the one the
