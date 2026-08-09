@@ -682,6 +682,7 @@ if (frozenPaths.length) {
   // Isolated and reset exactly as a lane is, because the question is what a lane sees. Read
   // from the orchestrator's tree the check answers about a different tree than the one the
   // work happens in, and passes while every lane starts on a commit holding none of it.
+  let freezeError = null
   const frozen = await agent(
     [
       `Run \`git reset --hard ${base}\` in your worktree before looking at anything. Your worktree is`,
@@ -696,12 +697,18 @@ if (frozenPaths.length) {
       'the sha `git rev-parse HEAD` prints after the reset as `head`.',
     ].join('\n'),
     { label: 'freeze-check', phase: 'Develop', schema: FROZEN_SCHEMA, isolation: 'worktree' },
-  )
+  ).catch((err) => {
+    // A check that died measured no more than a check that answered nothing, so it belongs to
+    // the same refusal. This call is the one outside the pipeline, and the runtime turns a
+    // throw into null only inside one — uncaught here, it left as a stack trace with no note.
+    freezeError = err instanceof Error ? err.message : String(err)
+    return null
+  })
   if (!frozen) {
-    log('The freeze check returned nothing, so nothing about the contract tests was measured.')
+    log(`The freeze check ${freezeError ? `died: ${freezeError}` : 'returned nothing'}, so nothing about the contract tests was measured.`)
     return {
       lanes: [],
-      note: 'refused: the freeze check returned nothing, so whether the contract tests exist is unmeasured, and with them the commit every lane starts on. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.',
+      note: `refused: the freeze check ${freezeError ? `died (${freezeError})` : 'returned nothing'}, so whether the contract tests exist is unmeasured, and with them the commit every lane starts on. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.`,
     }
   }
   if (frozen.missing?.length) {
