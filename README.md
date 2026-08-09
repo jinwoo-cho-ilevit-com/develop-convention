@@ -32,7 +32,7 @@ Takes precedence over every other document, so it belongs to no single skill and
 | Doc | Contents |
 |---|---|
 | [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, structure-follows-design integration, flat layout, PEP 8 semantic naming, comment/emoji policy, dead code/duplication removal |
-| [02-config.md](conventions/02-config.md) | No hardcoding, Hydra config groups + validation, ablation combinations, run snapshots |
+| [02-config.md](conventions/02-config.md) | No hardcoding, composable config groups + validation, ablation combinations, run snapshots |
 | [03-environment.md](conventions/03-environment.md) | uv/ruff toolchain, local↔RunPod portability, device abstraction (CPU fallback) |
 | [13-secret-management.md](conventions/13-secret-management.md) | No hardcoding/committing secrets, central manager (Infisical) injection, reading env in code, container/CI machine identity, scanning/rotation |
 
@@ -207,7 +207,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Config
 
-- Absolutely no hardcoding — paths/hyperparameters/constants all live in central config. Compose them with Hydra config groups and fail-fast with type validation.
+- Absolutely no hardcoding — paths/hyperparameters/constants all live in central config. Compose them as groups along independent axes and fail-fast with type validation.
 - Do ablations via config combinations only, without code changes. Every run saves its resolved config + git hash to the output directory.
 
 ### Environment
