@@ -379,12 +379,93 @@ const cases = [
     expect: { refused: /did not arrive as an object/ },
   },
   {
+    // Malformed text and a genuine scalar reach the same guard, and only the parser's words
+    // tell them apart. Without them the note instructs its caller to do what they just did.
+    name: 'text that is nearly JSON is refused in the parser own words',
+    rounds: [[]],
+    over: { rawArgs: '{"lanes":[{"name":"a"}],"boundariesFrozen":tru' },
+    expect: { refused: /does not parse as JSON: .+/ },
+  },
+  {
+    // `typeof [] === 'object'`, so without the array clause this reaches the freeze check and
+    // a caller whose payload is the wrong shape is sent off to fix their declaration.
+    name: 'JSON text encoding an array is refused for its shape, not the freeze',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify([{ name: 'a', owns: ['src/a/'] }]) },
+    expect: { refused: /did not arrive as an object/ },
+  },
+  {
+    // Pins the `input === null` clause: `typeof null` is also 'object', so dropping it sends
+    // null to the freeze refusal and no case notices.
+    name: 'a null argument is refused for its shape, not the freeze',
+    rounds: [[]],
+    over: { rawArgs: null },
+    expect: { refused: /did not arrive as an object/ },
+  },
+  {
+    // Parsing recovers the top level only. A nested field still encoded as text used to reach
+    // `pipeline` and throw, which returns no note and names no cause to the caller.
+    name: 'lanes arriving as text of its own is refused rather than thrown out of',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: JSON.stringify([{ name: 'a', owns: ['src/a/'] }]),
+        boundaries: [],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { refused: /args\.lanes .* must be a list of lane objects/ },
+  },
+  {
+    // The same one level down on the other field, which reached `flatMap` instead.
+    name: 'boundaries arriving as text of its own is refused rather than thrown out of',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [{ name: 'a', owns: ['src/a/'] }],
+        boundaries: JSON.stringify([{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }]),
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { refused: /args\.boundaries .* must be a list of boundary objects/ },
+  },
+  {
+    // `rawArgs` replaces the constructed object wholesale, so no text case reached a boundary
+    // and the contract-test check was never exercised on this path at all. A later change that
+    // dropped `boundaries` on the way through the parse would have left every case green.
+    name: 'the contract-test check runs on the text path too',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [{ name: 'a', owns: ['src/a/'] }],
+        boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { outcome: 'passed', rounds: 1, hasLabel: 'freeze-check' },
+  },
+  {
+    // And that it still refuses there — a check that only ever passes on this path proves
+    // nothing about the path.
+    name: 'a missing contract test is refused by name on the text path',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [{ name: 'a', owns: ['src/a/'] }],
+        boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+        boundariesFrozen: true,
+      }),
+      missingFrozen: ['tests/test_api_contract.py'],
+    },
+    expect: { refused: /declared frozen but these contract tests do not exist: tests\/test_api_contract\.py/ },
+  },
+  {
     // Declaring the freeze is not doing it, and the lanes are told the contract tests exist on
     // the strength of that declaration alone.
     name: 'a boundary whose contract test does not exist is refused by name',
     rounds: [[]],
     over: {
-      boundaries: [{ name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+      boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
       missingFrozen: ['tests/test_api_contract.py'],
     },
     expect: { refused: /declared frozen but these contract tests do not exist: tests\/test_api_contract\.py/ },
@@ -395,7 +476,7 @@ const cases = [
     name: 'the missing-path refusal names the commit the lanes start from',
     rounds: [[]],
     over: {
-      boundaries: [{ name: 'api', test: 'tests/test_api_contract.py' }],
+      boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }],
       missingFrozen: ['tests/test_api_contract.py'],
       frozenHead: 'deadbee',
     },
@@ -404,7 +485,7 @@ const cases = [
   {
     name: 'boundaries whose contract tests all exist fan out normally',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }] },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }] },
     expect: { outcome: 'passed', rounds: 1, hasLabel: 'freeze-check' },
   },
   {
@@ -413,7 +494,7 @@ const cases = [
     // be isolated and reset the way a lane is, and only the dispatch shows whether it was.
     name: 'the freeze check measures from a lane-shaped worktree reset to base',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py' }] },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }] },
     expect: {
       outcome: 'passed',
       rounds: 1,
@@ -438,13 +519,180 @@ const cases = [
     // "none missing" would put the declaration back in charge of itself.
     name: 'a freeze check that answers nothing refuses rather than assuming',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py' }], freezeCheckDies: true },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }], freezeCheckDies: true },
     expect: { refused: /unmeasured declaration is that same declaration/ },
   },
   {
     name: 'a plan with no boundaries dispatches no freeze check',
     rounds: [[]],
     expect: { outcome: 'passed', rounds: 1, noLabel: 'freeze-check' },
+  },
+  {
+    // The list check guarantees the container; these are its elements. A lane name where a
+    // lane object belongs is the natural misreading of a field called `lanes`, and it used to
+    // fan out two worktree agents as `develop:undefined` and report the run green.
+    name: 'a lane that is a name rather than an object is refused',
+    rounds: [[]],
+    over: { lane: 'auth' },
+    expect: { refused: /args\.lanes\[0\] is "auth", not an object/ },
+  },
+  {
+    name: 'a lane object with no name is refused',
+    rounds: [[]],
+    over: { lane: { owns: ['src/a/'] } },
+    expect: { refused: /args\.lanes\[0\] declares no name/ },
+  },
+  {
+    // The freeze check reads `test`/`sample` off each boundary. A boundary yielding neither
+    // emptied `frozenPaths` and skipped the check entirely, while every lane was still told
+    // its contract tests exist — the declaration back in charge of itself.
+    name: 'a boundary naming no contract test path is refused, not skipped',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['a'] }] },
+    expect: { refused: /args\.boundaries\[0\] names neither a test nor a sample path/ },
+  },
+  {
+    name: 'a boundary that is a name rather than an object is refused',
+    rounds: [[]],
+    over: { boundaries: ['api'] },
+    expect: { refused: /args\.boundaries\[0\] is "api", not an object/ },
+  },
+  {
+    // A key nothing reads is a key the caller believes is doing something. Defaulting it
+    // silently pointed every lane and reviewer at a conventions path that resolves nowhere,
+    // and the lane still reported clean.
+    name: 'a misspelled top-level key is refused rather than defaulted',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [{ name: 'a', owns: ['src/a/'] }],
+        conventionDir: '/abs/conventions',
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { refused: /unknown key "conventionDir"/ },
+  },
+  {
+    name: 'a misspelled lane key is refused rather than defaulted',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/'], onws: ['src/typo/'] } },
+    expect: { refused: /args\.lanes\[0\] carries an unknown key "onws"/ },
+  },
+  {
+    // Reached every prompt as `[object Object]`, in a `git reset --hard` the lane then runs.
+    name: 'a base that is not a string is refused',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }], base: {}, boundariesFrozen: true }) },
+    expect: { refused: /args\.base is \{\}, and must be a non-empty string/ },
+  },
+  {
+    // The same mis-encoding as `lanes`, one level further down: it reached `.join` and threw.
+    name: 'owns arriving as text of its own is refused',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: '["src/a/"]' } },
+    expect: { refused: /args\.lanes\[0\]\.owns .* must be a non-empty list of path strings/ },
+  },
+  {
+    // Both lanes read one brief, take one branch and answer to one label, so the second is
+    // indistinguishable from the first in the results.
+    name: 'two lanes of the same name are refused',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [{ name: 'a', owns: ['src/a/'] }, { name: 'a', owns: ['src/b/'] }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { refused: /declares the same name twice/ },
+  },
+  {
+    // The name keys `<planDir>/lane-<name>.md` and a branch, so a separator in it resolves a
+    // brief outside the plan directory.
+    name: 'a lane name that traverses out of the plan directory is refused',
+    rounds: [[]],
+    over: { lane: { name: '../escape', owns: ['src/a/'] } },
+    expect: { refused: /args\.lanes\[0\]\.name is "\.\.\/escape", and must be a name matching/ },
+  },
+  {
+    // An argument-less call and text carrying no argument are the same call. Answering one
+    // with "your arguments were the wrong shape" sends it looking for a payload it never had.
+    name: 'text carrying no argument is answered like an argument-less call',
+    rounds: [[]],
+    over: { rawArgs: '   ' },
+    expect: { refused: /boundariesFrozen was not true/ },
+  },
+  {
+    // A pinned lane gets three lenses instead of one (→ 20 §2). A boundary naming a lane that
+    // does not exist pins nothing, so the lane is reviewed once and no outcome shows why.
+    name: 'a boundary pinning a lane that does not exist is refused',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['nonexistent'], test: 'tests/test_api_contract.py' }] },
+    expect: { refused: /args\.boundaries\[0\]\.lanes\[0\] is "nonexistent", which no lane declares/ },
+  },
+  {
+    // The arguments are validated against an accept-list, so a key dropping out of one does not
+    // weaken a check — it refuses every real plan that carries the key. Every other case here
+    // pins what the pass rejects; this is the one that pins what it must accept. It carries
+    // every key `commands/build.md` and `commands/spec.md` mandate, and it has to build.
+    name: 'the payload the docs mandate is accepted and fans out',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        planDir: '.plans',
+        base: 'main',
+        conventionsDir: '/abs/plugin/conventions',
+        lanes: [{ name: 'a', owns: ['src/a/', 'src/shared/config.py'], security: true }],
+        boundaries: [
+          { name: 'parser-validator', lanes: ['a'], test: 'tests/contract/test_parser_validator.py', sample: 'tests/fixtures/parser_out.sample.json' },
+        ],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      hasLabel: 'review:a:security#1',
+      prompt: { 'develop:a': /Work only inside your owned paths: src\/a\/, src\/shared\/config\.py\./ },
+    },
+  },
+  {
+    // `owns` is the isolation directive. Without it the develop prompt goes out reading
+    // "Work only inside your owned paths: ." to an agent that has a worktree to write in.
+    name: 'a lane that owns nothing is refused',
+    rounds: [[]],
+    over: { lane: { name: 'a' } },
+    expect: { refused: /args\.lanes\[0\] declares no owns/ },
+  },
+  {
+    // spec.md pins the boundary table's four keys because build.js reads them, and names this
+    // exact failure: a boundary spelled another way drops that lane from three lenses to one.
+    name: 'a boundary that pins no lane is refused',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }] },
+    expect: { refused: /args\.boundaries\[0\] declares no lanes/ },
+  },
+  {
+    // Named rather than left to the empty-lanes note, which reads as "the plan had none" when
+    // the field was in fact never passed.
+    name: 'arguments carrying no lanes at all are refused by name',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ boundariesFrozen: true }) },
+    expect: { refused: /args declares no lanes/ },
+  },
+  {
+    // Present-but-empty is the shape a template leaves behind, and `''` interpolates into a
+    // git command as nothing at all rather than failing.
+    name: 'a field present but empty is refused',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }], base: '', boundariesFrozen: true }) },
+    expect: { refused: /args\.base is "", and must be a non-empty string/ },
+  },
+  {
+    // The list is checked for being a list; this pins that its elements are checked too.
+    name: 'an owns entry that is not a path string is refused',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/', 42] } },
+    expect: { refused: /args\.lanes\[0\]\.owns .* must be a non-empty list of path strings/ },
   },
 ]
 
@@ -483,6 +731,15 @@ for (const c of cases) {
     why.push(...dispatchChecks(c.expect, out))
     if (why.length) failed++
     console.log(`${why.length ? 'FAIL' : 'OK  '} ${c.name}${why.length ? ' -> ' + why.join(', ') : ''}`)
+    continue
+  }
+
+  // A refusal on a case that expects a lane outcome has no `passed` to read, and reading it
+  // anyway threw out of the loop — one regression hid every case after it, which is the guard
+  // above extended to where the assertions actually run.
+  if (out.passed === undefined) {
+    failed++
+    console.log(`FAIL ${c.name} -> refused unexpectedly: ${out.note}`)
     continue
   }
 

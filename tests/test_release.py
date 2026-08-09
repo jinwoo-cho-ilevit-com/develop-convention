@@ -51,6 +51,21 @@ def test_the_marketplace_entry_agrees_with_the_plugin_manifest():
     )
 
 
+def test_the_marketplace_document_version_agrees_with_the_plugin():
+    """The third copy of the version, and the one the check above does not reach.
+
+    It is a separate literal from the entry, moved by hand at every release since 0.2.4. A
+    release that bumps the other two and forgets this one leaves both suites green while the
+    document advertises a version matching nothing. Omitting it is fine for the same reason
+    it is fine on the entry: one source of truth. Declaring a different one is the failure.
+    """
+    declared = load(PLUGIN)["version"]
+    document = load(MARKETPLACE).get("version", declared)
+    assert document == declared, (
+        f"marketplace document version says {document!r}, plugin.json says {declared!r}"
+    )
+
+
 # --- a release that no longer describes what it ships --------------------------------------
 
 
