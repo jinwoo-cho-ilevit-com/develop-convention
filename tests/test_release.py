@@ -18,8 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 # What `/plugin install` puts on a user's machine. A change under any of these is a change
-# the user can only receive through a new version.
-SHIPPED = ("hooks", "commands", "workflows", "skills", ".claude-plugin")
+# the user can only receive through a new version. `conventions` belongs here for the same
+# reason the rest do, and by the count is the most load-bearing of them: the commands and
+# skills resolve `${CLAUDE_PLUGIN_ROOT}/conventions` seventeen times, against one for
+# `workflows`. Omitted, a conventions-only edit shipped nothing and no check said so.
+SHIPPED = ("hooks", "commands", "workflows", "skills", "conventions", ".claude-plugin")
 
 
 def load(path: Path) -> dict:
