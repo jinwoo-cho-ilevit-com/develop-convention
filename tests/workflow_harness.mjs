@@ -56,6 +56,9 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
     // Stands in for the agent that stats the contract test paths. `missingFrozen` is what it
     // reports absent; `freezeCheckDies` makes it answer nothing, which must not read as "none".
     if (label === 'freeze-check') {
+      // Answering nothing and dying are different events with the same evidentiary value, and
+      // this call is the one outside the pipeline, so only it can take a throw out of the run.
+      if (over.freezeCheckThrows) throw new Error('freeze agent died hard')
       if (over.freezeCheckDies) return null
       return { missing: over.missingFrozen ?? [], head: over.frozenHead ?? 'f00dbabe' }
     }
@@ -521,6 +524,15 @@ const cases = [
     rounds: [[]],
     over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }], freezeCheckDies: true },
     expect: { refused: /unmeasured declaration is that same declaration/ },
+  },
+  {
+    // The same evidentiary state reached by dying rather than by answering nothing. This is
+    // the one agent call outside the pipeline, so the runtime does not turn its throw into a
+    // null — uncaught, it left as a stack trace and the caller got no note to dispatch on.
+    name: 'a freeze check that dies refuses in the same words, naming the death',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }], freezeCheckThrows: true },
+    expect: { refused: /died \(freeze agent died hard\).*unmeasured declaration is that same declaration/ },
   },
   {
     name: 'a plan with no boundaries dispatches no freeze check',
