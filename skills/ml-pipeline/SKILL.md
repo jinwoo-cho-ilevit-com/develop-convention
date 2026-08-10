@@ -5,7 +5,7 @@ description: Routes to the conventions that govern pipeline stage shape, through
 
 # ml-pipeline — Stages, Throughput, Experiments, Self-Hosted Models
 
-Routing procedure for conventions [04-pipeline.md](../../conventions/04-pipeline.md), [05-performance.md](../../conventions/05-performance.md), [07-ml-development.md](../../conventions/07-ml-development.md) and [08-llm-development.md](../../conventions/08-llm-development.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
+Routing procedure for conventions [04-pipeline.md](../../conventions/04-pipeline.md), [05-performance.md](../../conventions/05-performance.md), [07-ml-development.md](../../conventions/07-ml-development.md), [08-llm-development.md](../../conventions/08-llm-development.md) and [22-framework-wrapping.md](../../conventions/22-framework-wrapping.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
 
 Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you are working in does not carry a copy. This file routes to them and does not restate them; a rule written twice drifts.
 
@@ -25,13 +25,16 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | The chat template, and proving train and inference agree on it | 08 |
 | Evaluation that another run can reproduce, and where a judge is biased | 08 |
 | Deduplicating and decontaminating training data | 08 |
+| Driving someone else's training framework, and proving your reading of it before renting a GPU | 22 |
+| A test double that stays green while the thing it stands for is broken | 22 |
 
 ## Order
 
 1. **04 before writing a stage.** What it asks of a stage is structural, so retrofitting means rewriting rather than adding.
 2. **07 as soon as a run produces a number** anyone might cite later — earlier than it feels, because by the time someone asks, the run that produced it is gone.
 3. **08 only when the model is yours to train or serve.**
-4. **05 last.** It comes last because each of the three above changes what there is to measure.
+4. **22 as soon as another project's trainer is in the loop** — the layer it asks for is cheap to add early and expensive to retrofit around a suite that already trusts its doubles.
+5. **05 last.** It comes last because each of the three above changes what there is to measure.
 
 ## Boundaries with other skills
 

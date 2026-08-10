@@ -62,6 +62,7 @@ nav:
       - conventions/19-evidence.md
       - conventions/20-review-gate.md
       - conventions/21-development-loop.md
+      - conventions/22-framework-wrapping.md
   - Harness:
       - skills/plan-and-delegate/SKILL.md
       - skills/code-and-config/SKILL.md

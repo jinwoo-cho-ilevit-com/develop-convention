@@ -29,7 +29,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 
 ## Boundaries with other skills
 
-The criteria this skill checks against are written earlier, under [plan-and-delegate](../plan-and-delegate/SKILL.md) — 18 states them, 20 judges against them, 19 records the judgment. Checking that docs still match the code is [docsync](../docsync/SKILL.md).
+The criteria this skill checks against are written earlier, under [plan-and-delegate](../plan-and-delegate/SKILL.md) — 18 states them, 20 judges against them, 19 records the judgment. Checking that docs still match the code is [docsync](../docsync/SKILL.md). Testing code whose job is to drive another project's training framework needs a layer 06 does not describe — that is [ml-pipeline](../ml-pipeline/SKILL.md), routing to 22.
 
 ## When two documents disagree
 
