@@ -63,17 +63,38 @@ def test_the_hook_only_intercepts_reads():
     assert matchers == {"Read"}, f"the guard is wired to more than Read: {sorted(matchers)}"
 
 
-def test_hook_config_points_at_a_file_that_exists():
+def hook_scripts() -> list[Path]:
     config = load(ROOT / "hooks" / "hooks.json")
-    for entry in config["hooks"]["PreToolUse"]:
-        for hook in entry["hooks"]:
-            target = hook["command"].replace('"${CLAUDE_PLUGIN_ROOT}"', str(ROOT)).strip('"')
-            assert Path(target).is_file(), f"hook command is not a file: {target}"
+    return [
+        Path(hook["command"].replace('"${CLAUDE_PLUGIN_ROOT}"', str(ROOT)).strip('"'))
+        for entries in config["hooks"].values()
+        for entry in entries
+        for hook in entry["hooks"]
+    ]
 
 
-def test_the_guard_is_executable():
+def test_hook_config_points_at_files_that_exist():
+    missing = [str(target) for target in hook_scripts() if not target.is_file()]
+    assert not missing, f"hook commands are not files: {missing}"
+
+
+def test_every_hook_is_executable():
     """A plugin hook is invoked directly, so a non-executable script fails silently at runtime."""
-    assert GUARD.stat().st_mode & 0o111, "hooks/delegate-guard.sh is not executable"
+    dead = [target.name for target in hook_scripts() if not target.stat().st_mode & 0o111]
+    assert not dead, f"hook scripts are not executable: {dead}"
+
+
+def test_the_route_map_names_every_skill():
+    """The map is the always-present pointer to the skills; a skill it does not name is one
+    the reminder never routes to, and nothing else repeats often enough to catch that.
+    """
+    result = subprocess.run(
+        [str(ROOT / "hooks" / "route-map.sh")], input="{}", capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    skills = sorted(p.parent.name for p in (ROOT / "skills").glob("*/SKILL.md"))
+    unrouted = [name for name in skills if name not in result.stdout]
+    assert not unrouted, f"the routing map does not name: {unrouted}"
 
 
 @pytest.mark.parametrize("path", sorted((ROOT / "commands").glob("*.md")), ids=lambda p: p.name)

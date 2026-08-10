@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A development-conventions repository that also ships the harness running them. The rules live in `conventions/NN-*.md`; `README.md` is the doc map (grouped, numbers being stable identifiers rather than a reading order) plus the full rules summary.
 
-The code is the `dev-harness` plugin: `.claude-plugin/` manifests, `hooks/delegate-guard.sh`, `commands/`, `workflows/build.js`, `skills/`. `uv run --group dev pytest` runs the repository invariants under `tests/`, which drive the guard and the workflow rather than reading them. `templates/` is down to what a plugin cannot supply — a short `AGENTS.md` and the local tool configuration.
+The code is the `dev-harness` plugin: `.claude-plugin/` manifests, `hooks/` (`delegate-guard.sh`, `route-map.sh`), `commands/`, `workflows/build.js`, `skills/`. `uv run --group dev pytest` runs the repository invariants under `tests/`, which drive the guard and the workflow rather than reading them. `templates/` is down to what a plugin cannot supply — a short `AGENTS.md` and the local tool configuration.
 
 Projects consume this by installing the plugin, not by copying rules out. An excerpt is a copy, and 15 requires a copy to carry its source and be checked; when changing a rule, check whether the plugin that delivers it needs the same change.
 
