@@ -48,7 +48,7 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 
 | Doc | Contents |
 |---|---|
-| [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, one fixture per object that crosses boundaries, golden files, tolerance bands, CPU smoke tests, completion verification |
+| [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, one fixture per object that crosses boundaries, fixtures and doubles that cannot teach a wrong implementation, golden files, tolerance bands, CPU smoke tests, completion verification |
 | [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, lanes defined by input (module/project/absence/security), fan-in and severity, review tool paths without pinned model ids |
 | [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, command output with secret masking, provenance, human verdict records, recorded bypasses |
 
@@ -240,10 +240,11 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order. An isolated lane cannot hold this layer, so it belongs to the integration step after the merge rather than to a lane.
 - Store each boundary's representative payload as a file the fixture factory loads. An object crossing more than one boundary gets a single fixture and a single source for its field names and literals: two fixtures for one object are two definitions, both green, because a contract test reads only its own.
 - A boundary contract also imports each crossing symbol under its caller's name, calls it at its caller's signature, and pins the value set both sides branch on. A matching payload proves nothing when the consuming function does not exist, or when the producer emits a value the consumer refuses.
-- Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? A test that has never failed is a deletion candidate.
+- Build each stored payload so only the correct rule reproduces it — two properties that coincide in the sample let every implementation confusing them pass. A double may not assert a shape the real system never produces, and no test patches over one of your own components: the substitution removes that path from the run rather than weakening an assertion. Isolate a fixture from the machine it runs on and from the tests that already used it.
+- Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? Reduce the assertion to answer the last — a constant compared to a constant, or two sides through the same normalisation, is an identity wearing a test's name. A test that has never failed is a deletion candidate.
 - Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
 - Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such.
-- Every fixed bug gains exactly one regression test. Assert ML metrics with a tolerance band; update golden files only via an explicit flag. CI smoke-tests GPU paths on CPU with small samples. TODOs/stubs/skips are blockers, not completion.
+- Every fixed bug gains exactly one regression test, and the fix is checked against the defect's siblings on neighbouring paths before it closes. Assert ML metrics with a tolerance band; update golden files only via an explicit flag. CI smoke-tests GPU paths on CPU with small samples. TODOs/stubs/skips are blockers, not completion.
 
 ### AI/ML
 
