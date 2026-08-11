@@ -23,7 +23,7 @@ Takes precedence over every other document, so it belongs to no single skill and
 | Doc | Contents |
 |---|---|
 | [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, boundary contract tests, worktree fan-out, review on each lane's finish, merge and end-to-end verification |
-| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict), lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
+| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict, decidable inside the owning lane), the four surfaces a boundary can split on, lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
 | [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, model routing, spec gating |
 | [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
 
@@ -237,8 +237,9 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Testing & Verification
 
 - Three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests through the project's real entry point. Only the third catches integration failures.
-- An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order.
+- An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order. An isolated lane cannot hold this layer, so it belongs to the integration step after the merge rather than to a lane.
 - Store each boundary's representative payload as a file the fixture factory loads. An object crossing more than one boundary gets a single fixture and a single source for its field names and literals: two fixtures for one object are two definitions, both green, because a contract test reads only its own.
+- A boundary contract also imports each crossing symbol under its caller's name, calls it at its caller's signature, and pins the value set both sides branch on. A matching payload proves nothing when the consuming function does not exist, or when the producer emits a value the consumer refuses.
 - Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? A test that has never failed is a deletion candidate.
 - Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
 - Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such.
@@ -289,6 +290,8 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Write the contract before development starts and freeze it during execution. Record changes with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
 - Write completion criteria in EARS or Given-When-Then with `SHALL`, and apply the judgment test: if two agents could disagree about whether it passed, rewrite it.
 - Pair every criterion with the command that checks it, or mark it `[human]`. The two halves fail differently: a command with no sentence is never asked whether it checks the right thing, and a sentence with no command defers the judgment to verification time.
+- The command must reach a verdict inside the lane that owns the criterion, against that lane's work alone — a command importing a sibling lane's module fails on import and says nothing about the lane it was given to. Cross-lane contracts and the end-to-end condition are the integration step's criteria, not a lane's.
+- Enumerate boundaries by where two lanes could believe differently, not by what data passes between them: payload shape, the name and signature of every symbol one lane calls in another, the accepted value set of a field, and the call graph itself. A consumer-only lane sends nothing outward, so a payload-derived list leaves the widest call surface uncontracted.
 - Cover functional, non-functional, and **negative** criteria (what must not happen), and state what is out of scope. A three-to-five-line contract is complete for small work.
 - Declare the done level (`auto`/`reviewed`/`proven`) up front, chosen by size × reversibility. Regardless of level, three things are mandatory: every criterion passes, evidence exists, and each new test was observed failing at the base commit.
 - Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. Absence criteria almost always are.

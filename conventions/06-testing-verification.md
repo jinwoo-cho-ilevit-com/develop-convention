@@ -6,6 +6,7 @@
 - Use three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests that exercise the assembled project through its real entry point.
 - When work splits into parallel lanes, write each boundary's contract test **before** the lanes start, and give it no lane as owner. Disjoint file ownership stops two lanes writing the same file; it does nothing about the two of them holding contradictory assumptions about what crosses between them, and each lane's own tests pass under its own assumption. The test written first is that assumption in executable form (→ [21-development-loop.md](21-development-loop.md)).
 - Store each boundary's representative payload as a file and have the fixture factory load it, rather than building the boundary shape in code. Two lanes can read a written specification differently; they have a much harder time reading the same `parser_out.sample.json` differently. The file is the truth and the factory supplies the variations — NaN, edge values, bulk.
+- A boundary contract imports each symbol crossing it under the name its caller uses, calls it at the signature its caller uses, and pins the value set both sides branch on. A payload whose shape matches proves nothing when the function meant to consume it does not exist, or when the producer emits a value the consumer refuses (→ [18-work-contract.md](18-work-contract.md) §5).
 - Give an object that crosses more than one boundary a single fixture and a single source for its field names and literal values, and have the other boundaries' contracts load that file. Two fixtures for one object are two definitions, each locally coherent, neither compared against the other, and both green because a contract test reads only its own fixture.
 - Justify each test by three questions: is there a realistic change that would break it, does another test already catch that, and could it ever fail? A test that answers no to any of them should not exist.
 - Cover every completion criterion with an executable check, but not one test per criterion — one test may satisfy several. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
@@ -38,6 +39,8 @@ One per boundary counts contracts, not objects. An object that crosses two bound
 - It does not mock your own modules. Mock external services only.
 - It runs on a small sample (`--limit N` → [04-pipeline.md](04-pipeline.md)), so it is cheap enough to run every time.
 - It follows the real sequence of stateful commands. Testing each command alone hides defects in their order — a later step overwriting what an earlier one recorded is invisible until they run together.
+
+An isolated lane cannot hold this layer. Its worktree carries its own modules and not its siblings', so an end-to-end run there fails on import — or is faked by mocking a sibling, which the second condition forbids. The layer belongs to the integration step: a lane's own criteria stop at unit and contract, and the assembled run happens once, after the merge (→ [18-work-contract.md](18-work-contract.md) §5).
 
 An end-to-end failure does not have to say which module broke. Detection is its job; diagnosis belongs to the unit tests.
 
