@@ -5,7 +5,7 @@
 - Do not hardcode secrets (API keys, tokens, passwords, connection strings) into code, config, logs, or Docker image layers (→ [02-config.md](02-config.md)).
 - Do not commit a plaintext `.env` to the repository. Register `.env` in `.gitignore`, and commit only a valueless key list in `.env.example`.
 - The single source of truth for secrets is a central secret manager. Do not manage secrets across devices/projects by copying files.
-- Supply secrets via runtime injection everywhere — locally, in CI, in containers — and never leave them as plaintext residue on disk.
+- Supply secrets via runtime injection everywhere — locally, in CI, in containers — and never leave them as plaintext residue on disk. Where an artifact on disk must be restricted, restrict every file carrying the content and not only the one easiest to reach: a sidecar at `0600` beside its data at `0644` reads as protected and is not, and a partial defence is worse than none because it stops the next person looking.
 - Coding agents follow the same rules: wrap execution commands in an injection wrapper, never create or read plaintext secret files, and check required keys against `.env.example`.
 - Non-interactive environments such as containers and CI authenticate with a machine identity, not a human account. Scope permissions to the minimum and use short-lived tokens.
 - Separate environments (dev/staging/prod), rotate secrets periodically, and revoke and reissue immediately upon any leak.

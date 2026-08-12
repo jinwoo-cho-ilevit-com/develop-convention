@@ -8,11 +8,13 @@ A **work contract** fixes three things in the same identifiers before the work s
 - Scale the contract to the work. Three to five lines — what is being built, done level, criteria, out of scope — is complete for small work, and that form is not the heavyweight spec [09-agentic-workflow.md](09-agentic-workflow.md) §4 warns against.
 - Write every criterion in EARS or Given-When-Then with `SHALL`, and apply the judgment test: **if two agents could disagree about whether it passed, rewrite it.**
 - Pair every criterion with the command that checks it, or mark it `[human]`. A criterion that is neither is not a criterion. The sentence is not decoration: without it nothing can be judged against the criterion, and a test that checks the wrong thing still passes.
+- The command must reach a verdict inside the lane that owns the criterion, against that lane's work alone. A command that imports a sibling lane's module fails on import and says nothing about the lane it was given to, so cross-lane contract tests and the end-to-end condition are the integration step's criteria rather than a lane's (→ [06-testing-verification.md](06-testing-verification.md) §1).
 - A `[human]` criterion passes only once a verdict, its author, and a timestamp are recorded beside it. An unanswered human check is a TODO, and TODOs are blockers (→ [19-evidence.md](19-evidence.md), [06-testing-verification.md](06-testing-verification.md)).
 - Cover functional, non-functional, and **negative** criteria — what must *not* happen. The negative kind is what stops over-building. State what is out of scope; an unstated boundary is the one that gets crossed.
 - For a rewrite, include a characterization criterion that pins existing behaviour first (→ [00-principles.md](00-principles.md)).
 - Declare the done level before starting, chosen by size × reversibility. At every level three things are mandatory: every criterion passes, the evidence exists, and each new test was observed failing at the base commit (the red check and its three outcomes are defined in [06-testing-verification.md](06-testing-verification.md) §3; this document does not restate them).
 - Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. An absence criterion almost always is, and one declared without the exemption fails the red check for the correct reason and blocks the gate.
+- Enumerate the boundaries by asking where two lanes could believe differently, not by asking what data passes between them. Four surfaces drift independently: the shape of a shared payload, the name and signature of every symbol one lane calls in another, the accepted value set of a field both sides branch on, and the call graph itself. A lane that only consumes sends nothing outward, so a payload-derived list leaves the lane with the widest call surface holding no contract at all (§5, → [06-testing-verification.md](06-testing-verification.md) §1).
 - Give every lane a disjoint set of owned paths, written as directory prefixes wherever the work divides that way. Globs expanded against the current file list miss files that do not exist yet, which is the collision the rule exists to prevent.
 - Name cross-cutting files individually, one owner each. A repository has files that belong to no directory — the README, the ignore file, the site config — and a prefix rule cannot assign them, so a decomposition that only knows prefixes silently leaves them to whoever touches them first. Give the integration lane an explicit list and run it last.
 - Slice by file, not by phase, when several kinds of change land in the same documents. Three lanes each doing "their kind of edit" across the same files collide by construction; one lane per file, carrying every kind of edit for that file, does not.
@@ -95,5 +97,20 @@ Record kind and reason either way.
 A contract with a verdict still outstanding is not complete and is not deleted. Where another begins before it closes, give each one its own path rather than reusing a single well-known filename — a contract awaiting judgment that is overwritten by the next one leaves its criteria unjudged and its evidence unattached to anything.
 
 A contract has the lifetime of one piece of work. On completion it is committed with that work and then deleted — git history is the archive, and a stale contract in the tree is worse than none. Decisions that outlive the work move to the ADR chain before deletion (→ [15-doc-tracking.md](15-doc-tracking.md)); a contract is not an ADR.
+
+### 5. Boundaries, and where a criterion runs
+
+A boundary is a place two lanes can hold different beliefs. Data flow finds only one of the four kinds:
+
+| Surface | The disagreement |
+|---|---|
+| Payload shape | the producer writes a field the consumer does not read, or writes it under another name |
+| Symbol | the caller names a function the owner never defined, or calls it at a different signature |
+| Value set | the producer emits a value the consumer's validation refuses, in either direction |
+| Call graph | a module nobody calls, or a caller the owner was never told about |
+
+Derive the list from imports and calls in both directions rather than from what crosses as data. A lane that only consumes — a CLI over the other lanes' modules, a reporting layer — passes nothing outward, so it disappears from a payload-derived list while owning more of the call surface than any producer does.
+
+Contracts freezing these boundaries belong to no lane, and therefore run nowhere inside one. Give each lane criteria its own worktree can decide, and give the cross-lane contracts and the end-to-end condition to the integration step. The alternative this forbids is weakening the criterion to fit the lane — mocking a sibling module, importing through a shim — which yields a lane that passes and an assembly that does not (→ [06-testing-verification.md](06-testing-verification.md) §1).
 
 Criteria map to tests and the red check via [06-testing-verification.md](06-testing-verification.md); evidence and human verdicts via [19-evidence.md](19-evidence.md); how the plan and briefs are produced in the first place via [21-development-loop.md](21-development-loop.md); decomposition, isolation, and model routing stay in [09-agentic-workflow.md](09-agentic-workflow.md), review lanes and fan-in in [20-review-gate.md](20-review-gate.md). The contract records decisions, not the rules behind them.

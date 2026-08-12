@@ -23,7 +23,7 @@ Takes precedence over every other document, so it belongs to no single skill and
 | Doc | Contents |
 |---|---|
 | [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, boundary contract tests, worktree fan-out, review on each lane's finish, merge and end-to-end verification |
-| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict), lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
+| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict, decidable inside the owning lane), the four surfaces a boundary can split on, lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
 | [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, model routing, spec gating |
 | [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
 
@@ -31,10 +31,10 @@ Takes precedence over every other document, so it belongs to no single skill and
 
 | Doc | Contents |
 |---|---|
-| [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, structure-follows-design integration, flat layout, PEP 8 semantic naming, comment/emoji policy, dead code/duplication removal |
+| [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, structure-follows-design integration, flat layout, PEP 8 semantic naming, names derived from objects rather than re-spelled as literals, comment/emoji policy, dead code/duplication removal |
 | [02-config.md](conventions/02-config.md) | No hardcoding, composable config groups + validation, ablation combinations, run snapshots |
 | [03-environment.md](conventions/03-environment.md) | uv/ruff toolchain, local↔RunPod portability, device abstraction (CPU fallback) |
-| [13-secret-management.md](conventions/13-secret-management.md) | No hardcoding/committing secrets, central manager (Infisical) injection, reading env in code, container/CI machine identity, scanning/rotation |
+| [13-secret-management.md](conventions/13-secret-management.md) | No hardcoding/committing secrets, central manager (Infisical) injection, reading env in code, permissions on every file of a restricted artifact, container/CI machine identity, scanning/rotation |
 
 ### Commit — `commit`
 
@@ -48,8 +48,8 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 
 | Doc | Contents |
 |---|---|
-| [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, one fixture per object that crosses boundaries, golden files, tolerance bands, CPU smoke tests, completion verification |
-| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, lanes defined by input (module/project/absence/security), fan-in and severity, review tool paths without pinned model ids |
+| [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, boundary contracts over symbols and value sets as well as payloads, one fixture per object that crosses boundaries, fixtures and doubles that cannot teach a wrong implementation, golden files, tolerance bands, CPU smoke tests, completion verification |
+| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, what the author's evidence executed, lanes defined by input (module/project/absence/security), fan-in with confirmed/refuted/unverified findings and severity, review tool paths without pinned model ids |
 | [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, command output with secret masking, provenance, human verdict records, recorded bypasses |
 
 ### Data and ML pipelines — `ml-pipeline`
@@ -201,8 +201,8 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Separate by module/feature, with clear input/output contracts. Keep files small and boundaries clear.
 - Fit the structure to the design, not the design to the structure: when integrating a new module, restructuring the surrounding project is preferred over force-fitting — scoped to what the integration touches, behavior pinned by tests, structural moves in separate commits.
 - App/research/pipeline code uses a flat layout (src/ is only for distributed libraries). Use uv workspaces for multiple packages.
-- Semantic naming, PEP 8. No `_v2`/`_new` suffixes on code — rename in place; evaluation-pinned artifacts (prompts, golden sets) are the exception and version append-only. Delete dead code immediately, scan for duplicates before completion.
-- Comments cover only constraints/intent the code can't express — no insider-only context, no TMI, no explaining the obvious. Cap a comment block at three lines, an inline comment at one.
+- Semantic naming, PEP 8. No `_v2`/`_new` suffixes on code — rename in place; evaluation-pinned artifacts (prompts, golden sets) are the exception and version append-only. Never re-spell a module or symbol name as a string literal, least of all on an error path the tests never run — derive it from the object, or let the original error propagate. Delete dead code immediately, scan for duplicates before completion: an unreachable function's docstring is still read as a statement about the system.
+- Comments cover only constraints/intent the code can't express — no insider-only context, no TMI, no explaining the obvious. Cap a comment block at three lines, an inline comment at one. A comment claiming another component enforces something names the call site that enforces it.
 - **Edit by rewrite, not by append.** Once a comment block or document section has grown past about half again its size, rewrite it instead of extending it. Comments and documents describe the current state only — change history lives in git and ADRs. Before adding a rule, find where it already lives; replace the second copy with a reference.
 - Minimize emoji in docs, and use none at all in code comments: allow one only where the symbol is the data (a defined legend), never as decoration on headings or bullets. Write status as words (`OK`/`FAILED`/`TODO`) so it stays greppable.
 
@@ -220,7 +220,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Secret Management
 
 - Never hardcode secrets in code, config, logs, or images; never commit a plaintext `.env` (`.gitignore` + `.env.example` lists keys only). The single source of truth is a central secret manager (Infisical recommended).
-- Supply secrets to local, CI, and container environments alike via runtime injection (`infisical run -- <cmd>`), with no plaintext left on disk. Code reads them as env vars as usual (`os.environ[...]`). Coding agents follow the same rule.
+- Supply secrets to local, CI, and container environments alike via runtime injection (`infisical run -- <cmd>`), with no plaintext left on disk. Where an artifact on disk must be restricted, restrict every file carrying the content — a sidecar at `0600` beside its data at `0644` reads as protected and is not. Code reads secrets as env vars as usual (`os.environ[...]`). Coding agents follow the same rule.
 - Containers/CI authenticate via machine identity (Universal Auth) with least privilege and short-lived tokens. Separate environments (dev/staging/prod) + rotate + scan with gitleaks (pre-commit/CI). Immediately rotate and reissue any secret that was already committed.
 
 ### Pipeline
@@ -237,12 +237,14 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Testing & Verification
 
 - Three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests through the project's real entry point. Only the third catches integration failures.
-- An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order.
+- An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order. An isolated lane cannot hold this layer, so it belongs to the integration step after the merge rather than to a lane.
 - Store each boundary's representative payload as a file the fixture factory loads. An object crossing more than one boundary gets a single fixture and a single source for its field names and literals: two fixtures for one object are two definitions, both green, because a contract test reads only its own.
-- Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? A test that has never failed is a deletion candidate.
+- A boundary contract also imports each crossing symbol under its caller's name, calls it at its caller's signature, and pins the value set both sides branch on. A matching payload proves nothing when the consuming function does not exist, or when the producer emits a value the consumer refuses.
+- Build each stored payload so only the correct rule reproduces it — two properties that coincide in the sample let every implementation confusing them pass, so vary one of them in the file. A double may not assert a shape the real system never produces: confirm it against the real thing once and keep that check. No test patches over one of your own components — the substitution does not merely weaken an assertion, it removes that path from the run. Isolate a fixture from the machine it runs on and from the tests that already used it; a module-scoped fixture handed out by reference or shallow copy carries one test's mutation into the next.
+- Justify each test: is there a realistic change that would break it, does another test already catch it, could it ever fail? Reduce the assertion to answer the last — a constant compared to a constant, or two sides through the same normalisation, is an identity wearing a test's name. A test that has never failed is a deletion candidate.
 - Cover every completion criterion with an executable check, but not one test per criterion — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
 - Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such.
-- Every fixed bug gains exactly one regression test. Assert ML metrics with a tolerance band; update golden files only via an explicit flag. CI smoke-tests GPU paths on CPU with small samples. TODOs/stubs/skips are blockers, not completion.
+- Every fixed bug gains exactly one regression test, and the fix is checked against the defect's siblings on neighbouring paths before it closes. Assert ML metrics with a tolerance band; update golden files only via an explicit flag. CI smoke-tests GPU paths on CPU with small samples. TODOs/stubs/skips are blockers, not completion.
 
 ### AI/ML
 
@@ -289,6 +291,8 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Write the contract before development starts and freeze it during execution. Record changes with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
 - Write completion criteria in EARS or Given-When-Then with `SHALL`, and apply the judgment test: if two agents could disagree about whether it passed, rewrite it.
 - Pair every criterion with the command that checks it, or mark it `[human]`. The two halves fail differently: a command with no sentence is never asked whether it checks the right thing, and a sentence with no command defers the judgment to verification time.
+- The command must reach a verdict inside the lane that owns the criterion, against that lane's work alone — a command importing a sibling lane's module fails on import and says nothing about the lane it was given to. Cross-lane contracts and the end-to-end condition are the integration step's criteria, not a lane's.
+- Enumerate boundaries by where two lanes could believe differently, not by what data passes between them: payload shape, the name and signature of every symbol one lane calls in another, the accepted value set of a field, and the call graph itself. A consumer-only lane sends nothing outward, so a payload-derived list leaves the widest call surface uncontracted.
 - Cover functional, non-functional, and **negative** criteria (what must not happen), and state what is out of scope. A three-to-five-line contract is complete for small work.
 - Declare the done level (`auto`/`reviewed`/`proven`) up front, chosen by size × reversibility. Regardless of level, three things are mandatory: every criterion passes, evidence exists, and each new test was observed failing at the base commit.
 - Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. Absence criteria almost always are.
@@ -301,12 +305,14 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Mask secrets in the command line and environment as well as the output, before evidence leaves the machine — the pre-commit scan never sees gitignored artifacts.
 - Block completion on `PENDING-HUMAN` at every done level; a human criterion passes only once a verdict, its author, and its timestamp are recorded.
 - Name the commit and whether the tree was clean. Record every bypass with its reason — a skipped gate and a passed gate must never look alike in the record.
+
 ### Review Gate
 
 - Every change goes through a review its author did not perform, on a tool chosen before development starts and named in the review report. The reviewer gets the diff and the criteria, never the author's reasoning.
-- A lane judging code runs the code, and reports how many commands it ran; a verdict from a lane that ran none is a reading and says so. Measured on one document at one commit, a read-only lane found nothing where an executing lane found ten.
+- A lane judging code runs the code, and reports how many commands it ran; a verdict from a lane that ran none is a reading and says so. Measured on one document at one commit, a read-only lane found nothing where an executing lane found ten. Ask the same of the author's evidence — whether any of it ran outside the module under change, since a defect crossing a boundary appears only when something runs both sides.
 - Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched.
 - Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered *with content*, dedupe by `file:line`, resolve contradictions, verify each finding against the code, rank by severity. A lane that finished is not a lane that answered — an agent can end with its report undelivered. An unsynthesized merge amplifies manufactured issues once per lane.
+- Mark every finding in three states, not two: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran. A refutation is reported as a result. A reproduction that will not run — a gate the change added rejects the input, a state that can no longer be constructed — is a finding about the procedure and never evidence of a fix.
 - Severity carries an action: blocker blocks the merge and is re-reviewed by the lane that raised it, major is fixed in the same work, minor becomes a follow-up, nit may be ignored. A finding with no concrete failing scenario is a nit.
 - Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
 - Run at least one lane on a different vendor's family, and don't pin model ids in the docs — resolve them at use time and pick by role. A gate that passes is not evidence the gate works; confirm once that it fails when it should.
