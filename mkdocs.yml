@@ -63,6 +63,7 @@ nav:
       - conventions/20-review-gate.md
       - conventions/21-development-loop.md
       - conventions/22-framework-wrapping.md
+      - conventions/23-remote-gpu-iteration.md
   - Harness:
       - skills/plan-and-delegate/SKILL.md
       - skills/code-and-config/SKILL.md

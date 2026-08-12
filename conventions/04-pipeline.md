@@ -17,7 +17,7 @@ Each pipeline stage must let you immediately verify "how it works, what goes in,
 
 - Make `--limit N` (e.g., process only 10 samples) a standard option on every stage's CLI.
 - Provide an option to dump per-stage input/output samples in a human-readable format (JSON/JSONL/Parquet).
-- Being able to replay an individual stage standalone from captured input dramatically speeds up debugging — isolate and run just the problem stage instead of rerunning the whole pipeline.
+- Being able to replay an individual stage standalone from captured input dramatically speeds up debugging — isolate and run just the problem stage instead of rerunning the whole pipeline. When the failure happened on a remote GPU host, pull the dumped input down and replay locally (→ [23-remote-gpu-iteration.md](23-remote-gpu-iteration.md)).
 - Make it standard procedure to validate schema/format/tokenization with a small-sample dry-run before the real run (→ [08-llm-development.md](08-llm-development.md)).
 
 Sources: [AI agent observability — trace/replay](https://mastra.ai/articles/ai-agent-observability)

@@ -61,6 +61,7 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 | [07-ml-development.md](conventions/07-ml-development.md) | Seed/reproducibility, train-serve skew prevention, experiment tracking, checkpoints/spot pods |
 | [08-llm-development.md](conventions/08-llm-development.md) | Training framework routing, FSDP2/bf16, chat template consistency, evaluation reproducibility, LLM-as-judge, data |
 | [22-framework-wrapping.md](conventions/22-framework-wrapping.md) | Wrapping a third-party training framework: a test layer that imports the real package, config-only tiny-model fixtures, image supplies the dependency and the working tree supplies your code, one gate function, the layer's range |
+| [23-remote-gpu-iteration.md](conventions/23-remote-gpu-iteration.md) | Local↔remote GPU iteration loop: direct code sync instead of rebuild/push round trips, a `--smoke` mode through the real entry point, preflight before expensive loads, replaying remote failures locally |
 
 ### External sources — `external-sources`
 

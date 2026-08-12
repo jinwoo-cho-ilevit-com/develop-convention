@@ -88,7 +88,7 @@ A test that has never failed, in any run, is a deletion candidate. Either it gua
 - **Golden files**: store reference outputs and compare with a tolerant diff. Update only via an explicit flag (`--update-golden`).
 - **Seeds**: `PYTHONHASHSEED`, numpy, torch, and CUDA determinism in one session-scoped fixture. Non-deterministic code cannot be tested.
 - **Schema contract tests**: pin the match between training input and inference input to prevent train-serve skew.
-- **GPU paths on CPU**: all GPU code goes through the device helper (→ [03-environment.md](03-environment.md)), so CI runs the smoke tests with `device: cpu` and `--limit 10`. These verify behaviour, not performance: shape errors, device mismatches, config errors.
+- **GPU paths on CPU**: all GPU code goes through the device helper (→ [03-environment.md](03-environment.md)), so CI runs the smoke tests with `device: cpu` and `--limit 10`. These verify behaviour, not performance: shape errors, device mismatches, config errors. When the entry point carries a `--smoke` mode (→ [23-remote-gpu-iteration.md](23-remote-gpu-iteration.md)), CI invokes that same mode rather than a second recipe.
 
 Sources: [ML testing — fixtures, seeds, golden files](https://medium.com/@connect.hashblock/10-ways-to-test-ml-code-fixtures-seeds-golden-files-811310517cae)
 

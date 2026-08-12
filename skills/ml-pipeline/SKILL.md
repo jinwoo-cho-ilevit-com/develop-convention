@@ -1,11 +1,11 @@
 ---
 name: ml-pipeline
-description: Routes to the conventions that govern pipeline stage shape, throughput, ML experiment discipline, and training or serving a model yourself. Use when building a preprocessing, training, or evaluation pipeline over weights you run yourself, when something is too slow, or when handling seeds, checkpoints, and experiment tracking. For a pipeline whose model is called over someone else's API, use external-sources instead.
+description: Routes to the conventions that govern pipeline stage shape, throughput, ML experiment discipline, the iteration loop between a local machine and a rented GPU, and training or serving a model yourself. Use when building a preprocessing, training, or evaluation pipeline over weights you run yourself, when something is too slow, or when handling seeds, checkpoints, and experiment tracking. For a pipeline whose model is called over someone else's API, use external-sources instead.
 ---
 
 # ml-pipeline — Stages, Throughput, Experiments, Self-Hosted Models
 
-Routing procedure for conventions [04-pipeline.md](../../conventions/04-pipeline.md), [05-performance.md](../../conventions/05-performance.md), [07-ml-development.md](../../conventions/07-ml-development.md), [08-llm-development.md](../../conventions/08-llm-development.md) and [22-framework-wrapping.md](../../conventions/22-framework-wrapping.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
+Routing procedure for conventions [04-pipeline.md](../../conventions/04-pipeline.md), [05-performance.md](../../conventions/05-performance.md), [07-ml-development.md](../../conventions/07-ml-development.md), [08-llm-development.md](../../conventions/08-llm-development.md), [22-framework-wrapping.md](../../conventions/22-framework-wrapping.md) and [23-remote-gpu-iteration.md](../../conventions/23-remote-gpu-iteration.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
 
 Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you are working in does not carry a copy. This file routes to them and does not restate them; a rule written twice drifts.
 
@@ -27,18 +27,21 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | Deduplicating and decontaminating training data | 08 |
 | Driving someone else's training framework, and proving your reading of it before renting a GPU | 22 |
 | A test double that stays green while the thing it stands for is broken | 22 |
+| Code edited here but run on a rented GPU — getting it there without a rebuild, failing fast once there | 23 |
+| A smoke mode that must pass locally before a GPU is occupied | 23 |
 
 ## Order
 
 1. **04 before writing a stage.** What it asks of a stage is structural, so retrofitting means rewriting rather than adding.
-2. **07 as soon as a run produces a number** anyone might cite later — earlier than it feels, because by the time someone asks, the run that produced it is gone.
-3. **08 only when the model is yours to train or serve.**
-4. **22 as soon as another project's trainer is in the loop** — the layer it asks for is cheap to add early and expensive to retrofit around a suite that already trusts its doubles.
-5. **05 last.** It comes last because each of the three above changes what there is to measure.
+2. **23 as soon as the run leaves this machine** — its sync and smoke rules shape the entry point, so like 04 they are cheaper built in than bolted on.
+3. **07 as soon as a run produces a number** anyone might cite later — earlier than it feels, because by the time someone asks, the run that produced it is gone.
+4. **08 only when the model is yours to train or serve.**
+5. **22 as soon as another project's trainer is in the loop** — the layer it asks for is cheap to add early and expensive to retrofit around a suite that already trusts its doubles.
+6. **05 last.** It comes last because each of the above changes what there is to measure.
 
 ## Boundaries with other skills
 
-Calling a model over someone else's API is [external-sources](../external-sources/SKILL.md), not 08 — the split is who runs the weights. File placement, config, and secret handling for this code still come from [code-and-config](../code-and-config/SKILL.md). Test tolerances, fixtures, and GPU paths exercised on CPU are in [verify-and-review](../verify-and-review/SKILL.md).
+Calling a model over someone else's API is [external-sources](../external-sources/SKILL.md), not 08 — the split is who runs the weights. File placement, config, and secret handling for this code still come from [code-and-config](../code-and-config/SKILL.md). Test tolerances, fixtures, and the smoke tests CI runs on CPU are in [verify-and-review](../verify-and-review/SKILL.md); the `--smoke` mode an entry point carries while you iterate is 23's.
 
 ## When two documents disagree
 
