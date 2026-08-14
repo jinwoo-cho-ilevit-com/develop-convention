@@ -31,7 +31,7 @@ Takes precedence over every other document, so it belongs to no single skill and
 
 | Doc | Contents |
 |---|---|
-| [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, structure-follows-design integration, flat layout, PEP 8 semantic naming, names derived from objects rather than re-spelled as literals, comment/emoji policy, dead code/duplication removal |
+| [01-structure-naming.md](conventions/01-structure-naming.md) | Module separation, structure-follows-design integration, flat layout, PEP 8 semantic naming, names derived from objects rather than re-spelled as literals, comment/emoji policy, literal UTF-8 over `\uXXXX` escapes, dead code/duplication removal |
 | [02-config.md](conventions/02-config.md) | No hardcoding, composable config groups + validation, ablation combinations, run snapshots |
 | [03-environment.md](conventions/03-environment.md) | uv/ruff toolchain, local↔RunPod portability, device abstraction (CPU fallback) |
 | [13-secret-management.md](conventions/13-secret-management.md) | No hardcoding/committing secrets, central manager (Infisical) injection, reading env in code, permissions on every file of a restricted artifact, container/CI machine identity, scanning/rotation |
@@ -206,6 +206,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Comments cover only constraints/intent the code can't express — no insider-only context, no TMI, no explaining the obvious. Cap a comment block at three lines, an inline comment at one. A comment claiming another component enforces something names the call site that enforces it.
 - **Edit by rewrite, not by append.** Once a comment block or document section has grown past about half again its size, rewrite it instead of extending it. Comments and documents describe the current state only — change history lives in git and ADRs. Before adding a rule, find where it already lives; replace the second copy with a reference.
 - Minimize emoji in docs, and use none at all in code comments: allow one only where the symbol is the data (a defined legend), never as decoration on headings or bullets. Write status as words (`OK`/`FAILED`/`TODO`) so it stays greppable.
+- Write non-ASCII text as literal UTF-8 wherever it lands — tool-call JSON parameters, file content, serialized JSON — never as `\uXXXX` escapes; in code, `json.dumps(..., ensure_ascii=False)` for output humans or agents read. Exempt: escapes JSON itself requires, and code/fixtures where the escape is the point.
 
 ### Config
 

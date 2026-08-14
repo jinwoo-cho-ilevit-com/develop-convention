@@ -15,6 +15,7 @@
 - Comments and documents describe the current state only. Change history — what it used to be, why it was changed, how many attempts it took — lives in git and in ADRs (→ [15-doc-tracking.md](15-doc-tracking.md)). A rule survives; the incident that produced it does not.
 - Before adding a rule or an explanation, find where it already lives. Two copies drift; replace the second with a reference.
 - Minimize emoji in docs and comments. Use one only when it carries information plain text cannot; never as decoration on headings, bullets, or section dividers, and never inside code comments. For status, write the word (`OK`, `FAILED`, `TODO`), not a symbol — words survive grep, diffs, and terminals that render emoji inconsistently.
+- Write non-ASCII text (Korean included) as literal UTF-8 wherever it lands — tool-call JSON parameters, file content, serialized JSON — never as `\uXXXX` escapes. Escaped text fails the same greppability bar as emoji: a search for the Korean word cannot match its escaped form. In code this means `json.dumps(..., ensure_ascii=False)` — Python's default escapes every non-ASCII character. Exempt: the characters JSON itself requires escaping (quotation mark, backslash, control characters) and code or fixtures where the escape is the point.
 - When refactoring/migrating, don't carry over anything unused in the existing project.
 - Before finishing work, scan for and remove duplicate constants/functions/scripts.
 
@@ -68,6 +69,10 @@ The bar for a comment is: "can a first-time reader (human or model) read it and 
 - A rare informative case survives the rule: a legend where the symbol *is* the data (e.g. a status column in a compatibility matrix). Use one there, consistently, and define it.
 
 Code comments take no emoji at all — a comment exists to state a constraint, and a symbol cannot state one.
+
+**Unicode escapes.** `\uXXXX` escapes fail the same greppability bar: a file holding `\uc548\ub155` never matches a search for `안녕`, and a diff over escaped text is unreadable. So non-ASCII text is written as literal UTF-8 everywhere it lands — tool-call JSON parameters, file content, serialized output. JSON itself requires escaping only the quotation mark, the backslash, and control characters (RFC 8259 §7); everything else may be literal. Python's `json.dumps` escapes every non-ASCII character unless told otherwise (`ensure_ascii` defaults to true), so serialization whose output humans or agents read passes `ensure_ascii=False`. Deliberate escapes in code or test fixtures are the remaining exception.
+
+Sources: [RFC 8259 §7 — Strings](https://www.rfc-editor.org/rfc/rfc8259#section-7), [Python `json` — `ensure_ascii`](https://docs.python.org/3/library/json.html#json.dump)
 
 ### 6. Migration/cleanup rules
 
