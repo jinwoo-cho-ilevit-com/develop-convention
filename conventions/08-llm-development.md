@@ -23,15 +23,15 @@ LLM API call-based inference modules (using external provider APIs) follow [10-l
 | DPO/GRPO/online RL | TRL (`GRPOTrainer` + vLLM rollout) or Axolotl GRPO |
 | Pretraining/large-scale | torchtitan (PyTorch-native) or Megatron-Core |
 
-- **torchtune is no longer actively maintained** — its README states "torchtune development wound down in 2025" — so do not adopt it for new projects. This is a concrete instance of "research maintenance status before choosing a framework" (→ [00-principles.md](00-principles.md)).
-- Axolotl/Unsloth/LLaMA-Factory overlap heavily on LoRA/QLoRA/full fine-tuning and vision, but their advertised coverage is not identical: Axolotl's docs list DPO and GRPO alongside the rest, GRPO is absent from LLaMA-Factory's main feature list (it points to the separate EasyR1 project), and DPO is absent from Unsloth's. Select on scale, reproducibility, and ergonomics — and confirm the specific method you need against the project's own docs rather than assuming parity.
-- TRL's vLLM integration documents a supported version range, so pin the vLLM version within the range TRL states for your installed version.
+- **torchtune is no longer actively maintained** — its README states "torchtune development wound down in 2025" — so do not adopt it for new projects (as of: 2026-08). This is a concrete instance of "research maintenance status before choosing a framework" (→ [00-principles.md](00-principles.md)).
+- Axolotl/Unsloth/LLaMA-Factory overlap heavily on LoRA/QLoRA/full fine-tuning and vision, but their advertised coverage is not identical: Axolotl's docs and Unsloth's README both list DPO and GRPO, while GRPO is absent from LLaMA-Factory's main feature list (it announces the separate EasyR1 project for GRPO instead) (as of: 2026-08). Select on scale, reproducibility, and ergonomics — and confirm the specific method you need against the project's own docs rather than assuming parity.
+- TRL's vLLM integration documents a supported version range, so pin the vLLM version within the range TRL states for your installed version (as of: 2026-08).
 
 Sources: [torchtune (maintenance notice)](https://github.com/meta-pytorch/torchtune), [TRL — vLLM integration](https://huggingface.co/docs/trl/main/en/vllm_integration), [Axolotl](https://docs.axolotl.ai/), [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory), [Unsloth](https://github.com/unslothai/unsloth), [torchtitan](https://github.com/pytorch/torchtitan)
 
 ### 2. Distributed & Efficient Training
 
-- **Default to FSDP2**. Axolotl's docs state "FSDP1 is deprecated and will be removed in an upcoming release of Axolotl" and that "FSDP2 is recommended for new users". Use DeepSpeed ZeRO only when CPU/NVMe offload is truly needed; ZeRO 1-2 is appropriate for LoRA, and avoid the LoRA + CPU offload combination.
+- **Default to FSDP2**. Axolotl's docs state "FSDP1 is deprecated and will be removed in an upcoming release of Axolotl" and that "FSDP2 is recommended for new users" (as of: 2026-08). Use DeepSpeed ZeRO only when CPU/NVMe offload is truly needed; ZeRO 1-2 is appropriate for LoRA, and avoid the LoRA + CPU offload combination.
 - **Caution**: injecting a LoRA adapter after `fully_shard` is reported to leave the new parameters outside FSDP management so their gradients never sync — *(unverified — needs research)*. PyTorch's `fully_shard` reference documents only that it converts `model.parameters()` to DTensor in-place and that each group is all-gathered/reduce-scattered as a unit; it does not document post-hoc parameter injection either way. Treat injection order as load-bearing, verify against the official docs of the framework you adopt, and test that gradients actually sync before relying on it.
 - Optimizations to apply by default: bf16 (no loss scaling needed), gradient checkpointing, Flash Attention, sequence packing. Start LoRA rank at 8 and adjust based on quality/memory.
 - Use a single host framework per run — no framework chaining.
