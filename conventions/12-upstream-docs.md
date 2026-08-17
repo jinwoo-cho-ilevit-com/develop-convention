@@ -70,14 +70,6 @@ Each provider adapter has a minimum smoke set: one basic call, one structured ou
 
 Combinations the docs are silent on (e.g., a given provider's thinking × structured output combined) are confirmed with this smoke test, and the result is recorded in the capability table ([11-llm-api-providers.md](11-llm-api-providers.md)) along with a date stamp.
 
-### 4. How to Inject This into a Project
+### 4. How This Reaches a Project
 
-The following three lines in each project's CLAUDE.md/AGENTS.md are enough:
-
-```
-- Before writing/modifying provider API code: fetch and verify the corresponding provider's official docs per develop-convention conventions/12-upstream-docs.md
-- For SDK usage use ctx7; for exceptions/signatures, the installed SDK source is authoritative
-- Don't guess at undocumented behavior — confirm it with a provider smoke test
-```
-
-Once this procedure is confirmed to be reused in practice, consider promoting it to a skill — until then, the registry + three-line rule delivers more value than its maintenance cost. The test for promotion is the one in [09-agentic-workflow.md](09-agentic-workflow.md) §1 ("Split into Skills"): knowledge that isn't always needed belongs in an on-demand skill rather than an always-loaded instruction file.
+In Claude Code, the dev-harness plugin's `external-sources` skill routes to this document the moment provider-API work starts, rather than having any of it pasted into a project's CLAUDE.md/AGENTS.md — an excerpt is a copy, and README's "How to Apply" forbids that path. Tools and cloud sandboxes without the plugin installed read this document directly from the published site, https://jinwoo-cho-ilevit-com.github.io/develop-convention/. The criterion for what belongs in an on-demand skill rather than an always-loaded instruction file is in [09-agentic-workflow.md](09-agentic-workflow.md) §1.
