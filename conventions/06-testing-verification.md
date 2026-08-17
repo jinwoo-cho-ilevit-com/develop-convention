@@ -11,9 +11,12 @@
 - Build each stored payload so that only the correct rule reproduces it. Where two independent properties happen to coincide in the sample — a column order equal to the projection order, an identifier equal to a row index — every implementation that confuses the two passes every contract. Vary one of them in the file.
 - A double stands in for something outside your project, and it may not assert a shape the real system never produces: a fake index carrying a uniqueness flag the real server does not set teaches the implementation to depend on it, and the dependency breaks on the first real run. Confirm the double against the real thing once and keep that check; for a heavy external dependency, that check is a layer of its own (→ [22-framework-wrapping.md](22-framework-wrapping.md)).
 - Never patch over one of your own components to make a test pass. The substitution does not merely weaken an assertion — it removes that path from the run, so the defect living there cannot be observed until the patch comes out. The end-to-end layer's "no mocking your own modules" (§1) is the same rule at its strictest.
+- Derive a test's expected value from the specification, never by running the code under test and recording what it returns. A recorded output is true by construction — the test asserts that the code does what the code does — and this is the default failure mode when one session writes both the implementation and its tests.
 - Justify each test by three questions: is there a realistic change that would break it, does another test already catch that, and could it ever fail? Reduce the assertion to answer the third: one comparing a constant to a constant, or whose two sides pass through the same normalisation, is an identity wearing a test's name. A test that answers no to any of the three should not exist.
+- A test that fails when behaviour did not change is the mirror failure: a refactor breaks it because it asserts implementation structure rather than what callers observe. Such a change-detector catches no defects and taxes every change — delete it, or re-point it at the public behaviour.
 - Cover every completion criterion with an executable check, but not one test per criterion — one test may satisfy several. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
 - Observe every new test failing before it passes: run it at the base commit and keep the output. A test that was never seen red is indistinguishable from one that asserts nothing.
+- A test written for code that already works has no red to observe at the base commit — verify it by sabotage instead: break the behaviour it claims to pin, watch the test fail, and revert. A characterization test never seen failing is ceremony, not verification.
 - Distinguish "the check could not run" from "the check ran and failed". A missing test file, an uncollectable suite, or an unavailable command is a missing baseline, not a red result.
 - Exempt standing invariants from the red check explicitly. A regression guard holding at the base commit is the correct outcome, not a defect.
 - Every fixed bug gains exactly one regression test that reproduces it, and the fix is checked against the defect's siblings before it closes. The same mistake usually sits on the path beside the reported one — the other decoder, the second resume branch — and fixing only what was reported leaves the twin behind under a test proving it is gone.
@@ -75,11 +78,19 @@ A collection error needs one more split. A test that cannot import the module it
 
 Standing invariants are the exception. "Every module exports a schema", "no secret pattern appears in the tree" — these are guards, and they hold at the base commit by design. Mark them (`red: guard` in a contract) rather than letting the gate fail them. Requiring red of a guard makes the gate unusable; leaving guards implicit makes it meaningless.
 
+Two gaps the base-commit check does not close. A test whose expected value was recorded from the implementation goes red at the base commit like any other — the module is missing there — yet asserts nothing about correctness: the author ran the new code, captured its output, and pasted it back as the expectation, so a bug in the implementation is reproduced in the expectation verbatim. This is the default failure mode when one session writes both the code and its tests, which is why the expected value must come from the specification. And a characterization test written for code that already works is green at the base commit by design, so red-before-green never fires for it — sabotage replaces it: break the behaviour the test claims to pin, watch it fail, revert, and keep that observation as the evidence.
+
+Sources: [AI-generated tests that pass but don't assert](https://getautonoma.com/blog/ai-generated-tests-pass-but-dont-assert), [AI-generated tests as ceremony](https://blog.ploeh.dk/2026/01/26/ai-generated-tests-as-ceremony/)
+
 ### 4. Budget
 
 State the budget rather than discovering it. Per module: unit tests for the non-trivial branches and one contract test per boundary. The 1-3 end-to-end smoke tests are per project, owned by the integration step (§1), not part of any module's budget. Beyond that needs a reason — usually a bug that escaped, arriving with its own regression test.
 
 A test that has never failed, in any run, is a deletion candidate. Either it guards something no change can break, or it does not assert what its name claims.
+
+The deletion candidate has a mirror: a test that fails when behaviour did not change. A refactor breaks it because it asserts the implementation's structure — the exact call sequence, a private shape — rather than what callers observe. It catches no defects and adds a cost to every change, which is negative value: delete it, or rewrite it against the public behaviour.
+
+Sources: [Change-detector tests considered harmful](https://testing.googleblog.com/2015/01/testing-on-toilet-change-detector-tests.html)
 
 ### 5. ML test patterns
 
