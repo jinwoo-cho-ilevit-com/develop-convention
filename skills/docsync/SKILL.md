@@ -28,7 +28,7 @@ Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc
 
 `.docsync/` is committed, not gitignored — the state is reviewable, and a teammate who cannot see it re-bootstraps from nothing every time.
 
-One file per documented directory. A single shared file was rewritten whole on every sync, so two people syncing unrelated modules collided on nearly every line, and a hand-merged result recorded hashes matching neither tree — which silently disables the RMA check those hashes exist for.
+One file per documented directory (why a shared file fails: → [15-doc-tracking.md](../../conventions/15-doc-tracking.md) §2).
 
 ```json
 // .docsync/src__parser__AGENTS.md.json
@@ -43,7 +43,7 @@ One file per documented directory. A single shared file was rewritten whole on e
 }
 ```
 
-**Flat, not under a subdirectory.** `.docsync/docs/` is swallowed by the bare `docs/` line most projects carry for their site build output, and state that is silently ignored is worse than state that is absent.
+**Flat, not under a subdirectory** (why: → [15-doc-tracking.md](../../conventions/15-doc-tracking.md) §2).
 
 **The file name** is the doc path with `/` replaced by `__`. Two agents must derive the same name from the same path, so the rule is mechanical. It is not injective — `a/b__c/AGENTS.md` and `a/b/c/AGENTS.md` produce one name, and `__tests__` directories are real — so when the name is taken by a file whose `doc` is a different path, append `-` and the first 8 hex characters of the sha256 of the doc path. `doc` is the authority; the file name is an index into it.
 
