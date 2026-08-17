@@ -139,6 +139,7 @@ The main session orchestrates: it plans, splits and judges, and sends the editin
 | `verification-incomplete` | Decide the blockers yourself; the verifier's answer did not map onto them |
 | `regression-halt` | Change the approach — the findings are repeating or coming from the last fix |
 | `round-cap` | Decide as a person what happens next; the runaway guard fired |
+| `develop-failed` / `fix-failed` | Re-run or investigate — the agent died; an infrastructure failure, not a verdict |
 
 ### Tool-by-Tool Behavior
 
@@ -216,7 +217,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Environment
 
 - uv (commit uv.lock) + ruff + pre-commit/CI. Dev tools go in `[dependency-groups]`.
-- Runs identically on local (macOS/CPU/MPS) and RunPod (Linux/CUDA) without modification — via uv platform markers or `--torch-backend=auto`.
+- Runs identically on local (macOS/CPU/MPS) and a remote GPU host (Linux, CUDA) without modification — via uv platform markers or `--torch-backend=auto`.
 - Select the device only through a single helper (based on `torch.accelerator`) — no inline `.cuda()`. Must be runnable and testable on CPU when no GPU is available.
 
 ### Secret Management
@@ -255,7 +256,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### LLM
 
-- Route frameworks by use case (single GPU → Unsloth/TRL, multi-GPU reproducibility → Axolotl, RL → TRL+vLLM, pretraining → torchtitan). torchtune is prohibited (deprecated). FSDP2 + bf16 by default.
+- Route frameworks by use case (single GPU → Unsloth/TRL, multi-GPU reproducibility → Axolotl, RL → TRL+vLLM, pretraining → torchtitan). torchtune is no longer actively maintained — do not adopt it for new work. FSDP2 + bf16 by default.
 - Chat templates use `apply_chat_template` as the single source; golden-test string identity between training and inference; specify sampling parameters explicitly in config.
 - Evaluation records even the harness/task version, fewshot count, and whether a template was applied. Judges use bidirectional ordering + cross-family + length-aware rubrics.
 
@@ -278,8 +279,8 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Context Management
 
 - The main context is the orchestrator — keep only conclusions, and delegate exploration/search/large reads to subagents (separate context windows), receiving only summaries back. Don't sweep directories or read large files whole in the main context. Dispatch independent work in parallel, and run long-running work in the background.
-- Keep the source of truth in files, not the conversation — persist plans/decisions/progress to external files and checkpoint at every milestone. Keep durable rules/facts in CLAUDE.md (loaded every session, re-injected after compaction) and in auto memory (survives even `/clear`).
-- Only the root CLAUDE.md and auto memory reliably survive a context reset; the conversation does not. Use `/compact <focus>` before it triggers automatically, `/clear` between unrelated tasks, and re-check git status, cwd, and state artifacts right after any resume.
+- Keep the source of truth in files, not the conversation — persist plans/decisions/progress to external files and checkpoint at every milestone. Keep durable rules/facts in CLAUDE.md (loaded every session, re-injected after compaction) and in auto memory (survives `/clear`, but it is a setting that can be off — check before relying on it).
+- Only the root CLAUDE.md and auto memory (when enabled) reliably survive a context reset; the conversation does not. Use `/compact <focus>` before it triggers automatically, `/clear` between unrelated tasks, and re-check git status, cwd, and state artifacts right after any resume.
 
 ### Development Loop
 
