@@ -33,6 +33,7 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Review | Starts per lane on that lane's finish; lanes defined by input; fix and recheck | [20-review-gate.md](20-review-gate.md) |
 | Merge | Criteria pass → merge; integration lane last | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 | Verify | Whole-project condition, `[human]` criteria answered, evidence reported as a criteria table | [19-evidence.md](19-evidence.md) |
+| Clean up | Merged lanes lose worktree and branch; halted lanes keep theirs | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 
 ### 2. Deriving what to ask
 
