@@ -142,13 +142,9 @@ def test_every_skill_link_resolves(path):
     assert not broken, f"{path.parent.name} links to files that do not exist: {broken}"
 
 
-@pytest.mark.parametrize(
-    "path",
-    [p for p in SKILLS if "Routing procedure" in p.read_text(encoding="utf-8")],
-    ids=lambda p: p.parent.name,
-)
-def test_a_routing_skill_does_not_copy_convention_text(path):
-    """A routing skill says which document decides what; the deciding stays there.
+@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
+def test_a_skill_does_not_copy_convention_text(path):
+    """A skill routes to or executes a convention; the rule text itself stays there.
 
     This catches copied sentences, not paraphrase — a short restatement still needs the
     review lens (CLAUDE.md, verification item 6). A guard, so it holds at the base commit
@@ -167,12 +163,9 @@ def test_a_routing_skill_does_not_copy_convention_text(path):
 
 @pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
 def test_no_skill_specifies_the_retired_shared_state(path):
-    """One `.docsync/state.json` for every document collided between people syncing
-    unrelated modules, and a hand-merged result recorded hashes matching neither tree —
-    which disables the RMA check that hash exists for.
-
-    The old filename survives in exactly one place, the migration step that reads it once
-    and deletes it, so the global fields are what this pins rather than the name.
+    """The old filename survives in exactly one place, the migration step that reads it
+    once and deletes it, so the global fields are what this pins rather than the name
+    (why the shared file failed: conventions/15-doc-tracking.md §2).
     """
     body = path.read_text(encoding="utf-8")
     for field in ("last_sync_commit", "last_audit_commit"):
