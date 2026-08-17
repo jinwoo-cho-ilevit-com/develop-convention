@@ -77,7 +77,7 @@ Standing invariants are the exception. "Every module exports a schema", "no secr
 
 ### 4. Budget
 
-State the budget rather than discovering it. Per module: unit tests for the non-trivial branches, one contract test, one smoke test on a small sample. Beyond that needs a reason — usually a bug that escaped, arriving with its own regression test.
+State the budget rather than discovering it. Per module: unit tests for the non-trivial branches and one contract test per boundary. The 1-3 end-to-end smoke tests are per project, owned by the integration step (§1), not part of any module's budget. Beyond that needs a reason — usually a bug that escaped, arriving with its own regression test.
 
 A test that has never failed, in any run, is a deletion candidate. Either it guards something no change can break, or it does not assert what its name claims.
 
