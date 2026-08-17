@@ -6,7 +6,7 @@
 - Do not commit a plaintext `.env` to the repository. Register `.env` in `.gitignore`, and commit only a valueless key list in `.env.example`.
 - The single source of truth for secrets is a central secret manager. Do not manage secrets across devices/projects by copying files.
 - Supply secrets via runtime injection everywhere — locally, in CI, in containers — and never leave them as plaintext residue on disk. Where an artifact on disk must be restricted, restrict every file carrying the content and not only the one easiest to reach: a sidecar at `0600` beside its data at `0644` reads as protected and is not, and a partial defence is worse than none because it stops the next person looking.
-- Coding agents follow the same rules: wrap execution commands in an injection wrapper, never create or read plaintext secret files, and check required keys against `.env.example`.
+- Coding agents follow the same rules: wrap execution commands in an injection wrapper (`infisical run -- <cmd>`), never create or read plaintext secret files, and check required keys against `.env.example`. In a session whose transcript an AI or a log retains, never run commands that print secret values (`infisical export`, `infisical secrets` and its subcommands) or dump the environment (`env`, `printenv`, `echo $KEY`) — a printed value lands in the transcript before any masking applies (→ [13-secret-management.md](13-secret-management.md) §6; masking of evidence is [19-evidence.md](19-evidence.md)).
 - Non-interactive environments such as containers and CI authenticate with a machine identity, not a human account. Scope permissions to the minimum and use short-lived tokens.
 - Separate environments (dev/staging/prod), rotate secrets periodically, and revoke and reissue immediately upon any leak.
 - Run secret scanning (gitleaks, etc.) in both pre-commit and CI to block leaks at commit time (→ [03-environment.md](03-environment.md)).
@@ -79,3 +79,26 @@ Sources: [Infisical — Docker integration](https://infisical.com/docs/integrati
 - Teams separate dev/staging/prod environments, restrict prod secret access to a minimal set of people/machine identities, and track access via audit logs.
 
 Sources: [gitleaks](https://github.com/gitleaks/gitleaks), [GitGuardian — State of Secrets Sprawl 2026](https://www.gitguardian.com/state-of-secrets-sprawl-report-2026)
+
+### 6. Coding-Agent Secret Hygiene
+
+An agent session transcript is a log. `infisical run -- <cmd>` injects secrets into the child process env without displaying them, but `infisical export` writes all secrets to stdout by default, and `infisical secrets` / `infisical secrets get NAME` print secret values (with `--plain` printing bare values, one per line) — run inside an agent session, any of these puts plaintext keys into the AI's context and the session log, upstream of where [19-evidence.md](19-evidence.md)'s masking applies (as of: 2026-08).
+
+Projects using Claude Code can additionally deny these commands in `.claude/settings.json` — the `:*` suffix is the documented trailing-wildcard form, matched per subcommand even inside compound commands:
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(infisical export:*)",
+      "Bash(infisical secrets:*)",
+      "Bash(env:*)",
+      "Bash(printenv:*)"
+    ]
+  }
+}
+```
+
+Two documented limits: `Bash(env:*)` also blocks benign wrapper uses like `env python x.py` (accepted trade-off), and `echo $KEY` cannot be reliably denied by pattern — the permissions doc states "Bash permission patterns that try to constrain command arguments are fragile" and recommends a PreToolUse hook for mechanical enforcement. So the echo/printf case stays a behavioral rule (Core Rules), with the deny list covering the commands whose sole purpose is printing values.
+
+Sources: [Infisical CLI — export](https://infisical.com/docs/cli/commands/export), [secrets](https://infisical.com/docs/cli/commands/secrets), [run](https://infisical.com/docs/cli/commands/run), [Claude Code — permissions](https://code.claude.com/docs/en/permissions)

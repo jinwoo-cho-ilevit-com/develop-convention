@@ -222,7 +222,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Secret Management
 
 - Never hardcode secrets in code, config, logs, or images; never commit a plaintext `.env` (`.gitignore` + `.env.example` lists keys only). The single source of truth is a central secret manager (Infisical recommended).
-- Supply secrets to local, CI, and container environments alike via runtime injection (`infisical run -- <cmd>`), with no plaintext left on disk. Where an artifact on disk must be restricted, restrict every file carrying the content — a sidecar at `0600` beside its data at `0644` reads as protected and is not. Code reads secrets as env vars as usual (`os.environ[...]`). Coding agents follow the same rule.
+- Supply secrets to local, CI, and container environments alike via runtime injection (`infisical run -- <cmd>`), with no plaintext left on disk. Where an artifact on disk must be restricted, restrict every file carrying the content — a sidecar at `0600` beside its data at `0644` reads as protected and is not. Code reads secrets as env vars as usual (`os.environ[...]`). Coding agents follow the same rule, and in a session whose transcript an AI or a log retains they never run commands that print secret values (`infisical export`, `infisical secrets`) or dump the environment (`env`, `printenv`, `echo $KEY`).
 - Containers/CI authenticate via machine identity (Universal Auth) with least privilege and short-lived tokens. Separate environments (dev/staging/prod) + rotate + scan with gitleaks (pre-commit/CI). Immediately rotate and reissue any secret that was already committed.
 
 ### Pipeline
