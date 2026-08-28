@@ -14,6 +14,7 @@ Before starting work, load the dev-harness skill that governs it:
 - preprocessing/training/evaluation pipelines on weights you run → ml-pipeline
 - third-party LLM APIs, upstream docs, factual-spec research → external-sources
 - writing or running tests, reviewing a diff, claiming completion → verify-and-review
+- writing a report, guide, or HTML artifact for a human reader → explainer-docs
 - about to `git commit` → commit
 - code changed and docs may be stale → docsync
 A trivial single edit may proceed without one; anything larger reads the routed Core Rules first.

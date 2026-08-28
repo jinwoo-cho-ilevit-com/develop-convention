@@ -80,6 +80,14 @@ Trained-and-served-by-you models are the group above; this one is everything you
 |---|---|
 | [15-doc-tracking.md](conventions/15-doc-tracking.md) | Doc-code synchronization: 4-tier tracking (contract·module·flow·history), docsync skill (incremental sync + audit), managed/human markers, blind rebuild·RMA verification, ADR supersession |
 
+### Explainer docs — `explainer-docs`
+
+| Doc | Contents |
+|---|---|
+| [24-explainer-docs.md](conventions/24-explainer-docs.md) | Human-facing explanatory deliverables: declared target reader, term glossing, mechanism over name-drop, one example per concept, visualization triggers (structure/quantities/concept), fresh-reader sizing test, self-contained HTML artifacts |
+
+Doc tracking keeps reference docs matching the code; this group is the other genre — documents whose product is a person's understanding.
+
 ## How to Apply to a New Project
 
 Install the harness once per machine. It carries the conventions, the hooks and the skills, so nothing is copied into the project and there is no path to fill in:
@@ -113,7 +121,7 @@ Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste co
 | `/dev-harness:build` | Freezes each boundary with a contract test, fans the lanes out to worktree-isolated agents, reviews each lane the moment it finishes, merges and verifies |
 | `/dev-harness:setup` | Writes the short `AGENTS.md` by hand |
 
-Seven skills load themselves when the work matches, so you do not have to remember which rules apply. Each routes to the documents in its Document Map group and copies none of them — a rule stays in exactly one place, where it can only be wrong once:
+Eight skills load themselves when the work matches, so you do not have to remember which rules apply. Each routes to the documents in its Document Map group and copies none of them — a rule stays in exactly one place, where it can only be wrong once:
 
 | Skill | Loads when |
 |---|---|
@@ -124,6 +132,7 @@ Seven skills load themselves when the work matches, so you do not have to rememb
 | `ml-pipeline` | A preprocessing, training, or evaluation pipeline is being built, or a model is trained or served here |
 | `external-sources` | Code calls someone else's model API, or external facts are the deliverable |
 | `docsync` | Module docs need to catch up with the code that changed (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)) |
+| `explainer-docs` | A report, guide, tutorial, or HTML artifact for a human reader is being written |
 
 The main session orchestrates: it plans, splits and judges, and sends the editing to subagents. That is a convention the documents state rather than something the plugin enforces — its guard hook refuses a read past the context budget and lets everything else through, because a prompt on every edit is paid on the common path and still cannot hold a rule a pattern match is unable to judge; its routing hook injects the skill map once per user prompt and judges nothing. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
 
@@ -315,7 +324,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 - Every change goes through a review its author did not perform, on a tool chosen before development starts and named in the review report. The reviewer gets the diff and the criteria, never the author's reasoning.
 - A lane judging code runs the code, and reports how many commands it ran; a verdict from a lane that ran none is a reading and says so. Measured on one document at one commit, a read-only lane found nothing where an executing lane found ten. Ask the same of the author's evidence — whether any of it ran outside the module under change, since a defect crossing a boundary appears only when something runs both sides.
-- Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched.
+- Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched, and a fresh-reader lane (the explainer document alone, no code or author context) only when the deliverable is an explainer doc.
 - Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered *with content*, dedupe by `file:line`, resolve contradictions, verify each finding against the code, rank by severity. A lane that finished is not a lane that answered — an agent can end with its report undelivered. An unsynthesized merge amplifies manufactured issues once per lane.
 - Mark every finding in three states, not two: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran. A refutation is reported as a result. A reproduction that will not run — a gate the change added rejects the input, a state that can no longer be constructed — is a finding about the procedure and never evidence of a fix.
 - Severity carries an action: blocker blocks the merge and is re-reviewed by the lane that raised it, major is fixed in the same work, minor becomes a follow-up, nit may be ignored. A finding with no concrete failing scenario is a nit.
@@ -329,6 +338,15 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - When a human edits a managed section, record a reason code so future generation accounts for it (RMA). Include a "code change ↔ doc update consistency" check in the review gate.
 - When something ships, update what distributes it in the same change — the installer, the getting-started page, the excerpt loaded elsewhere, the published site's navigation. Docs-follow-code covers the description; nothing covers the delivery path, and that is the one that leaves a working artifact unreachable.
 - Give an excerpt a header naming its source document and the commit it was taken at, and check the two automatically. A copy that drifts is worse than a wrong original: it is loaded everywhere and matches nothing.
+
+### Explainer Docs
+
+- An explainer — report, guide, tutorial, HTML artifact, anything whose product is a person's understanding — declares its target reader up front; every other rule is judged against that reader. Code-adjacent docs (AGENTS.md/ARCHITECTURE.md) are the other genre and stay lean.
+- Gloss every term the declared reader wouldn't know at first use. Never name a methodology without its mechanism — what it does and why it solves this problem, or what breaks without it; "uses X" alone is a violation.
+- Pair every non-obvious concept with one concrete example: an input→output pair, a before/after, or a scenario.
+- Visualize by what is shown: structure → diagram (Mermaid in markdown, inline SVG in HTML); 3+ quantities or a trend → table plus one sentence, or an inline SVG chart in HTML; a concept text cannot carry → HTML only, with the same explanation in text. Single facts stay prose; a visual that cannot be introduced as "this shows X" in one sentence is decoration and gets cut.
+- Size by the fresh-reader test, not word count: the declared reader can re-explain each mechanism and act without follow-up questions — and nothing longer. Layer as summary → body with examples → deep detail.
+- HTML explainers ship as one self-contained file: no external network dependencies, both themes legible, diagrams inline, text selectable and greppable. Before shipping, an explainer passes the fresh-reader review lane.
 
 ### Research Protocol
 

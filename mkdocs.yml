@@ -64,6 +64,7 @@ nav:
       - conventions/21-development-loop.md
       - conventions/22-framework-wrapping.md
       - conventions/23-remote-gpu-iteration.md
+      - conventions/24-explainer-docs.md
   - Harness:
       - skills/plan-and-delegate/SKILL.md
       - skills/code-and-config/SKILL.md
@@ -72,6 +73,7 @@ nav:
       - skills/ml-pipeline/SKILL.md
       - skills/external-sources/SKILL.md
       - skills/docsync/SKILL.md
+      - skills/explainer-docs/SKILL.md
       - templates/AGENTS.md
   - Decisions:
       - adr/0001-contract-runner.md
