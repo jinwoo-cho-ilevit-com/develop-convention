@@ -56,7 +56,7 @@ Fan-out without fan-in is not a review, and the orchestrator that dispatched the
 0. Confirm every dispatched lane actually answered. Zero findings is a valid result; a lane that died is not, so re-run it rather than merging a short review.
 1. Dedupe by `file:line`.
 2. Resolve contradictory advice into one recommendation, weighting the lane whose input covers the disputed ground — structure and duplication belong to the project lane, edge cases to the module lane.
-3. **Check each finding against the actual code**, and mark it in one of three states: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran.
+3. **Check each finding against the actual code**, and mark it in one of three states: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran. A document lane's finding is checked the same way against the cited passage of the document.
 4. Rank by severity.
 
 Step 3 matters most. The "reviewers manufacture issues" failure mode is amplified once per lane, so an unfiltered merge hands the noise to the human. The merge may downgrade a finding but never silently drops one — unverified findings are reported as unverified, and refutations are reported too, or the next round re-opens ground already covered.

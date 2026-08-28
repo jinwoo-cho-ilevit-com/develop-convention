@@ -49,7 +49,7 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 | Doc | Contents |
 |---|---|
 | [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, boundary contracts over symbols and value sets as well as payloads, one fixture per object that crosses boundaries, fixtures and doubles that cannot teach a wrong implementation, spec-derived expected values, sabotage checks for characterization tests, change-detector deletion, golden files, tolerance bands, CPU smoke tests, completion verification |
-| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, what the author's evidence executed, lanes defined by input (module/project/absence/security), fan-in with confirmed/refuted/unverified findings and severity, review tool paths without pinned model ids |
+| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, what the author's evidence executed, lanes defined by input (module/project/absence/security/fresh-reader), fan-in with confirmed/refuted/unverified findings and severity, review tool paths without pinned model ids |
 | [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, command output with secret masking, provenance, human verdict records, recorded bypasses |
 
 ### Data and ML pipelines — `ml-pipeline`
@@ -344,7 +344,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - An explainer — report, guide, tutorial, HTML artifact, anything whose product is a person's understanding — declares its target reader up front; every other rule is judged against that reader. Code-adjacent docs (AGENTS.md/ARCHITECTURE.md) are the other genre and stay lean.
 - Gloss every term the declared reader wouldn't know at first use. Never name a methodology without its mechanism — what it does and why it solves this problem, or what breaks without it; "uses X" alone is a violation.
 - Pair every non-obvious concept with one concrete example: an input→output pair, a before/after, or a scenario.
-- Visualize by what is shown: structure → diagram (Mermaid in markdown, inline SVG in HTML); 3+ quantities or a trend → table plus one sentence, or an inline SVG chart in HTML; a concept text cannot carry → HTML only, with the same explanation in text. Single facts stay prose; a visual that cannot be introduced as "this shows X" in one sentence is decoration and gets cut.
+- Visualize by what is shown: structure → diagram (Mermaid in markdown, inline SVG or Mermaid in HTML); 3+ quantities, a trend, or a distribution → table plus one sentence, or an inline SVG chart in HTML; a concept text cannot carry → HTML only, with the same explanation in text. Single facts stay prose; a visual that cannot be introduced as "this shows X" in one sentence is decoration and gets cut.
 - Size by the fresh-reader test, not word count: the declared reader can re-explain each mechanism and act without follow-up questions — and nothing longer. Layer as summary → body with examples → deep detail.
 - HTML explainers ship as one self-contained file: no external network dependencies, both themes legible, diagrams inline, text selectable and greppable. Before shipping, an explainer passes the fresh-reader review lane.
 

@@ -29,7 +29,7 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 ## Boundaries with other skills
 
-Code-adjacent reference docs — AGENTS.md, ARCHITECTURE.md, managed module docs — are the other genre: lean, code-cited, synced by [docsync](../docsync/SKILL.md) under 15. Reviewing a finished explainer is [verify-and-review](../verify-and-review/SKILL.md), routing to 20. Facts an explainer asserts about external products follow [external-sources](../external-sources/SKILL.md).
+Code-adjacent reference docs — AGENTS.md, ARCHITECTURE.md, managed module docs — are the other genre, synced by [docsync](../docsync/SKILL.md) under 15. Reviewing a finished explainer is [verify-and-review](../verify-and-review/SKILL.md), routing to 20. Facts an explainer asserts about external products follow [external-sources](../external-sources/SKILL.md).
 
 ## When two documents disagree
 
