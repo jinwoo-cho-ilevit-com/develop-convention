@@ -9,6 +9,7 @@
 - Confidence from training is not evidence. When memory and a fetched source disagree, the source wins; when memory has no source, it is not a fact yet.
 - **Enumeration facts** (variants, sizes, dates, license, modality) are confirmed ONLY from the **authoritative registry**: official org page / model card / collection / changelog / API docs.
 - Search snippets, leaderboards, news, and third-party blogs are **leads, not proof** — fetch the canonical page before asserting.
+- When a semantic web search tool (exa) is available, use it for source discovery — describe the ideal page rather than keyword-matching. Its results are still the leads tier: fetch the canonical page they point at before asserting.
 - Never trust search ranking for **completeness**: new/small items rank low. Query the registry directly (e.g. HF Hub `pipeline_tag` + `sort=created` + param filter), don't keyword-search only.
 - Negative and universal claims ("X doesn't exist / smallest is N / all are Y / none support Z") require **primary-source enumeration**, never absence-in-search. If not verified against the registry, mark **"unverified"** — do not assert.
 - For each named vendor/library in scope, fetch its **official latest collection/release page once** — don't rely on emergent discovery alone. Seed research with already-known canonical URLs (from repo docs/citations) as **must-fetch**.
@@ -34,6 +35,8 @@ The rule that prevents this: prior knowledge may propose **where to look** (quer
 |---|---|---|
 | Authoritative | Official org page, model card, collection, changelog, API docs | The ONLY basis for enumeration facts (variants, sizes, dates, license, modality) |
 | Leads | Search snippets, leaderboards, news, third-party blogs | Pointers to fetch the canonical page — never citable as proof |
+
+When a semantic search tool (exa) is available, prefer it for discovering sources — a semantically phrased query ("the official page listing every model in the X family") surfaces canonical pages that keyword search buries. What it returns still lands in the leads tier: the fetched canonical page is the proof, not the search result.
 
 Search ranking is optimized for popularity, not completeness — a newly released or small variant ranks low or not at all. For completeness questions, query the registry directly with structured filters (e.g. Hugging Face Hub: `pipeline_tag` + `sort=created` + parameter-count filter) instead of keyword search alone.
 
