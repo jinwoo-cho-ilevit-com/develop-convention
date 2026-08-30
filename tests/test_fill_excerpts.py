@@ -20,8 +20,11 @@ DOC = """# 99. Sample
 - First rule about naming, stated plainly.
 - Second rule about config with a link (→ [02-config.md](02-config.md)).
 - Third rule that continues
-  onto an indented second line.
+  onto an indented second line
+and a lazy unindented third line.
 - Fourth rule that also mentions naming in passing.
+- Fifth rule with a section link ([details](02-config.md#run-naming)) and a
+  [mail](mailto:user@example.com) address.
 
 ## Details
 
@@ -48,14 +51,17 @@ def test_fills_verbatim_in_anchor_order(repo):
     out = fx.render(skeleton('"Third rule" || "First rule"'), repo, "t", "abc1234")
     body = out.split("-->\n", 2)[2]
     assert body.index("Third rule") < body.index("First rule")
-    assert "- Third rule that continues\n  onto an indented second line." in out
+    assert (
+        "- Third rule that continues\n  onto an indented second line"
+        "\nand a lazy unindented third line." in out
+    )
     assert "filled from conventions/99-sample.md @ abc1234" in out
 
 
 def test_zero_and_ambiguous_anchors_abort(repo):
     with pytest.raises(fx.FillError, match="matches 0"):
         fx.render(skeleton('"no such text"'), repo, "t", "s")
-    with pytest.raises(fx.FillError, match="matches 2"):
+    with pytest.raises(fx.FillError, match="matches 3"):
         fx.render(skeleton('"naming"'), repo, "t", "s")
 
 
@@ -68,6 +74,30 @@ def test_relative_links_become_clone_paths(repo):
     out = fx.render(skeleton('"Second rule"'), repo, "t", "s")
     assert "(→ ~/Codes/develop-convention/conventions/02-config.md)" in out
     assert "](02-config.md)" not in out
+
+
+def test_link_rewrite_keeps_fragments_and_leaves_schemes_alone(repo):
+    out = fx.render(skeleton('"Fifth rule"'), repo, "t", "s")
+    assert "details (~/Codes/develop-convention/conventions/02-config.md#run-naming)" in out
+    assert "[mail](mailto:user@example.com)" in out
+
+
+def test_markerless_input_aborts(repo):
+    with pytest.raises(fx.FillError, match="no excerpt markers"):
+        fx.render("# a rules file whose markers were lost\n", repo, "t", "s")
+
+
+def test_missing_heading_and_empty_section_abort(repo, tmp_path):
+    (repo / "conventions" / "98-empty.md").write_text("# 98\n\n## Core Rules\n\n## Details\n")
+    with pytest.raises(fx.FillError, match="no bullets"):
+        fx.render(
+            '<!-- excerpt(conventions/98-empty.md): "x" -->\n<!-- /excerpt -->\n', repo, "t", "s"
+        )
+    (repo / "conventions" / "97-headless.md").write_text("# 97\n\nprose only\n")
+    with pytest.raises(fx.FillError, match="no '## Core Rules'"):
+        fx.render(
+            '<!-- excerpt(conventions/97-headless.md): "x" -->\n<!-- /excerpt -->\n', repo, "t", "s"
+        )
 
 
 def test_idempotent_and_preserves_text_outside_markers(repo):

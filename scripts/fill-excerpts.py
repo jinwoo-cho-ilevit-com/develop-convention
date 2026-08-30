@@ -2,7 +2,8 @@
 """Fill excerpt marker blocks from Core Rules bullets, verbatim.
 
 A consumer file (e.g. a deployed rules file) declares what it excerpts with
-marker pairs; everything outside the markers is preserved byte-for-byte:
+marker pairs; text outside the markers passes through line-for-line (newlines
+are LF-normalized and a trailing newline is ensured):
 
     <!-- excerpt(conventions/01-structure-naming.md): "anchor one" || "anchor two" -->
     (replaced with the matching Core Rules bullets)
@@ -29,7 +30,7 @@ from pathlib import Path
 BEGIN_RE = re.compile(r"<!--\s*excerpt\(([^)]+)\):\s*(.+?)\s*-->\s*$")
 END_MARKER = "<!-- /excerpt -->"
 ANCHOR_RE = re.compile(r'"([^"]+)"')
-LINK_RE = re.compile(r"\[([^\]]+)\]\((?!https?://|#)([^)]+?)(?:#[^)]*)?\)")
+LINK_RE = re.compile(r"\[([^\]]+)\]\((?![a-zA-Z][a-zA-Z0-9+.-]*:|#)([^)#]+)(#[^)]*)?\)")
 CLONE_HINT = "~/Codes/develop-convention"
 
 
@@ -43,14 +44,17 @@ def core_rules_bullets(doc_text: str, doc: str) -> list[str]:
         start = lines.index("## Core Rules") + 1
     except ValueError:
         raise FillError(f"{doc}: no '## Core Rules' heading") from None
+    # A bullet spans from its "- " line to the next top-level bullet or heading, so
+    # indented, tab-indented, lazy, and blank-line-separated continuations all survive.
     bullets: list[str] = []
     for line in lines[start:]:
         if line.startswith("## "):
             break
         if line.startswith("- "):
             bullets.append(line)
-        elif bullets and line.startswith("  ") and line.strip():
+        elif bullets:
             bullets[-1] += "\n" + line
+    bullets = [b.rstrip("\n ") for b in bullets]
     if not bullets:
         raise FillError(f"{doc}: Core Rules section holds no bullets")
     return bullets
@@ -61,9 +65,10 @@ def rewrite_links(bullet: str, doc: str) -> str:
 
     def repl(m: re.Match) -> str:
         target = posixpath.normpath(posixpath.join(doc_dir, m.group(2)))
+        fragment = m.group(3) or ""
         if m.group(1) == posixpath.basename(target):
-            return f"{CLONE_HINT}/{target}"
-        return f"{m.group(1)} ({CLONE_HINT}/{target})"
+            return f"{CLONE_HINT}/{target}{fragment}"
+        return f"{m.group(1)} ({CLONE_HINT}/{target}{fragment})"
 
     return LINK_RE.sub(repl, bullet)
 
@@ -79,6 +84,7 @@ def render(text: str, repo: Path, label: str, sha: str) -> str:
     out: list[str] = []
     lines = text.splitlines()
     i = 0
+    filled = 0
     while i < len(lines):
         line = lines[i]
         m = BEGIN_RE.match(line)
@@ -106,6 +112,11 @@ def render(text: str, repo: Path, label: str, sha: str) -> str:
         out.extend(rewrite_links(pick(bullets, a, doc), doc) for a in anchors)
         out.append(END_MARKER)
         i = end + 1
+        filled += 1
+    if filled == 0:
+        # A skeleton whose markers were lost (say, in a conflict resolution) would
+        # otherwise deploy a rules file holding no rules, with every light green.
+        raise FillError(f"{label}: no excerpt markers found — nothing to fill")
     return "\n".join(out) + "\n"
 
 
