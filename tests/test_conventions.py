@@ -115,7 +115,7 @@ def test_no_doc_points_at_the_retired_runner(doc):
     """19 §7 once told authors to write a field 18 §4 said the runner refused.
 
     Following one document made the other's tool reject the contract, which is the worst
-    kind of disagreement between two rules — both readable, and doing as told fails. The
+    kind of disagreement between two rules — both readable, and doing as told fails.
     The runner was retired; a document still naming it reproduces that shape against a
     tool that no longer exists at all.
     """

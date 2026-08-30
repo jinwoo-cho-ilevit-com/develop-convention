@@ -262,7 +262,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### AI/ML
 
 - Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); verify skew with sample replay.
-- Every run is logged to an experiment-tracking tool along with its config + commit. Save last-N + best + milestone checkpoints to a network volume/HF Hub. Design training to assume interruption (resumable).
+- Every run is logged to an experiment-tracking tool (Trackio by default; MLflow when self-hosting is a strong requirement) along with its config + commit. Save last-N + best + milestone checkpoints to a network volume/HF Hub. Design training to assume interruption (resumable).
 
 ### LLM
 
