@@ -19,7 +19,7 @@ This document governs deliverables whose product is a person's understanding —
 
 ### 1. The genre boundary
 
-The four layers of [15-doc-tracking.md](15-doc-tracking.md) — contracts in code, module logic beside the code, flow at the root, history in commits and ADRs (append-only architecture decision records) — serve a reader about to work on the code, who needs the shortest accurate reference. An explainer serves a reader who does not yet hold the model in their head; its product is the transfer of understanding, not the reference. The two pressures are opposite: leanness deletes exactly the scaffolding — glosses, examples, restatements in plain words — that an explainer exists to provide. So the genres are separated by audience, not by file format: a markdown file can be either, and the declared target reader at the top is what says which rules it lives under.
+The four layers of [15-doc-tracking.md](15-doc-tracking.md) — contracts in code, module logic beside the code, flow at the root, history in commits — serve a reader about to work on the code, who needs the shortest accurate reference. An explainer serves a reader who does not yet hold the model in their head; its product is the transfer of understanding, not the reference. The two pressures are opposite: leanness deletes exactly the scaffolding — glosses, examples, restatements in plain words — that an explainer exists to provide. So the genres are separated by audience, not by file format: a markdown file can be either, and the declared target reader at the top is what says which rules it lives under.
 
 ### 2. Explaining a mechanism
 

@@ -98,4 +98,4 @@ Never mix unrelated work — e.g. a feature + reformatting + an incidental refac
 
 ### 6. Why git log as a research note
 
-A commit body written to this protocol makes `git log` a self-contained research narrative: motivation, alternatives considered, and measured outcomes survive even when the surrounding docs rot. This is the L4 history layer of [15-doc-tracking.md](15-doc-tracking.md) — structured commits carry commit-granularity history, ADRs carry structural decisions.
+A commit body written to this protocol makes `git log` a self-contained research narrative: motivation, alternatives considered, and measured outcomes survive even when the surrounding docs rot. This is the L4 history layer of [15-doc-tracking.md](15-doc-tracking.md) — structured commits are where history and the decisions behind it are recorded and searched for.

@@ -14,7 +14,7 @@ Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc
 | L1 I/O contract | Not managed — code (type hints/schema) is the single source. Docs contain only a summary + code reference |
 | L2 Module docs | Create/update the managed block in each directory's AGENTS.md |
 | L3 Overall flow | Update ARCHITECTURE.md + dependency graph/sequence diagram |
-| L4 Decision history | ADR **candidate detection/questions only** — ADR authoring requires human approval |
+| L4 Decision history | Not managed — history lives in structured commit bodies, written at commit time |
 
 ## Execution Modes
 
@@ -141,21 +141,17 @@ For each module (independent, so can run in parallel; delegate to a subagent if 
 2. If the change touched entry-point flow, update the corresponding sequence diagram.
 3. Check for narrative contradictions among the module docs updated this round (both claiming the same responsibility, mismatched call direction, etc.).
 
-### 5. Flag ADR Candidates
-
-If the following are detected in this diff, report **only a list of questions** as ADR candidates (authoring happens after human approval): dependency added/removed, public interface changed, module structure changed, technology choice changed, rollback/revert. Attach a one-line question asking "why was this done this way" to each item.
-
-### 6. Verification
+### 5. Verification
 
 Hand the diff and criteria — never the authoring session's reasoning — to a fresh-context review (a separate subagent or session), which may read the referenced code to confirm: (1) no edits outside the managed block, (2) updated narrative matches the code, (3) no uncitable claims. Do not self-approve in the authoring context.
 
-### 7. Wrap-up
+### 6. Wrap-up
 
 Write a state file for each document this run regenerated **and for each whose hash step 1 adopted**. An RMA-only document has no code diff, so it never enters scope; without persisting the adopted hash it re-prompts and appends a duplicate correction on every run, forever.
 
 Recompute section hashes in both cases. Advance `verified_commit` to HEAD and `verified_at` to today only for documents regenerated against the code — adopting a human edit records what the text now says, not that anyone checked it against the code. Documents nobody touched keep the commit they were verified at; writing HEAD to them is the shared-pointer bug in a new shape.
 
-Then report: list of updated files / ADR candidate questions / RMA handling record / unresolved flags.
+Then report: list of updated files / RMA handling record / unresolved flags.
 
 ## Audit Procedure (`--audit`)
 
@@ -169,13 +165,13 @@ Staleness score = time elapsed since that document's `audited_at` × that module
 
 ### 3. Blind rebuild
 
-For each selected module: a fresh-context agent, **with existing AGENTS.md/ADRs blocked from context**, reads only the code and rewrites the managed block from scratch.
+For each selected module: a fresh-context agent, **with the existing AGENTS.md blocked from context**, reads only the code and rewrites the managed block from scratch.
 
 ### 4. Claim Comparison
 
 Decompose the blind version and the retained version into atomic claim units and compare:
 
-- **Claims only in the retained version** → attempt to attach a code citation (file:symbol). Citation failure = report as a hallucination candidate. Citable but background knowledge not derivable from the code = tacit knowledge → propose promoting it to the human section/ADR.
+- **Claims only in the retained version** → attempt to attach a code citation (file:symbol). Citation failure = report as a hallucination candidate. Citable but background knowledge not derivable from the code = tacit knowledge → propose promoting it to the human section.
 - **Claims only in the blind version** → candidate for a recent change the retained version missed.
 - **Same meaning, different wording only** → not drift. Leave it alone.
 

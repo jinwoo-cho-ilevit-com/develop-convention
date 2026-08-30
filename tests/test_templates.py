@@ -24,7 +24,7 @@ def read(path: Path) -> str:
 
 
 def test_the_contract_toolkit_is_gone():
-    """ADR 0004 retired it. A half-deleted toolkit is worse than either state."""
+    """The contract runner was retired. A half-deleted toolkit is worse than either state."""
     left = [p for p in ("scripts", "contract.md", "skills/conv-init") if (TEMPLATES / p).exists()]
     assert not left, f"templates/ still ships retired contract-toolkit paths: {left}"
 

@@ -96,7 +96,7 @@ Record kind and reason either way.
 
 A contract with a verdict still outstanding is not complete and is not deleted. Where another begins before it closes, give each one its own path rather than reusing a single well-known filename — a contract awaiting judgment that is overwritten by the next one leaves its criteria unjudged and its evidence unattached to anything.
 
-A contract has the lifetime of one piece of work. On completion it is committed with that work and then deleted — git history is the archive, and a stale contract in the tree is worse than none. Decisions that outlive the work move to the ADR chain before deletion (→ [15-doc-tracking.md](15-doc-tracking.md)); a contract is not an ADR.
+A contract has the lifetime of one piece of work. On completion it is committed with that work and then deleted — git history is the archive, and a stale contract in the tree is worse than none. Decisions that outlive the work are recorded in the structured commit body of the change that made them (→ [15-doc-tracking.md](15-doc-tracking.md)); a contract is not a decision record.
 
 ### 5. Boundaries, and where a criterion runs
 

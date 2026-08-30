@@ -2,14 +2,13 @@
 
 ## Core Rules
 
-- Split documentation into 4 layers with different rates of change: for I/O contracts, the code itself (type hints, schemas) is the single source of truth (no hand-written I/O docs); module logic goes in per-directory AGENTS.md; overall flow goes in the root ARCHITECTURE.md; decisions and history go in structured commits + ADRs.
+- Split documentation into 4 layers with different rates of change: for I/O contracts, the code itself (type hints, schemas) is the single source of truth (no hand-written I/O docs); module logic goes in per-directory AGENTS.md; overall flow goes in the root ARCHITECTURE.md; decisions and history go in structured commit bodies.
 - Document functions via docstrings, not separate files. Skip self-evident functions; record only non-obvious algorithmic choices.
 - In module docs, agents regenerate only the content inside `docsync:managed` markers. Human sections outside the markers are inviolable. Stamp managed blocks with the verification commit and date.
-- Every factual claim in managed docs (L2 module, L3 flow) must be citable to a code location (file:symbol). Do not write claims that cannot be cited — decision rationale and failure records that aren't derivable from code go in ADRs or human sections.
+- Every factual claim in managed docs (L2 module, L3 flow) must be citable to a code location (file:symbol). Do not write claims that cannot be cited — decision rationale and failure records that aren't derivable from code go in human sections or the structured commit body.
 - The primary update mechanism is change-time sync (`/docsync` — each module is resynced when its own directory changed since its own last verified commit, with no shared pointer across modules; the first run covers everything, i.e., bootstrap). Scheduled runs are audit-only — do not periodically regenerate narrative docs wholesale.
 - Audit starts by confirming sync itself is alive (dead-man's switch: warn first if N commits/M days have passed since the *oldest* module's last sync — the newest keeps reading fresh while everything around it rots). The core check is a blind rebuild — block out the existing docs, rewrite from code alone, diff claim-by-claim, and report any claim that can't be backed by a code citation as a hallucination candidate. Wording differences with the same meaning are not treated as drift.
 - If a human edits a managed section, don't silently revert it — log the reason code to the corrections log and feed it into future generation prompts (RMA loop). If contradictory reasons pile up for the same section, demote that section to human ownership.
-- ADRs are append-only — supersede with a new ADR instead of editing. Record not only adopted decisions but also reversed decisions and rollbacks, with reasons. When agents reference ADRs, they must resolve the supersession chain to the end and follow only the currently valid decision.
 - Standardize visualizations on Mermaid (it's text, so it's diffable/reviewable, GitHub renders it natively, and agents can read and write it). Generate module dependency graphs with deterministic tools (pydeps, madge, etc.) rather than maintaining them by hand. This governs the four layers above; human-facing explainer deliverables choose their visual form under [24-explainer-docs.md](24-explainer-docs.md).
 - Include a "code change ↔ doc update consistency" check in the review gate (→ [20-review-gate.md](20-review-gate.md)).
 - When something ships, update what distributes it in the same change: the installer or bootstrap script, the getting-started page, the excerpt loaded elsewhere, the navigation of the published site. Docs-follow-code covers the description; nothing covers the delivery path, and it is the one that leaves a working artifact unreachable.
@@ -26,7 +25,7 @@
 | L1 | I/O contracts | The code itself (type hints, pydantic and other schemas). If docs are needed, generate them from code | Automatic |
 | L2 | Per-module implementation logic | Per-directory AGENTS.md — role, core logic (input→processing→output narrative, invariants, edge cases), Mermaid, pitfalls | Agent + human review |
 | L3 | Overall flow | Root ARCHITECTURE.md — per-entry-point sequence diagram + dependency graph | Agent + human review |
-| L4 | Decisions/change history | Structured commit body (Why/What/How/Result) + append-only ADR | Human (agent drafts) |
+| L4 | Decisions/change history | Structured commit body (Why/What/How/Result) | Human (agent drafts) |
 
 - Why L1 isn't hand-written: a hand-written I/O doc becomes harmful the moment it diverges from the code. If the code is the single source, drift in this layer is structurally impossible.
 - Why L2 lives in per-directory AGENTS.md: docs crammed into the root don't show up in the diff, so they rot. Placed next to the code, the doc appears in the same diff that fixes the module, and it's automatically loaded as context when an agent works in that directory — the tracking system and the agent's context system become the same artifact.
@@ -39,7 +38,7 @@ Summary principle: **Generate whatever can be generated, have humans write only 
 The update procedure is packaged as a skill in [skills/docsync/SKILL.md](../skills/docsync/SKILL.md). SKILL.md is a tool-neutral markdown procedure — Claude Code gets it from the `dev-harness` plugin, and Codex/Cursor and similar tools reference the same file as a prompt to carry out the identical procedure.
 
 - **State files** (`.docsync/<doc-path-with-__>.json`, flat — a `docs/` subdirectory is swallowed by the site-build ignore most projects carry): one per documented directory, each holding a content hash per managed section plus the commit that document was verified at. A module is in scope when its directory changed since its own verified commit; a directory with no state file has never been synced, and no state files at all is the first run — bootstrap is the special case of sync with empty state, so there's no dependency on a separate bootstrap tool (self-contained). One file per document rather than one shared file, because a shared one is rewritten whole on every sync and collides between people working on unrelated modules, and a hand-merged result records hashes that match neither tree — which silently disables the RMA check those hashes exist for.
-- **sync pipeline**: detect RMA → compute scope → update per-module managed sections → global pass (regenerate dependency graph, update ARCHITECTURE.md, check for cross-module contradictions) → report a list of ADR-candidate questions → fresh-context verification → update state.
+- **sync pipeline**: detect RMA → compute scope → update per-module managed sections → global pass (regenerate dependency graph, update ARCHITECTURE.md, check for cross-module contradictions) → fresh-context verification → update state.
 - **3 trigger types**:
 
 | Trigger | Method | Role |
@@ -58,18 +57,14 @@ Sources: [dosu — A Claude Code Skill for Auto-Generating Project Docs](https:/
 
 - **dead-man's switch**: a dead sync pipeline looks identical to a healthy one. The first check in an audit isn't the docs — it's "is sync still alive?"
 - **Freshness stamp**: record the verification commit and date on every managed block, and insert a staleness banner once a threshold is exceeded. The real failure mode is a stale doc being read with the same authority as a current one.
-- **blind rebuild**: because incremental sync regenerates using the previous doc as scaffolding, early hallucinations get laundered into established fact. Break this chain by comparing a version rewritten with the existing doc blocked out against the maintained version, claim by claim. For claims that exist only in the maintained version, attempt a code citation — citation failure = hallucination candidate. Confirmed hallucinations are deleted; genuine tacit knowledge is promoted to a human section or an ADR, ending the pretense of "derived from code."
+- **blind rebuild**: because incremental sync regenerates using the previous doc as scaffolding, early hallucinations get laundered into established fact. Break this chain by comparing a version rewritten with the existing doc blocked out against the maintained version, claim by claim. For claims that exist only in the maintained version, attempt a code citation — citation failure = hallucination candidate. Confirmed hallucinations are deleted; genuine tacit knowledge is promoted to a human section, ending the pretense of "derived from code."
 - **Tolerance**: don't misjudge same-meaning wording differences as drift and repeatedly rewrite a perfectly fine doc.
 - **RMA loop**: a human edit is a learning signal, not something to discard. A managed section's hash mismatch with no corresponding code diff is detected as human intervention; log the reason code (wrong/stale/unclear/granularity) to `.docsync/corrections.jsonl` and feed it as a negative example into future generation of the same section type.
 
-### 4. The History Layer — Commits and ADRs
+### 4. The History Layer — Commits
 
-- Per-commit history is carried by the structured commit body (Why/What/How/Result) — write it so a dev note can be reconstructed from `git log` alone (→ [17-commit-protocol.md](17-commit-protocol.md)).
-- Decisions that change the structure go into an ADR (`adr/NNNN-title.md`): context, decision, alternatives, consequences, kept brief. Keep the directory in the source tree — a docs site assembled at build time is not one, and an ADR written into the assembled output is not tracked at all. When a decision changes, don't edit it — supersede it with a new ADR, per Nygard's original wording: "If a decision is reversed, we will keep the old one around, but mark it as superseded."
-- Record failures too: keep reversed decisions and rollbacks with their reasons. What's actually needed during incident response is the record that "that approach was already tried and it failed."
-- Consumption rule: when an agent searches or references ADRs, it must follow the supersession chain to the end and use only the currently valid decision. This prevents the mistake of following an old, reversed decision as-is.
-
-Sources: [Michael Nygard — Documenting Architecture Decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions), [adr.github.io](https://adr.github.io/)
+- History is carried by the structured commit body (Why/What/How/Result) — write it so a dev note can be reconstructed from `git log` alone (→ [17-commit-protocol.md](17-commit-protocol.md)).
+- Record failures too: a reverting or rolling-back commit states in its body what was tried and why it did not work. What's actually needed during incident response is the record that "that approach was already tried and it failed", and `git log` is where it is searched for.
 
 ### 5. Visualization
 

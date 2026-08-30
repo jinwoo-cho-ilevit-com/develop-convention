@@ -116,7 +116,7 @@ def test_no_doc_points_at_the_retired_runner(doc):
 
     Following one document made the other's tool reject the contract, which is the worst
     kind of disagreement between two rules — both readable, and doing as told fails. The
-    runner is gone (ADR 0004); a document still naming it reproduces that shape against a
+    The runner was retired; a document still naming it reproduces that shape against a
     tool that no longer exists at all.
     """
     body = read(doc)
@@ -138,22 +138,3 @@ def test_optional_mechanism_names_its_fallback():
     assert "disabled" in body or "switched off" in body or "turned off" in body, (
         "14 rests on auto memory without naming the case where it is unavailable"
     )
-
-
-# --- a superseded decision is reachable from the one that replaced it -----------------------
-
-
-def test_the_supersession_chain_resolves():
-    """15 requires ADRs be superseded rather than edited, and read to the end of the chain.
-
-    A replacement that does not name what it replaces leaves the old decision looking
-    current to whoever finds it first.
-    """
-    adr = ROOT / "adr"
-    replacements = {path: read(path) for path in adr.glob("0*.md") if "Supersedes" in read(path)}
-    assert replacements, "no ADR in the chain claims to supersede another"
-    for path, body in replacements.items():
-        targets = re.findall(r"Supersedes \[(\d{4})\]\(([^)]+)\)", body)
-        assert targets, f"{path.name} says Supersedes without naming a linked ADR"
-        for _, link in targets:
-            assert (adr / link).is_file(), f"{path.name} supersedes a missing ADR: {link}"

@@ -75,8 +75,3 @@ nav:
       - skills/docsync/SKILL.md
       - skills/explainer-docs/SKILL.md
       - templates/AGENTS.md
-  - Decisions:
-      - adr/0001-contract-runner.md
-      - adr/0002-invariants-as-tests.md
-      - adr/0003-deliberate-omissions.md
-      - adr/0004-retiring-the-contract-runner.md

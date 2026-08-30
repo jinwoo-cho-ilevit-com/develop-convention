@@ -66,7 +66,7 @@ def test_format_doc_map_links_resolve():
     readme = read("README.md")
     broken = [
         m.group(1)
-        for m in re.finditer(r"\]\((conventions/[^)#]+|templates/[^)#]+|adr/[^)#]+)\)", readme)
+        for m in re.finditer(r"\]\((conventions/[^)#]+|templates/[^)#]+)\)", readme)
         if not (ROOT / m.group(1)).exists()
     ]
     assert not broken, f"README links to paths that do not exist: {broken}"
@@ -125,14 +125,6 @@ def test_nav_lists_every_convention_doc():
     assert not missing, f"mkdocs nav omits {missing}"
 
 
-def test_nav_lists_the_adr_directory():
-    adrs = sorted(p.name for p in (ROOT / "adr").glob("*.md"))
-    assert adrs, "no ADR to publish"
-    listed = set(nav_paths(mkdocs_config()["nav"]))
-    missing = sorted({f"adr/{name}" for name in adrs} - listed)
-    assert not missing, f"mkdocs nav omits {missing}"
-
-
 def test_nav_lists_what_a_project_still_takes():
     """15: when something ships, update what distributes it in the same change.
 
@@ -169,18 +161,6 @@ def test_python_version_agrees_with_requires_python(directory):
     pinned = (base / ".python-version").read_text(encoding="utf-8").strip()
     declared = tomllib.loads((base / "pyproject.toml").read_text(encoding="utf-8"))
     assert floor_of(pinned) >= floor_of(declared["project"]["requires-python"])
-
-
-# --- the ADR chain ----------------------------------------------------------------------
-
-
-def test_adr_path_in_15_matches_where_adrs_live():
-    """`docs/` is assembled at build time and gitignored, so an ADR there is not tracked."""
-    stated = re.search(r"ADR \(`([^`]+/)NNNN-title\.md`\)", read("conventions/15-doc-tracking.md"))
-    assert stated, "15 no longer states an ADR path in the form it used to"
-    directory = ROOT / stated.group(1)
-    assert directory.is_dir(), f"15 points at {stated.group(1)}, which does not exist"
-    assert sorted(directory.glob("*.md")), f"{stated.group(1)} holds no ADR"
 
 
 # --- what CLAUDE.md says this repository is ---------------------------------------------
@@ -237,7 +217,7 @@ def test_workflow_runs_lint_tests_and_secret_scan(tool):
 
 
 def test_no_step_still_configures_for_the_retired_runner():
-    """The runner is gone (ADR 0004) and the red check now runs inside a lane's own worktree.
+    """The runner was retired, and the red check now runs inside a lane's own worktree.
 
     A step invoking it is a claim about a mechanism that no longer exists. The full-history
     fetch it also wanted stayed, under a new reader: `tests/test_release.py`.
