@@ -12,7 +12,7 @@
 - Delete dead code as soon as it's found. Don't leave it commented out. An unreachable function is not only clutter: its docstring is read as a statement about the system, so a correct claim sitting on a path nobody calls is how a reader concludes the live path holds a property it does not.
 - Comments should state only constraints/intent that the code itself can't express. No internal context that other AIs/teammates wouldn't know, no unnecessary TMI, no explaining the obvious. Cap a comment block at three lines and an inline comment at one; past that the content belongs in a document, or the code needs a better shape. A comment claiming another component enforces something names the call site that enforces it — an unreferenced claim cannot be checked, and it outlives the day that component stopped being called.
 - **Edit by rewrite, not by append.** Once a comment block or a document section has grown past about half again its original size through successive edits, rewrite the section instead of extending it. Prose that accumulates keeps every author's leftovers and loses the thread.
-- Comments and documents describe the current state only. Change history — what it used to be, why it was changed, how many attempts it took — lives in git and in ADRs (→ [15-doc-tracking.md](15-doc-tracking.md)). A rule survives; the incident that produced it does not.
+- Comments and documents describe the current state only, written as the module's first author would write them: a clear, concise statement of what the module is and the constraints it lives under. Never narrate the editing session — "changed to fix X", "added per review", why this edit was made — and never keep history in prose: what it used to be, why it was changed, how many attempts it took all live in git (→ [15-doc-tracking.md](15-doc-tracking.md)). A rule survives; the incident that produced it does not.
 - Before adding a rule or an explanation, find where it already lives. Two copies drift; replace the second with a reference.
 - Minimize emoji in docs and comments. Use one only when it carries information plain text cannot; never as decoration on headings, bullets, or section dividers, and never inside code comments. For status, write the word (`OK`, `FAILED`, `TODO`), not a symbol — words survive grep, diffs, and terminals that render emoji inconsistently.
 - Write non-ASCII text (Korean included) as literal UTF-8 wherever it lands — tool-call JSON parameters, file content, serialized JSON — never as `\uXXXX` escapes. Escaped text fails the same greppability bar as emoji: a search for the Korean word cannot match its escaped form. In code this means `json.dumps(..., ensure_ascii=False)` — Python's default escapes every non-ASCII character. Exempt: the characters JSON itself requires escaping (quotation mark, backslash, control characters) and code or fixtures where the escape is the point.
@@ -31,7 +31,6 @@
 Left unstated, agents (and cautious humans) default to "don't touch existing files" and bolt a new module awkwardly onto whatever layout exists. That conservatism is explicitly overridden here: when the clean design of a new module doesn't fit the current layout, adjust the layout.
 
 - Allowed and preferred: moving, splitting, renaming existing modules so the new module lands with clean boundaries and an efficient shape — instead of duplicated helpers, awkward import paths, or a "misc" dumping ground.
-- Scope guard: restructure only what the integration actually touches. A repo-wide reorganization is not "integration" — that's a rewrite, which goes through the procedure in [00-principles.md](00-principles.md) (characterization tests first).
 - Behavior guard: existing tests must pass after the move; if the touched area has no tests, pin behavior first (→ [06-testing-verification.md](06-testing-verification.md)).
 - Commit guard: structural moves and the new module's logic are separate commits, so the diff stays reviewable (→ [17-commit-protocol.md](17-commit-protocol.md)).
 
@@ -58,8 +57,8 @@ Sources: [PEP 8](https://peps.python.org/pep-0008/)
 
 The bar for a comment is: "can a first-time reader (human or model) read it and act on it?"
 
-- Write: constraints not visible from the code alone (e.g., "this order exists because of the external API's rate limit"), known limitations and upgrade paths, reasons for non-obvious choices.
-- Don't write: explaining what the next line does (duplicates the code), history of how it was written (git already covers this), context only insiders know ("as decided in last time's meeting"), personal notes or TMI.
+- Write: constraints not visible from the code alone (e.g., "this order exists because of the external API's rate limit"), known limitations and upgrade paths, reasons for non-obvious choices. These are standing facts about the module — what its first author would have written.
+- Don't write: explaining what the next line does (duplicates the code), the editing session's narrative — history of how it was written, why this change was made, what it replaced (git already covers this) — context only insiders know ("as decided in last time's meeting"), personal notes or TMI. The distinction: a standing constraint's "why" stays; a change's "why" goes in the commit body.
 - Documentation (README/docstrings) follows the same bar: only what a first-time reader needs, kept concise.
 
 **Emoji.** The same "does it inform?" bar applies to emoji, and decorative emoji fail it. Concretely, prefer plain text because:
