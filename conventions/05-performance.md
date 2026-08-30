@@ -34,12 +34,12 @@ Instrument at three layers:
 |---|---|---|
 | Per op/layer | `torch.profiler` | Breaks down CPU+CUDA time/memory by operation, pinpoints bottlenecks |
 | Real-time observation | `nvitop`, `nvidia-smi dmon` | Check GPU util/VRAM per process in real time |
-| Automatic per-run logging | W&B system metrics (or Trackio) | Automatically logs CPU/GPU/memory/disk across the whole run |
+| Automatic per-run logging | Trackio system metrics | Logs GPU metrics (utilization/VRAM/power/temperature) in the background across the whole run when compatible hardware is detected |
 
 - There are two headline metrics: **VRAM usage** and **GPU utilization (%)**. Record these two plus RAM/CPU at every pipeline stage.
 - In-code instrumentation: have one shared helper that logs `torch.cuda.max_memory_allocated()` (when using CUDA) and `psutil`-based RAM/CPU at stage start/end, and have every stage share it.
 
-Sources: [nvitop](https://github.com/XuehaiPan/nvitop), [W&B system metrics](https://docs.wandb.ai/models/ref/python/experiments/system-metrics), [NVIDIA NVML — utilization metrics](https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceStructs.html) (GPU utilization = percent of time one or more kernels was executing; memory utilization = percent of time device memory was being read or written)
+Sources: [nvitop](https://github.com/XuehaiPan/nvitop), [Trackio — logging system metrics](https://huggingface.co/docs/trackio/en/track), [NVIDIA NVML — utilization metrics](https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceStructs.html) (GPU utilization = percent of time one or more kernels was executing; memory utilization = percent of time device memory was being read or written)
 
 ### 4. Structured Logging
 

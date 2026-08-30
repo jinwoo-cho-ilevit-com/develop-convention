@@ -45,11 +45,11 @@ Sources: [Confluent — eliminate training-serving skew](https://www.confluent.i
 
 ### 3. Experiment tracking
 
-- Use **W&B** if you need team sharing and dashboards; use **Trackio** (HuggingFace, a W&B API-compatible drop-in — `wandb.init/log/finish` works as-is) if you want local-first, lightweight, and free. Use MLflow if self-hosting is a strong requirement.
+- Use **Trackio** (HuggingFace) as the default: local-first, lightweight, and free. Use **MLflow** when self-hosting for a team is a strong requirement.
 - Regardless of tool, the invariant rule: every run is logged linked to (a) the resolved config, (b) the git commit hash, and (c) the data version/path. An untracked experiment is not an experiment.
 - Run naming follows the convention in the config doc (→ [02-config.md](02-config.md)).
 
-Sources: [Trackio](https://huggingface.co/blog/trackio), [W&B experiment tracking](https://wandb.ai/site/experiment-tracking/)
+Sources: [Trackio](https://huggingface.co/blog/trackio)
 
 ### 4. Checkpoints and interruption resilience
 
