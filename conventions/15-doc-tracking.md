@@ -12,7 +12,7 @@
 - Standardize visualizations on Mermaid (it's text, so it's diffable/reviewable, GitHub renders it natively, and agents can read and write it). Generate module dependency graphs with deterministic tools (pydeps, madge, etc.) rather than maintaining them by hand. This governs the four layers above; human-facing explainer deliverables choose their visual form under [24-explainer-docs.md](24-explainer-docs.md).
 - Include a "code change ↔ doc update consistency" check in the review gate (→ [20-review-gate.md](20-review-gate.md)).
 - When something ships, update what distributes it in the same change: the installer or bootstrap script, the getting-started page, the excerpt loaded elsewhere, the navigation of the published site. Docs-follow-code covers the description; nothing covers the delivery path, and it is the one that leaves a working artifact unreachable.
-- Give an excerpt a header naming the document it was taken from and the commit it was taken at, and check the two against each other automatically. An excerpt is a copy, copies drift, and one that drifts is worse than the original being wrong — it is loaded everywhere and matches nothing.
+- An excerpt is a copy, copies drift, and one that drifts is worse than the original being wrong — it is loaded everywhere and matches nothing. Prefer a **generated** excerpt: a consumer file declares marker blocks that `scripts/fill-excerpts.py` fills verbatim from a document's Core Rules, so the copy either regenerates or fails loudly when the source moves — it cannot drift silently. An excerpt a human authored instead carries a header naming its source document and the commit it was taken at, checked against the source automatically.
 
 ## Details
 
@@ -77,3 +77,7 @@ Sources: [GitHub — Include diagrams in your Markdown files with Mermaid](https
 
 1. Install the `dev-harness` plugin; [skills/docsync/SKILL.md](../skills/docsync/SKILL.md) comes with it. Tools that do not read plugins get a one-line pointer to the published copy from AGENTS.md instead.
 2. The first `/docsync` run is the bootstrap — there is no separate initialization procedure.
+
+### 7. Generated Excerpts
+
+A consumer that needs a subset of this repository's rules (an agent's always-on rules file, a tool-specific instruction file) declares what it excerpts with marker blocks; `scripts/fill-excerpts.py` fills each block verbatim from the named document's Core Rules bullets, selected by anchors that must match exactly one bullet. The marker syntax and CLI live in the script's docstring. The failure contract is the point: a reworded source bullet makes the fill fail loudly instead of leaving a stale copy behind, which replaces stamp-and-audit maintenance for these consumers.

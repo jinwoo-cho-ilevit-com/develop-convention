@@ -78,7 +78,7 @@ Trained-and-served-by-you models are the group above; this one is everything you
 
 | Doc | Contents |
 |---|---|
-| [15-doc-tracking.md](conventions/15-doc-tracking.md) | Doc-code synchronization: 4-tier tracking (contract·module·flow·history), docsync skill (incremental sync + audit), managed/human markers, blind rebuild·RMA verification |
+| [15-doc-tracking.md](conventions/15-doc-tracking.md) | Doc-code synchronization: 4-tier tracking (contract·module·flow·history), docsync skill (incremental sync + audit), managed/human markers, blind rebuild·RMA verification, generated excerpts (fill-excerpts) |
 
 ### Explainer docs — `explainer-docs`
 
@@ -337,7 +337,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Agents regenerate only inside `docsync:managed` markers (human sections are off-limits, stamped with a verification commit). Factual claims in managed docs must be citable to a code location (decision rationale/failure history go in human sections or the commit body); the primary update mechanism is incremental sync at change time — periodic runs are audit-only (dead-man's switch + blind-rebuild hallucination audit; semantically equivalent phrasing is not drift).
 - When a human edits a managed section, record a reason code so future generation accounts for it (RMA). Include a "code change ↔ doc update consistency" check in the review gate.
 - When something ships, update what distributes it in the same change — the installer, the getting-started page, the excerpt loaded elsewhere, the published site's navigation. Docs-follow-code covers the description; nothing covers the delivery path, and that is the one that leaves a working artifact unreachable.
-- Give an excerpt a header naming its source document and the commit it was taken at, and check the two automatically. A copy that drifts is worse than a wrong original: it is loaded everywhere and matches nothing.
+- A copy that drifts is worse than a wrong original: it is loaded everywhere and matches nothing. Prefer a generated excerpt — marker blocks filled verbatim from Core Rules by `scripts/fill-excerpts.py`, which regenerates or fails loudly when the source moves. A hand-authored excerpt instead carries a header naming its source document and commit, checked automatically.
 
 ### Explainer Docs
 
