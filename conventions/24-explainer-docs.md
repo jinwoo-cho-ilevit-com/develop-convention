@@ -13,6 +13,7 @@ This document governs deliverables whose product is a person's understanding —
 - Size the document by the fresh-reader test, not by word count: long enough that the declared reader can re-explain each mechanism in their own words and act without follow-up questions, and no longer — everything past that point is over-explanation and is cut, the same bar [01-structure-naming.md](01-structure-naming.md) sets for comments and reference docs.
 - Layer the structure: a summary stating what this is and why it matters, a body carrying the mechanisms with their examples, deep detail last — so the reader in a hurry and the reader starting from zero both have a path through.
 - Ship an HTML explainer as one self-contained file: no external network dependencies, light and dark themes both legible, diagrams inline (Mermaid or SVG), and all text selectable and greppable — never rendered into an image.
+- Use the viewport's full width for body content: on wide screens, flow section cards into two columns of readable line length — no fixed sidebars or navigation panes claiming that width (a table of contents goes inline at the top), and no narrow single column between empty margins.
 - Before an explainer ships, run it through the fresh-reader review lane ([20-review-gate.md](20-review-gate.md) §2): a reviewer with no author context reads the document alone.
 
 ## Details

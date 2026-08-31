@@ -346,7 +346,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Pair every non-obvious concept with one concrete example: an input→output pair, a before/after, or a scenario.
 - Visualize by what is shown: structure → diagram (Mermaid in markdown, inline SVG or Mermaid in HTML); 3+ quantities, a trend, or a distribution → table plus one sentence, or an inline SVG chart in HTML; a concept text cannot carry → HTML only, with the same explanation in text. Single facts stay prose; a visual that cannot be introduced as "this shows X" in one sentence is decoration and gets cut.
 - Size by the fresh-reader test, not word count: the declared reader can re-explain each mechanism and act without follow-up questions — and nothing longer. Layer as summary → body with examples → deep detail.
-- HTML explainers ship as one self-contained file: no external network dependencies, both themes legible, diagrams inline, text selectable and greppable. Before shipping, an explainer passes the fresh-reader review lane.
+- HTML explainers ship as one self-contained file: no external network dependencies, both themes legible, diagrams inline, text selectable and greppable — and use the viewport's full width for body content, flowing cards into two readable columns on wide screens with no fixed sidebars. Before shipping, an explainer passes the fresh-reader review lane.
 
 ### Research Protocol
 
