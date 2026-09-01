@@ -40,8 +40,12 @@
   --accent:#2456A6; --accent-soft:#E4EBF6; --on-accent:#fff; --pos:#147D5B; --neg:#C2452F; --warn:#9A6B1F; --warn-soft:#F7EFDD;
   --code-bg:#EDF0F4; --tip-shadow:rgba(0,0,0,.25);
   /* 색약 대비 검증(OKLab ΔE 기준)을 통과한 Claude Code 번들 dataviz 스킬 팔레트를 2026-09에 정적으로 복사한 값이며, 런타임 의존은 없다.
-     다크 테마의 --c6 값은 어두운 배경 대비를 위해 로컬로 조정했다. */
+     다크 테마의 --c6 값은 어두운 배경 대비를 위해 로컬로 조정했다.
+     --series-a/--series-b는 이 팔레트에 속하지 않는 로컬 편집 선택이다: 2계열 비교 차트(히스토그램 등) 전용으로
+     --accent/--warn 계열에서 파생했으며, 명도차보다 색상각 차이(파랑↔주황빛 금색, 약 185°)로 구분되어
+     적록색약에서도 갈리고 표면/배경 대비 4.5:1 이상을 확보했다(계산치는 explainer-docs 스킬 문서 참조). */
   --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4; --c6:#008300; --c7:#4a3aa7; --c8:#e34948;
+  --series-a:#2456A6; --series-b:#8A5F1A;
   /* 수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
   --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem; --sp-7:3rem;
   --radius-xs:4px; --radius-sm:6px; --radius-md:10px; --radius-pill:999px;
@@ -52,6 +56,7 @@
     --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
     --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
     --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#2fa32f; --c7:#9085e9; --c8:#e66767;
+    --series-a:#7AA5EC; --series-b:#D9A24C;
   }
 }
 :root[data-theme="dark"]{
@@ -59,6 +64,7 @@
   --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
   --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
   --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#2fa32f; --c7:#9085e9; --c8:#e66767;
+  --series-a:#7AA5EC; --series-b:#D9A24C;
 }
 
 * { box-sizing: border-box; }
@@ -68,6 +74,11 @@ body{
      (한글 픽셀 동일성까지 필요하면 한글 서브셋 임베드가 선택지). */
   font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
   font-size:16px; line-height:1.75;
+}
+.kicker{
+  font-family:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+  font-weight:500; font-size:.78em; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted); margin:0 0 var(--sp-2);
 }
 h1{
   font-size:clamp(1.9em, 1.6em + 1.2vw, 2.6em); font-weight:700; line-height:1.22;
@@ -116,13 +127,17 @@ h2 .num{
 
 .toc{ max-width:1400px; margin:var(--sp-4) auto var(--sp-6); padding:0 24px; }
 .toc ul{
-  columns:2; column-gap:2em; list-style:none; margin:0; padding:0;
+  columns:2; column-gap:2.2em; list-style:none; margin:0; padding:0;
   border:1px solid var(--line); border-radius:var(--radius-md);
-  padding:var(--sp-3) var(--sp-5); background:var(--surface); font-size:.85em;
+  padding:var(--sp-3) var(--sp-5); background:var(--surface); font-size:.82em;
 }
-.toc li{ break-inside:avoid; margin:.2em 0; line-height:1.5; }
-.toc a{ color:var(--accent); text-decoration:none; }
+.toc li{ break-inside:avoid; margin:.15em 0; line-height:1.45; }
+.toc a{ display:flex; gap:.6em; color:var(--accent); text-decoration:none; }
 .toc a:hover, .toc a:focus-visible{ text-decoration:underline; }
+.toc .num{
+  flex:0 0 auto; min-width:2.2em; color:var(--muted); font-weight:500;
+  font-family:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+}
 @media (max-width:640px){
   .toc ul{ columns:1; }
 }
@@ -182,7 +197,14 @@ tr.dim{ opacity:.35; }
 
 figure{ margin:var(--sp-5) 0; }
 figure svg{ width:100%; height:auto; display:block; }
-.chart-wrap{ overflow-x:auto; }
+.chart-wrap{
+  overflow-x:auto;
+  border:1px solid var(--line); border-radius:var(--radius-md);
+  background:var(--surface); padding:var(--sp-4) var(--sp-5);
+}
+/* 상태/타임라인/산점도처럼 내용이 작은 도형은 650px 이상 컬럼에 그대로 두면 얇게 늘어나므로 폭을 좁혀
+   가운데 정렬한다; 실제 상한값은 도형마다 다르므로 인라인 style="max-width:...px"로 지정한다. */
+.chart-wrap.is-compact{ margin-inline:auto; }
 figcaption{ font-size:.85em; color:var(--muted); line-height:1.5; margin-top:var(--sp-2); }
 .chart-label{ font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif; font-size:11px; fill:currentColor; }
 .chart-label.on-accent{ fill:var(--on-accent); }
@@ -243,6 +265,7 @@ details.src code{ background:none; padding:0; }
 
 <header>
   <div class="header-main">
+    <p class="kicker">DEV-HARNESS · EXPLAINER TOOLKIT</p>
     <h1>설명 문서 시각화 레퍼토리</h1>
     <p class="lede"><strong>대상 독자:</strong> HTML/CSS/JS에 기본적인 이해가 있는 문서 작성자, JSON 데이터 블록과 스니펫을 복사·수정할 수 있는 수준.</p>
     <p class="lede">이 파일은 열람용 레퍼토리이며 문서는 <code>explainer-skeleton.html</code>에서 시작한다.
@@ -262,28 +285,28 @@ details.src code{ background:none; padding:0; }
 
 <nav class="toc" aria-label="목차">
   <ul>
-    <li><a href="#group-a">A. 정적 다이어그램</a></li>
-    <li><a href="#a1">A1. 좌우 대조 박스-화살표</a></li>
-    <li><a href="#a2">A2. 플로우/퍼널</a></li>
-    <li><a href="#a3">A3. 상태 전이</a></li>
-    <li><a href="#a4">A4. 의사결정 트리</a></li>
-    <li><a href="#a5">A5. 타임라인</a></li>
-    <li><a href="#group-b">B. 데이터 차트</a></li>
-    <li><a href="#b1">B1. 겹친 히스토그램 + 임계선</a></li>
-    <li><a href="#b2">B2. 순위 막대 + 주석</a></li>
-    <li><a href="#b3">B3. 추세선 + 강조점</a></li>
-    <li><a href="#b4">B4. 슬로프 차트</a></li>
-    <li><a href="#b5">B5. KPI 통계 행</a></li>
-    <li><a href="#b6">B6. 히트맵 그리드</a></li>
-    <li><a href="#group-c">C. 기하적 직관</a></li>
-    <li><a href="#c1">C1. 코사인 유사도를 각도로</a></li>
-    <li><a href="#c2">C2. 강조 산점도</a></li>
-    <li><a href="#group-d">D. 인터랙션 부품</a></li>
-    <li><a href="#d1">D1. 슬라이더 → 재렌더링</a></li>
-    <li><a href="#d2">D2. 칩 필터</a></li>
-    <li><a href="#d3">D3. 탭 전환</a></li>
-    <li><a href="#d4">D4. hover/focus 툴팁</a></li>
-    <li><a href="#d5">D5. 차트-목록 연동</a></li>
+    <li><a href="#group-a"><span class="num">A</span> 정적 다이어그램</a></li>
+    <li><a href="#a1"><span class="num">A1</span> 좌우 대조 박스-화살표</a></li>
+    <li><a href="#a2"><span class="num">A2</span> 플로우/퍼널</a></li>
+    <li><a href="#a3"><span class="num">A3</span> 상태 전이</a></li>
+    <li><a href="#a4"><span class="num">A4</span> 의사결정 트리</a></li>
+    <li><a href="#a5"><span class="num">A5</span> 타임라인</a></li>
+    <li><a href="#group-b"><span class="num">B</span> 데이터 차트</a></li>
+    <li><a href="#b1"><span class="num">B1</span> 겹친 히스토그램 + 임계선</a></li>
+    <li><a href="#b2"><span class="num">B2</span> 순위 막대 + 주석</a></li>
+    <li><a href="#b3"><span class="num">B3</span> 추세선 + 강조점</a></li>
+    <li><a href="#b4"><span class="num">B4</span> 슬로프 차트</a></li>
+    <li><a href="#b5"><span class="num">B5</span> KPI 통계 행</a></li>
+    <li><a href="#b6"><span class="num">B6</span> 히트맵 그리드</a></li>
+    <li><a href="#group-c"><span class="num">C</span> 기하적 직관</a></li>
+    <li><a href="#c1"><span class="num">C1</span> 코사인 유사도를 각도로</a></li>
+    <li><a href="#c2"><span class="num">C2</span> 강조 산점도</a></li>
+    <li><a href="#group-d"><span class="num">D</span> 인터랙션 부품</a></li>
+    <li><a href="#d1"><span class="num">D1</span> 슬라이더 → 재렌더링</a></li>
+    <li><a href="#d2"><span class="num">D2</span> 칩 필터</a></li>
+    <li><a href="#d3"><span class="num">D3</span> 탭 전환</a></li>
+    <li><a href="#d4"><span class="num">D4</span> hover/focus 툴팁</a></li>
+    <li><a href="#d5"><span class="num">D5</span> 차트-목록 연동</a></li>
   </ul>
 </nav>
 
@@ -743,8 +766,8 @@ document.addEventListener("DOMContentLoaded", function(){
     <p class="trigger">이럴 때 이 형태: 상태와 상태 사이의 전이(재시도 등 되돌아가는 경로 포함)를 보여줄 때</p>
     <!-- snippet:start:a3 -->
     <figure role="img" aria-label="대기, 처리중, 완료 상태와 재시도로 되돌아가는 전이를 보여주는 상태 다이어그램">
-      <div class="chart-wrap">
-      <svg viewBox="0 0 560 180" xmlns="http://www.w3.org/2000/svg">
+      <div class="chart-wrap is-compact" style="max-width:440px">
+      <svg viewBox="20 10 520 174" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <marker id="a3-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
@@ -777,7 +800,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <p class="trigger">이럴 때 이 형태: 두 단계의 분기 판단이 결과를 어떻게 나누는지 보여줄 때</p>
     <!-- snippet:start:a4 -->
     <figure role="img" aria-label="2단계 이진 의사결정 트리">
-      <div class="chart-wrap">
+      <div class="chart-wrap is-compact" style="max-width:480px">
       <svg viewBox="0 0 560 200" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <marker id="a4-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -829,7 +852,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <p class="trigger">이럴 때 이 형태: 사건이 시간순으로 언제 일어났는지 보여줄 때</p>
     <!-- snippet:start:a5 -->
     <figure role="group" aria-labelledby="a5-caption">
-      <div class="chart-wrap"><svg id="chart-a5" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div class="chart-wrap is-compact" style="max-width:560px"><svg id="chart-a5" xmlns="http://www.w3.org/2000/svg"></svg></div>
       <figcaption id="a5-caption">이 그림은 경보 발생이 전체 기간 중 어느 시점에 일어났는지 보여준다.</figcaption>
     </figure>
     <script>
@@ -866,8 +889,8 @@ document.addEventListener("DOMContentLoaded", function(){
     <p class="trigger">이럴 때 이 형태: 기준선 하나를 두고 두 분포가 어떻게 갈리는지 보여줄 때</p>
     <!-- snippet:start:b1 -->
     <div class="legend">
-      <span><span class="swatch" style="background:var(--c1)"></span>이전 분포</span>
-      <span><span class="swatch" style="background:var(--c3)"></span>이후 분포</span>
+      <span><span class="swatch" style="background:var(--series-a)"></span>이전 분포</span>
+      <span><span class="swatch" style="background:var(--series-b)"></span>이후 분포</span>
     </div>
     <figure role="group" aria-labelledby="b1-caption">
       <div class="chart-wrap"><svg id="chart-b1" xmlns="http://www.w3.org/2000/svg"></svg></div>
@@ -886,13 +909,13 @@ document.addEventListener("DOMContentLoaded", function(){
       function scaleY(v){ return (ht - bottom) - (v / maxV) * (ht - top - bottom); }
       h.before.forEach(function(v, i){
         var x = left + i * bw;
-        var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--c1)", opacity: ".8", tabindex: "0" });
+        var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-a)", opacity: ".8", tabindex: "0" });
         svg.appendChild(bar);
         EXPL.wireTip(bar, "구간 " + h.bins[i] + " 이전: " + EXPL.fmt("int", v));
       });
       h.after.forEach(function(v, i){
         var x = left + i * bw + bw * 0.44;
-        var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--c3)", opacity: ".8", tabindex: "0" });
+        var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-b)", opacity: ".8", tabindex: "0" });
         svg.appendChild(bar);
         EXPL.wireTip(bar, "구간 " + h.bins[i] + " 이후: " + EXPL.fmt("int", v));
       });
@@ -985,8 +1008,10 @@ document.addEventListener("DOMContentLoaded", function(){
       function sy(v){ return (h - bottom) - (v / maxV) * (h - top - bottom); }
       svg.appendChild(EXPL.svgEl("text", { x: xBefore, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 전";
       svg.appendChild(EXPL.svgEl("text", { x: xAfter, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 후";
+      // 그룹 3개 이하를 전제로 series-a/series-b/muted 3색만 순환한다(초록·주황·파랑이 섞인 원색 배합 금지).
+      var slopeColors = ["var(--series-a)", "var(--series-b)", "var(--muted)"];
       pairs.forEach(function(p, i){
-        var color = "var(--c" + ((i % 8) + 1) + ")";
+        var color = slopeColors[i % slopeColors.length];
         var line = EXPL.svgEl("line", { x1: xBefore, y1: sy(p.before), x2: xAfter, y2: sy(p.after), stroke: color, "stroke-width": "2", tabindex: "0" });
         svg.appendChild(line);
         EXPL.wireTip(line, p.label + ": " + EXPL.fmt("int", p.before) + " → " + EXPL.fmt("int", p.after));
@@ -1102,7 +1127,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <p class="trigger">이럴 때 이 형태: 벡터 사이 각도라는 수식의 의미를 실제 도형으로 보여줄 때</p>
     <!-- snippet:start:c1 -->
     <figure role="group" aria-labelledby="c1-caption">
-      <div class="chart-wrap"><svg id="chart-c1" viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+      <div class="chart-wrap is-compact" style="max-width:380px"><svg id="chart-c1" viewBox="10 5 280 200" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <marker id="c1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
@@ -1148,7 +1173,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <p class="trigger">이럴 때 이 형태: 다수의 점 중 몇 개만 주목해서 보여줄 때</p>
     <!-- snippet:start:c2 -->
     <figure role="group" aria-labelledby="c2-caption">
-      <div class="chart-wrap"><svg id="chart-c2" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div class="chart-wrap is-compact" style="max-width:480px"><svg id="chart-c2" xmlns="http://www.w3.org/2000/svg"></svg></div>
       <figcaption id="c2-caption">이 그림은 대부분의 점이 몰려 있는 가운데 세 지점만 눈에 띄게 벗어나 있음을 보여준다.</figcaption>
     </figure>
     <script>
@@ -1159,10 +1184,15 @@ document.addEventListener("DOMContentLoaded", function(){
       if (!pts.length) return;
       var w = 640, h = 220, left = 20, right = 20, top = 16, bottom = 24;
       svg.setAttribute("viewBox", "0 0 " + w + " " + h);
-      var maxX = Math.max.apply(null, pts.map(function(p){ return p.x; }));
-      var maxY = Math.max.apply(null, pts.map(function(p){ return p.y; }));
-      function sx(x){ return left + (w - left - right) * (x / maxX); }
-      function sy(y){ return (h - bottom) - (y / maxY) * (h - top - bottom); }
+      // 점들이 0을 기준으로 퍼져 있지 않을 때(예: x가 10~58) 0부터 스케일하면 축 한쪽에 빈 띠가
+      // 남으므로, 실제 값 범위(min~max)에 여백을 더해 스케일 도메인으로 쓴다.
+      var xs = pts.map(function(p){ return p.x; }), ys = pts.map(function(p){ return p.y; });
+      var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+      var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+      var padX = (maxX - minX) * 0.08 || 1, padY = (maxY - minY) * 0.1 || 1;
+      var domX0 = minX - padX, domX1 = maxX + padX, domY0 = minY - padY, domY1 = maxY + padY;
+      function sx(x){ return left + (w - left - right) * ((x - domX0) / (domX1 - domX0)); }
+      function sy(y){ return (h - bottom) - ((y - domY0) / (domY1 - domY0)) * (h - top - bottom); }
       pts.forEach(function(p, i){
         var c = EXPL.svgEl("circle", {
           cx: sx(p.x), cy: sy(p.y), r: p.emph ? 6 : 3,
@@ -1227,8 +1257,8 @@ document.addEventListener("DOMContentLoaded", function(){
     <p class="trigger">이럴 때 이 형태: 항목이 소속된 그룹만 골라 보이게 하고 나머지는 흐리게 둘 때</p>
     <!-- snippet:start:d2 -->
     <div class="legend">
-      <span><span class="swatch" style="background:var(--c1)"></span>그룹1</span>
-      <span><span class="swatch" style="background:var(--c2)"></span>그룹2</span>
+      <span><span class="swatch" style="background:var(--series-a)"></span>그룹1</span>
+      <span><span class="swatch" style="background:var(--series-b)"></span>그룹2</span>
     </div>
     <div class="chips" id="d2-chips" role="group" aria-label="그룹 필터">
       <button type="button" aria-pressed="false" data-group="그룹1">그룹1</button>
@@ -1242,7 +1272,7 @@ document.addEventListener("DOMContentLoaded", function(){
     document.addEventListener("DOMContentLoaded", function(){
       // 필요 데이터: groupBars = [{label, value, group}, ...] · 전제: EXPL.renderBarsH
       var data = EXPL.get("groupBars", document.getElementById("chart-d2")) || [];
-      EXPL.renderBarsH("chart-d2", data, { fmt: "int", barId: function(d, i){ return "d2-bar-" + i; }, colorFn: function(d){ return d.group === "그룹1" ? "var(--c1)" : "var(--c2)"; } });
+      EXPL.renderBarsH("chart-d2", data, { fmt: "int", barId: function(d, i){ return "d2-bar-" + i; }, colorFn: function(d){ return d.group === "그룹1" ? "var(--series-a)" : "var(--series-b)"; } });
       var chips = document.querySelectorAll("#d2-chips button");
       chips.forEach(function(chip){
         chip.addEventListener("click", function(){
