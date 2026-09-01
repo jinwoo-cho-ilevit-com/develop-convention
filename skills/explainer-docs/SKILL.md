@@ -27,6 +27,10 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 2. **24 again when a visual is considered.** The trigger decides whether it exists; the medium decides its form.
 3. **20 before shipping.** An explainer's review is the fresh-reader lane — [verify-and-review](../verify-and-review/SKILL.md) routes it.
 
+## Starting point
+
+An HTML explainer is copied from `${CLAUDE_PLUGIN_ROOT}/skills/explainer-docs/explainer-skeleton.html`; visualization recipes beyond its samples live in `explainer-gallery.html` beside it. What the files carry is documented inside them — this file only points.
+
 ## Boundaries with other skills
 
 Code-adjacent reference docs — AGENTS.md, ARCHITECTURE.md, managed module docs — are the other genre, synced by [docsync](../docsync/SKILL.md) under 15. Reviewing a finished explainer is [verify-and-review](../verify-and-review/SKILL.md), routing to 20. Facts an explainer asserts about external products follow [external-sources](../external-sources/SKILL.md).
@@ -42,4 +46,7 @@ Claude Code gets this skill from the `dev-harness` plugin; nothing is copied int
 ```
 Before writing a report, guide, or HTML page for a human reader, follow the routing at
 https://jinwoo-cho-ilevit-com.github.io/develop-convention/skills/explainer-docs/SKILL/
+The skeleton an HTML explainer starts from, and the recipe gallery beside it:
+https://jinwoo-cho-ilevit-com.github.io/develop-convention/skills/explainer-docs/explainer-skeleton.html
+https://jinwoo-cho-ilevit-com.github.io/develop-convention/skills/explainer-docs/explainer-gallery.html
 ```

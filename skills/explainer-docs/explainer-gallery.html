@@ -1,0 +1,1373 @@
+<!-- explainer-gallery v1 -->
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>설명 문서 시각화 레퍼토리</title>
+<style>
+/*
+접근성 통과 기준 (explainer-skeleton.html과 공통):
+- chips/segmented: 실제 button 요소 + aria-pressed + 키보드(Tab/Enter/Space) 조작 가능
+- tabs: role=tablist/tab/tabpanel + 화살표 키 이동
+- slider: 네이티브 input[type=range] + 값이 항상 텍스트로 보임
+- tooltip: hover와 focus 모두에서 열리고 Escape로 닫힘
+- SVG figure마다 role="img" aria-label + figcaption (정적 도형만); 포커스 가능한 마크(tabindex/툴팁)가 있으면
+  role="group" aria-labelledby="캡션 id"로 전환하고 마크마다 접근 가능한 이름을 부여한다
+- 색만으로 의미를 전달하지 않는다 (라벨을 항상 동반)
+*/
+/*
+시각화 불변식:
+시각화마다 "이 그림은 X를 보여준다" 캡션 한 문장(없으면 장식이므로 삭제);
+토큰 색만 사용; 구조선·텍스트는 currentColor로 테마 대응, 의미를 담는 요소에만 실제 색;
+이중 축 금지; 값 하나면 차트가 아니라 수치 타일; 시리즈 4개부터 직접 라벨;
+다이어그램 복잡도 예산 노드 ≤9·화살표 ≤12·강조 ≤2; 연결선은 직교 꺾임;
+명사가 아니라 메커니즘을 그린다.
+*/
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#1B2430; --muted:#5B6673; --line:#DCE1E7;
+  --accent:#2456A6; --accent-soft:#E4EBF6; --on-accent:#fff; --pos:#147D5B; --neg:#C2452F; --warn:#9A6B1F; --warn-soft:#F7EFDD;
+  --code-bg:#EDF0F4; --tip-shadow:rgba(0,0,0,.25);
+  /* 색약 대비 검증(OKLab ΔE 기준)을 통과한 Claude Code 번들 dataviz 스킬 팔레트를 2026-09에 정적으로 복사한 값이며, 런타임 의존은 없다.
+     다크 테마의 --c6 값은 어두운 배경 대비를 위해 로컬로 조정했다. */
+  --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4; --c6:#008300; --c7:#4a3aa7; --c8:#e34948;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181D; --surface:#1B2128; --ink:#E6EAEF; --muted:#93A0AF; --line:#2B323B;
+    --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
+    --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
+    --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#2fa32f; --c7:#9085e9; --c8:#e66767;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181D; --surface:#1B2128; --ink:#E6EAEF; --muted:#93A0AF; --line:#2B323B;
+  --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
+  --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
+  --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#2fa32f; --c7:#9085e9; --c8:#e66767;
+}
+
+* { box-sizing: border-box; }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  /* 시스템 폰트 스택만 사용한다. 기기 간 픽셀 단위 동일성이 꼭 필요하면
+     서브셋 woff2를 data URI로 임베드하는 것이 선택적 대안이지만, 파일이 커지므로
+     여기서는 적용하지 않는다. */
+  font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  font-size:16px; line-height:1.75;
+}
+.num, code{
+  font-family: ui-monospace,"SF Mono",Menlo,Consolas,"D2Coding",monospace;
+  font-variant-numeric: tabular-nums;
+}
+code{ background:var(--code-bg); padding:.1em .35em; border-radius:4px; font-size:.92em; }
+
+main, header, footer{ max-width:1400px; margin:0 auto; padding:0 24px; }
+header{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:.5em 1.5em; }
+.header-main{ flex:1 1 320px; min-width:0; }
+#theme-toggle{
+  flex:0 0 auto; font:inherit; font-size:.85em;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:999px; padding:.3em .9em; cursor:pointer;
+}
+#theme-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+h2{ border-top:2px solid var(--ink); padding-top:.5em; margin-top:2.4em; }
+h2 .num{ color:var(--muted); margin-right:.5em; }
+
+@media (min-width:1100px){
+  /* 카드형 section을 읽기 좋은 폭 2열로 흘린다; auto-fit이 아니라 repeat(2, ...)를 쓰는 이유는
+     1400px 컨테이너에서 auto-fit + minmax(40ch,1fr)이 3~4열로 갈라지기 때문이다. */
+  main{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(40ch, 1fr));
+    gap:0 2.5em;
+    align-items:start;
+  }
+  main > section{ break-inside:avoid; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+.toc{ max-width:1400px; margin:1.5em auto; padding:0 24px; }
+.toc ul{
+  columns:2; column-gap:2em; list-style:none; margin:0; padding:0;
+  border:1px solid var(--line); border-radius:10px; padding:1em 1.4em; background:var(--surface);
+}
+.toc li{ break-inside:avoid; margin:.25em 0; font-size:.95em; }
+.toc a{ color:var(--accent); text-decoration:none; }
+.toc a:hover, .toc a:focus-visible{ text-decoration:underline; }
+@media (max-width:640px){
+  .toc ul{ columns:1; }
+}
+
+.lede{ font-size:1.05em; color:var(--muted); }
+.growth-note{ font-size:.9em; color:var(--muted); }
+
+.card{ border:1px solid var(--line); border-radius:10px; padding:1em 1.2em; background:var(--surface); }
+.tip, .caution{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:.8em 1.1em; border-radius:0 8px 8px 0; margin:1em 0;
+}
+.caution{ border-left-color:var(--warn); background:var(--warn-soft); }
+.tip p, .caution p{ margin:0; }
+.evidence{ font-size:.88em; color:var(--muted); margin:.2em 0 1em; }
+.data-badge, .verify-badge{
+  display:inline-block; font-family:ui-monospace,"SF Mono",Menlo,Consolas,"D2Coding",monospace;
+  font-size:.78em; color:var(--on-accent); background:var(--neg); border-radius:4px; padding:.05em .4em; margin-left:.4em;
+}
+
+.kpi-row{ display:flex; flex-wrap:wrap; gap:12px; margin:1.2em 0; }
+.kpi{ flex:1 1 160px; border:1px solid var(--line); border-radius:10px; padding:.9em 1em; background:var(--surface); }
+.kpi .kpi-value{ font-family:ui-monospace,"SF Mono",Menlo,Consolas,"D2Coding",monospace; font-variant-numeric:tabular-nums; font-size:1.7em; }
+.kpi .kpi-sub{ font-size:.85em; color:var(--muted); }
+.kpi .kpi-label{ font-size:.9em; color:var(--muted); margin-top:.1em; }
+
+.table-wrap{ overflow-x:auto; margin:1.2em 0; }
+table{ border-collapse:collapse; width:100%; min-width:360px; }
+caption{ text-align:left; color:var(--muted); font-size:.9em; margin-bottom:.4em; caption-side:top; }
+th, td{ border-bottom:1px solid var(--line); padding:.5em .7em; text-align:left; }
+th{ color:var(--muted); font-weight:600; }
+.ta-r{ text-align:right; }
+tr.dim{ opacity:.35; }
+
+.chips, .segmented{ display:flex; flex-wrap:wrap; gap:.5em; margin:.6em 0 1em; }
+.chips button, .segmented button{
+  font:inherit; border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:999px; padding:.35em 1em; cursor:pointer;
+}
+.segmented button{ border-radius:6px; }
+.chips button[aria-pressed="true"], .segmented button[aria-selected="true"], .segmented button[aria-pressed="true"]{
+  background:var(--accent); border-color:var(--accent); color:var(--on-accent);
+}
+.chips button:focus-visible, .segmented button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+.wctl{ display:flex; align-items:center; gap:.8em; margin:1em 0; }
+.wctl input[type="range"]{ flex:1; }
+.wctl output{ font-family:ui-monospace,"SF Mono",Menlo,Consolas,"D2Coding",monospace; font-variant-numeric:tabular-nums; min-width:5em; }
+
+figure{ margin:1.2em 0; }
+figure svg{ width:100%; height:auto; display:block; }
+.chart-wrap{ overflow-x:auto; }
+figcaption{ font-size:.9em; color:var(--muted); margin-top:.5em; }
+.chart-label{ font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif; font-size:11px; fill:currentColor; }
+.chart-label.on-accent{ fill:var(--on-accent); }
+.chart-value, .chart-note{ font-size:11px; fill:currentColor; }
+.chart-note{ opacity:.7; }
+/* 인터랙티브 rect/circle 위에 겹쳐 그려지는 라벨이 hover/click을 가로채지 않도록 한다. */
+.chart-label, .chart-value, .chart-note{ pointer-events:none; }
+svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+.legend{ display:flex; gap:1.2em; font-size:.85em; color:var(--muted); margin:.4em 0; flex-wrap:wrap; }
+.legend .swatch{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:.4em; vertical-align:middle; }
+
+#tip{
+  position:absolute; z-index:50; background:var(--ink); color:var(--bg);
+  padding:.4em .7em; border-radius:6px; font-size:.85em; max-width:260px;
+  box-shadow:0 2px 6px var(--tip-shadow); pointer-events:none;
+}
+#tip[hidden]{ display:none; }
+
+/* gallery-only: recipe cards + collapsible snippet */
+.group-intro{ color:var(--muted); font-size:.95em; }
+.recipe{ border:1px solid var(--line); border-radius:10px; padding:1.2em 1.3em; margin:1.4em 0; background:var(--surface); }
+.recipe h3{ margin:0 0 .3em; font-size:1.02em; }
+.trigger{ color:var(--muted); font-size:.9em; margin:0 0 .8em; }
+details.src{ margin-top:.8em; }
+details.src summary{ cursor:pointer; color:var(--accent); font-size:.9em; }
+details.src pre{
+  overflow-x:auto; background:var(--code-bg); border-radius:8px; padding:1em;
+  font-size:.82em; line-height:1.55; margin:.6em 0 0;
+}
+details.src code{ background:none; padding:0; }
+
+.tablist{ display:flex; gap:.5em; margin:0 0 1em; }
+.tablist button{
+  font:inherit; border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:6px; padding:.35em 1em; cursor:pointer;
+}
+.tablist button[aria-selected="true"]{ background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.tablist button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+.link-list{ list-style:none; margin:.6em 0 0; padding:0; display:flex; flex-direction:column; gap:.3em; }
+.link-list li{
+  border:1px solid var(--line); border-radius:6px; padding:.4em .7em; cursor:pointer;
+  display:flex; justify-content:space-between; font-size:.92em;
+}
+.link-list li:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.link-list li.active{ background:var(--accent-soft); border-color:var(--accent); }
+
+.heatmap-selected{ font-size:.9em; color:var(--muted); margin-top:.4em; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-main">
+    <h1>설명 문서 시각화 레퍼토리</h1>
+    <p class="lede"><strong>대상 독자:</strong> HTML/CSS/JS에 기본적인 이해가 있는 문서 작성자, JSON 데이터 블록과 스니펫을 복사·수정할 수 있는 수준.</p>
+    <p class="lede">이 파일은 열람용 레퍼토리이며 문서는 <code>explainer-skeleton.html</code>에서 시작한다.
+    실제 설명 문서를 쓸 때 필요한 시각화 형태를 여기서 찾아 복사한다.</p>
+    <!-- 성장 정책: 실제 설명 문서가 필요로 한 유형만 추가한다. 선제적 확장은 금지한다. -->
+    <p class="growth-note">아래 레시피의 JS는 <code>window.EXPL</code>(get/fmt/svgEl/wireTip/verifyNumbers/renderBarsH)이
+    본문 상단 공통 스크립트에서 이미 로드되어 있다고 가정하며, 레시피는 항상 <code>EXPL.get(...)</code>처럼 이 네임스페이스를 통해 호출한다 —
+    그래야 레시피만 골라 다른 문서에 복사해도 그대로 동작한다.
+    레시피를 복사할 때는 스니펫 첫 줄의 "필요 데이터" 주석이 명시한 필드를 문서의 임베드 데이터 블록에도 추가해야 한다.</p>
+  </div>
+  <button type="button" id="theme-toggle">테마: 시스템</button>
+</header>
+
+<!-- 스니펫 추출 오류 중, 오류를 낸 id에 대응하는 details.src를 찾지 못한 경우(예: 완전한 오탈자
+     id)에 배지를 붙일 자리. 평소엔 비어 있다 -->
+<div id="snippet-errors" class="toc" aria-live="polite" hidden></div>
+
+<nav class="toc" aria-label="목차">
+  <ul>
+    <li><a href="#group-a">A. 정적 다이어그램</a></li>
+    <li><a href="#a1">A1. 좌우 대조 박스-화살표</a></li>
+    <li><a href="#a2">A2. 플로우/퍼널</a></li>
+    <li><a href="#a3">A3. 상태 전이</a></li>
+    <li><a href="#a4">A4. 의사결정 트리</a></li>
+    <li><a href="#a5">A5. 타임라인</a></li>
+    <li><a href="#group-b">B. 데이터 차트</a></li>
+    <li><a href="#b1">B1. 겹친 히스토그램 + 임계선</a></li>
+    <li><a href="#b2">B2. 순위 막대 + 주석</a></li>
+    <li><a href="#b3">B3. 추세선 + 강조점</a></li>
+    <li><a href="#b4">B4. 슬로프 차트</a></li>
+    <li><a href="#b5">B5. KPI 통계 행</a></li>
+    <li><a href="#b6">B6. 히트맵 그리드</a></li>
+    <li><a href="#group-c">C. 기하적 직관</a></li>
+    <li><a href="#c1">C1. 코사인 유사도를 각도로</a></li>
+    <li><a href="#c2">C2. 강조 산점도</a></li>
+    <li><a href="#group-d">D. 인터랙션 부품</a></li>
+    <li><a href="#d1">D1. 슬라이더 → 재렌더링</a></li>
+    <li><a href="#d2">D2. 칩 필터</a></li>
+    <li><a href="#d3">D3. 탭 전환</a></li>
+    <li><a href="#d4">D4. hover/focus 툴팁</a></li>
+    <li><a href="#d5">D5. 차트-목록 연동</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<div id="tip" role="tooltip" hidden></div>
+
+<!-- JSON 문자열 값에 리터럴 </script>가 있으면 <\/script>로 이스케이프해야 한다 -->
+<script type="application/json" id="explainer-data">
+{
+  "funnel": [
+    { "stage": "1단계 접수", "count": 2400 },
+    { "stage": "2단계 검토", "count": 1680 },
+    { "stage": "3단계 승인", "count": 960 },
+    { "stage": "4단계 완료", "count": 540 }
+  ],
+  "timeline": [
+    { "pos": 2, "label": "시작" },
+    { "pos": 30, "label": "1차 점검" },
+    { "pos": 68, "label": "경보 발생" },
+    { "pos": 90, "label": "조치 완료" }
+  ],
+  "hist": {
+    "bins": [0,1,2,3,4,5,6,7,8,9,10],
+    "before": [2,5,9,14,18,20,17,11,6,3,1],
+    "after": [1,3,6,10,15,19,20,15,9,4,2],
+    "threshold": 5
+  },
+  "ranked": [
+    { "label": "항목 A", "value": 842, "note": "전월 대비 +6%" },
+    { "label": "항목 B", "value": 611, "note": "전월 대비 -3%" },
+    { "label": "항목 C", "value": 405, "note": "전월 대비 +1%" },
+    { "label": "항목 D", "value": 198, "note": "전월 대비 -9%" }
+  ],
+  "trend": [
+    { "x": 0, "y": 12 }, { "x": 1, "y": 15 }, { "x": 2, "y": 14 }, { "x": 3, "y": 19 },
+    { "x": 4, "y": 23 }, { "x": 5, "y": 21 }, { "x": 6, "y": 27 }
+  ],
+  "trendHighlight": 4,
+  "slope": [
+    { "label": "그룹 A", "before": 40, "after": 62 },
+    { "label": "그룹 B", "before": 55, "after": 51 },
+    { "label": "그룹 C", "before": 30, "after": 48 }
+  ],
+  "kpis": [
+    { "value": 3210, "sub_num": 0.08 },
+    { "value": 2.7, "sub_num": 3.0 },
+    { "value": 0.034, "sub_num": 0.05 }
+  ],
+  "heatmap": {
+    "rows": ["행 1", "행 2", "행 3"],
+    "cols": ["열 1", "열 2", "열 3", "열 4"],
+    "values": [[12,34,58,20],[45,67,30,15],[8,22,49,71]]
+  },
+  "scatter": [
+    { "x": 10, "y": 22 }, { "x": 14, "y": 18 }, { "x": 18, "y": 30 }, { "x": 22, "y": 15 },
+    { "x": 26, "y": 40, "label": "이상치 1", "emph": true },
+    { "x": 30, "y": 12 }, { "x": 34, "y": 28 },
+    { "x": 38, "y": 45, "label": "이상치 2", "emph": true },
+    { "x": 42, "y": 20 }, { "x": 46, "y": 33 },
+    { "x": 50, "y": 24, "label": "기준점", "emph": true },
+    { "x": 54, "y": 19 }, { "x": 58, "y": 36 }
+  ],
+  "cosine": { "v1": [1, 0.15], "v2": [0.55, 0.85] },
+  "topN": [
+    { "label": "항목 A", "value": 842 }, { "label": "항목 B", "value": 611 },
+    { "label": "항목 C", "value": 405 }, { "label": "항목 D", "value": 198 },
+    { "label": "항목 E", "value": 140 }
+  ],
+  "groupBars": [
+    { "label": "케이스 1", "value": 320, "group": "그룹1" },
+    { "label": "케이스 2", "value": 210, "group": "그룹2" },
+    { "label": "케이스 3", "value": 410, "group": "그룹1" },
+    { "label": "케이스 4", "value": 150, "group": "그룹2" }
+  ],
+  "tabsData": {
+    "caseA": [ { "label": "항목 A", "value": 842 }, { "label": "항목 B", "value": 611 }, { "label": "항목 C", "value": 405 } ],
+    "caseB": [ { "label": "항목 A", "value": 290 }, { "label": "항목 B", "value": 730 }, { "label": "항목 C", "value": 510 } ]
+  },
+  "linked": [
+    { "label": "노드 1", "value": 58 },
+    { "label": "노드 2", "value": 91 },
+    { "label": "노드 3", "value": 37 },
+    { "label": "노드 4", "value": 74 }
+  ]
+}
+</script>
+
+<script>
+(function(){
+"use strict";
+// 공통 유틸리티 — explainer-skeleton.html과 동일한 계약 (get/fmt/svgEl/wireTip/verifyNumbers/renderBarsH).
+// 레시피는 항상 EXPL.* 로 호출한다 — 레시피만 다른 문서(skeleton 기반)에 복사해도 동작하게 하기 위함이다.
+var DATA = {};
+try{ DATA = JSON.parse(document.getElementById("explainer-data").textContent); }
+catch(e){ console.error("[explainer-data] JSON 파싱 실패", e); }
+
+function get(path, atEl){
+  var val = path.split(".").reduce(function(o, k){
+    return (o && Object.prototype.hasOwnProperty.call(o, k)) ? o[k] : undefined;
+  }, DATA);
+  if (val === undefined){
+    console.error("[get] 경로를 찾을 수 없음: " + path);
+    if (atEl){
+      var b = document.createElement("span");
+      b.className = "data-badge";
+      b.textContent = "[데이터 없음: " + path + "]";
+      // SVG 안(예: <tspan>)에 append하면 XHTML <span>이 0×0으로 렌더링되어 보이지 않으므로,
+      // SVG 바깥으로 앵커를 끌어올린다.
+      var anchor = atEl.closest("svg") || atEl;
+      anchor.after(b);
+    }
+  }
+  return val;
+}
+
+// 숫자가 아닌 값(예: 문자열 "1840")이 조용히 포맷되는 것을 막는 공용 가드.
+// 모든 숫자 포맷터가 render 전에 이 가드를 거친다.
+function numOrErr(v, name, render){
+  if (v == null) return "—";
+  if (!(typeof v === "number" && isFinite(v))){
+    console.error("[FMT] " + name + " 숫자가 아닌 입력: " + v);
+    return "[숫자 아님: " + v + "]";
+  }
+  return render(v);
+}
+var FMT = {
+  int: function(v){ return numOrErr(v, "int", function(v){ return new Intl.NumberFormat("ko-KR").format(Math.round(v)); }); },
+  num1: function(v){ return numOrErr(v, "num1", function(v){ return new Intl.NumberFormat("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v); }); },
+  num2: function(v){ return numOrErr(v, "num2", function(v){ return new Intl.NumberFormat("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v); }); },
+  deg0: function(v){ return numOrErr(v, "deg0", function(v){ return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(Math.round(v)) + "°"; }); },
+  pct1: function(v){
+    return numOrErr(v, "pct1", function(v){
+      if (v < 0 || v > 1){
+        console.error("[FMT] pct1 입력 범위 초과(0~1 기대): " + v);
+        return "[비율 범위 초과: " + v + "]";
+      }
+      return new Intl.NumberFormat("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v * 100) + "%";
+    });
+  },
+  pct0: function(v){
+    return numOrErr(v, "pct0", function(v){
+      if (v < 0 || v > 1){
+        console.error("[FMT] pct0 입력 범위 초과(0~1 기대): " + v);
+        return "[비율 범위 초과: " + v + "]";
+      }
+      return new Intl.NumberFormat("ko-KR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v * 100) + "%";
+    });
+  }
+};
+function fmt(name, v){
+  if (!Object.prototype.hasOwnProperty.call(FMT, name)){
+    console.error("[FMT] 등록되지 않은 포맷: " + name);
+    return "[포맷 없음: " + name + "]";
+  }
+  return FMT[name](v);
+}
+
+// fmt()가 반환하는 오류 문자열은 항상 "["로 시작하므로, 그 경우 문자열이 우연히 정적
+// 텍스트와 같더라도 항상 배지를 붙인다.
+function verifyNumbers(){
+  document.querySelectorAll(".num[data-src]").forEach(function(el){
+    var src = el.dataset.src, f = el.dataset.fmt;
+    var expected = fmt(f, get(src, el));
+    var actual = el.textContent.trim();
+    var isError = /^\[/.test(expected);
+    if (expected !== actual || isError){
+      console.error("[검증 실패] " + src + ": 표시 \"" + actual + "\" / 계산 \"" + expected + "\"");
+      var b = document.createElement("span");
+      b.className = "verify-badge";
+      b.textContent = "불일치: " + expected;
+      // SVG 안(예: <tspan>)에 append하면 XHTML <span>이 0×0으로 렌더링되어 보이지 않으므로,
+      // SVG 바깥으로 앵커를 끌어올린다.
+      var anchor = el.closest("svg") || el;
+      anchor.after(b);
+    }
+  });
+}
+
+function svgEl(tag, attrs){
+  var el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (var k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+// 전역 툴팁: hover와 focus 모두에서 열리고 Escape로 닫힌다. 한 요소가 hover와 focus를
+// 동시에 갖고 있을 수 있으므로(같은 요소를 focus한 채 hover) 소유자(tipOwner)마다
+// {hover, focus} 두 모달리티 플래그를 따로 추적하고, 둘 다 꺼졌을 때만 닫는다.
+// openTip이 소유자가 바뀔 때 이전 소유자의 aria-describedby를 반드시 지운 뒤 갈아치우므로
+// "A focus → B hover"처럼 소유자가 넘어가도 stale aria-describedby가 남지 않는다.
+var tip = document.getElementById("tip");
+var tipOwner = null;
+var tipModes = { hover: false, focus: false };
+function openTip(el, mode){
+  if (tipOwner !== el){
+    if (tipOwner) tipOwner.removeAttribute("aria-describedby");
+    tipOwner = el;
+    tipModes = { hover: false, focus: false };
+    el.setAttribute("aria-describedby", "tip");
+  }
+  tipModes[mode] = true;
+  tip.textContent = el.dataset.tip;
+  var r = el.getBoundingClientRect();
+  tip.style.left = (window.scrollX + r.left) + "px";
+  tip.style.top = (window.scrollY + r.bottom + 6) + "px";
+  tip.hidden = false;
+}
+function closeTip(el, mode){
+  if (tipOwner !== el) return;
+  tipModes[mode] = false;
+  if (!tipModes.hover && !tipModes.focus) hideTip();
+}
+function hideTip(){
+  tip.hidden = true;
+  if (tipOwner){
+    tipOwner.removeAttribute("aria-describedby");
+    tipOwner = null;
+  }
+  tipModes = { hover: false, focus: false };
+}
+function wireTip(el, text){
+  el.dataset.tip = text;
+  el.setAttribute("aria-label", text);
+  el.addEventListener("mouseenter", function(){ openTip(el, "hover"); });
+  el.addEventListener("mouseleave", function(){ closeTip(el, "hover"); });
+  el.addEventListener("focus", function(){ openTip(el, "focus"); });
+  el.addEventListener("blur", function(){ closeTip(el, "focus"); });
+}
+document.addEventListener("keydown", function(e){ if (e.key === "Escape") hideTip(); });
+
+// 범용 가로 막대 렌더러 — B2, D1, D2, D3, D5가 공유한다.
+// explainer-skeleton.html에도 들여쓰기를 제외하고 동일한 함수가 있다: 이 함수는 EXPL.* 로 자기
+// 의존성을 부르므로, 어느 문서에 복사해 붙여도 그대로 동작하고 드리프트가 없다.
+function renderBarsH(svgId, data, opts){
+  opts = opts || {};
+  var svg = document.getElementById(svgId);
+  if (!svg || !data || !data.length) return;
+  if (tipOwner && svg.contains(tipOwner)) hideTip();
+  svg.innerHTML = "";
+  var w = 640, barH = opts.barH || 26, gap = opts.gap || (opts.annotate ? 28 : 12), left = opts.left || 100, top = 8;
+  svg.setAttribute("viewBox", "0 0 " + w + " " + (data.length * (barH + gap) + top));
+  var max = Math.max.apply(null, data.map(function(d){ return d.value; }));
+  data.forEach(function(d, i){
+    var y = top + i * (barH + gap);
+    var bw = (w - left - 60) * (d.value / max);
+    var color = opts.colorFn ? opts.colorFn(d, i) : "var(--c1)";
+    var g = EXPL.svgEl("g", {});
+    if (opts.barId) g.id = opts.barId(d, i);
+    svg.appendChild(g);
+    var bar = EXPL.svgEl("rect", { x: left, y: y, width: bw, height: barH, fill: color, tabindex: "0" });
+    g.appendChild(bar);
+    EXPL.wireTip(bar, d.label + ": " + EXPL.fmt(opts.fmt || "int", d.value));
+    if (opts.onEnter) bar.addEventListener("mouseenter", function(){ opts.onEnter(d, i, bar); });
+    if (opts.onFocus) bar.addEventListener("focus", function(){ opts.onFocus(d, i, bar); });
+    if (opts.onLeave){
+      bar.addEventListener("mouseleave", function(){ opts.onLeave(d, i, bar); });
+      bar.addEventListener("blur", function(){ opts.onLeave(d, i, bar); });
+    }
+    var label = EXPL.svgEl("text", { x: left - 8, y: y + barH * 0.68, "text-anchor": "end", class: "chart-label" });
+    label.textContent = d.label;
+    g.appendChild(label);
+    var val = EXPL.svgEl("text", { x: left + bw + 8, y: y + barH * 0.68, class: "chart-value num" });
+    val.textContent = EXPL.fmt(opts.fmt || "int", d.value);
+    g.appendChild(val);
+    if (opts.annotate && d.note){
+      var note = EXPL.svgEl("text", { x: left, y: y + barH + 14, class: "chart-note" });
+      note.textContent = d.note;
+      g.appendChild(note);
+    }
+  });
+}
+
+// 다른 문서로 레시피를 복사했을 때도 동작하도록 공용 유틸리티를 전역에 노출한다.
+window.EXPL = Object.freeze({ get: get, fmt: fmt, svgEl: svgEl, wireTip: wireTip, verifyNumbers: verifyNumbers, renderBarsH: renderBarsH });
+
+// 아래 각 레시피 <script>는 DOMContentLoaded 이후에 실행되도록 감싸져 있다: 이 리스너가
+// 문서에서 가장 먼저 등록되므로(레시피 리스너들보다 앞선 순서) 스니펫을 원본 마크업 상태에서
+// 먼저 추출한 다음에야 레시피가 그 마크업을 렌더링으로 덮어쓴다.
+function extractSnippets(){
+  var root = document.querySelector("main");
+  var walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
+  var starts = {};
+  var startCount = {};
+  var filled = {};
+  var node;
+  while ((node = walker.nextNode())){
+    var m = /^\s*snippet:(start|end):(\S+)\s*$/.exec(node.nodeValue);
+    if (!m) continue;
+    if (m[1] === "start"){
+      startCount[m[2]] = (startCount[m[2]] || 0) + 1;
+      if (startCount[m[2]] > 1) reportSnippetError(m[2], "시작 마커 중복(" + startCount[m[2]] + "번째): " + m[2]);
+      starts[m[2]] = node;
+    } else if (starts[m[2]]){
+      fillSnippet(m[2], starts[m[2]], node);
+      filled[m[2]] = true;
+      delete starts[m[2]];
+    } else {
+      reportSnippetError(m[2], "종료 마커에 대응하는 시작 마커가 없음: " + m[2]);
+    }
+  }
+  Object.keys(starts).forEach(function(id){
+    reportSnippetError(id, "시작 마커에 대응하는 종료 마커가 없음: " + id);
+  });
+  document.querySelectorAll("code[data-snippet-for]").forEach(function(code){
+    var id = code.dataset.snippetFor;
+    if (!filled[id]) reportSnippetError(id, "마커 쌍이 없어 스니펫을 채우지 못함: " + id);
+  });
+}
+function fillSnippet(id, startNode, endNode){
+  var target = document.querySelector('code[data-snippet-for="' + id + '"]');
+  if (!target) return;
+  var parts = [];
+  for (var n = startNode.nextSibling; n && n !== endNode; n = n.nextSibling){
+    parts.push(n.nodeType === 1 ? n.outerHTML : n.nodeValue);
+  }
+  target.textContent = dedentSnippet(parts.join(""));
+}
+// details.src를 못 찾는 경우(id 오탈자 등)에도 오류가 콘솔에만 남고 화면엔 흔적이 없던 문제를
+// 막기 위해, 그 경우엔 문서 상단의 #snippet-errors에 배지를 남긴다.
+function reportSnippetError(id, message){
+  console.error("[extractSnippets] " + message);
+  var code = document.querySelector('code[data-snippet-for="' + id + '"]');
+  var details = code && code.closest("details.src");
+  if (details){
+    if (details.querySelector(".data-badge")) return;
+    var badge = document.createElement("span");
+    badge.className = "data-badge";
+    badge.textContent = "[스니펫 추출 실패: " + id + "]";
+    details.querySelector("summary").after(badge);
+    return;
+  }
+  var area = document.getElementById("snippet-errors");
+  if (!area) return;
+  area.hidden = false;
+  var docBadge = document.createElement("p");
+  docBadge.className = "data-badge";
+  docBadge.textContent = "[스니펫 추출 실패: " + id + "] " + message;
+  area.appendChild(docBadge);
+}
+function dedentSnippet(html){
+  var lines = html.replace(/^[\r\n]+/, "").replace(/[ \t]+$/, "").split("\n");
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  var indent = Infinity;
+  lines.forEach(function(line){
+    if (!line.trim()) return;
+    var m = /^[ \t]*/.exec(line);
+    indent = Math.min(indent, m[0].length);
+  });
+  if (!isFinite(indent)) indent = 0;
+  return lines.map(function(line){ return line.slice(indent); }).join("\n");
+}
+
+document.addEventListener("DOMContentLoaded", function(){
+  extractSnippets();
+  verifyNumbers();
+});
+
+// 테마 토글: 시스템 → 라이트 → 다크 순으로 순환한다.
+(function(){
+  document.addEventListener("DOMContentLoaded", function(){
+    var btn = document.getElementById("theme-toggle");
+    var labels = { system: "테마: 시스템", light: "테마: 라이트", dark: "테마: 다크" };
+    var order = ["system", "light", "dark"];
+    btn.addEventListener("click", function(){
+      var cur = document.documentElement.dataset.theme || "system";
+      var next = order[(order.indexOf(cur) + 1) % order.length];
+      if (next === "system") delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = next;
+      btn.textContent = labels[next];
+    });
+  });
+})();
+})();
+</script>
+
+<section id="group-a">
+  <h2><span class="num">A</span> 정적 다이어그램</h2>
+  <p class="group-intro">구조·흐름·상태처럼 관계를 보여줘야 할 때 쓰는, 조작으로 데이터나 기하가 바뀌지 않는 정적 다이어그램이다 (툴팁은 있을 수 있다).</p>
+
+  <article class="recipe" id="a1">
+    <h3>A1. 좌우 대조 박스-화살표</h3>
+    <p class="trigger">이럴 때 이 형태: 정상 경로와 실패 경로를 나란히 대조해 차이를 보여줄 때</p>
+    <!-- snippet:start:a1 -->
+    <figure role="img" aria-label="캐시 적중 경로와 캐시 미스 경로를 좌우로 대조한 다이어그램">
+      <div class="chart-wrap">
+      <svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a1-arrow-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+          <marker id="a1-arrow-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--neg)"/>
+          </marker>
+        </defs>
+        <text x="70" y="22" text-anchor="middle" class="chart-label">캐시 적중</text>
+        <rect x="20" y="36" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
+        <text x="70" y="60" text-anchor="middle" class="chart-label">요청</text>
+        <path d="M120,56 H160" fill="none" stroke="currentColor" marker-end="url(#a1-arrow-ok)"/>
+        <rect x="160" y="36" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
+        <text x="210" y="60" text-anchor="middle" class="chart-label">캐시 조회</text>
+        <path d="M260,56 H300" fill="none" stroke="currentColor" marker-end="url(#a1-arrow-ok)"/>
+        <rect x="300" y="36" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
+        <text x="350" y="60" text-anchor="middle" class="chart-label">즉시 응답</text>
+
+        <text x="70" y="122" text-anchor="middle" class="chart-label">캐시 미스</text>
+        <rect x="20" y="136" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
+        <text x="70" y="160" text-anchor="middle" class="chart-label">요청</text>
+        <path d="M120,156 H160" fill="none" stroke="currentColor" marker-end="url(#a1-arrow-ok)"/>
+        <rect x="160" y="136" width="100" height="40" rx="6" fill="var(--warn-soft)" stroke="var(--neg)"/>
+        <text x="210" y="160" text-anchor="middle" class="chart-label" fill="var(--neg)">캐시 조회 실패</text>
+        <path d="M260,156 H300" fill="none" stroke="var(--neg)" stroke-dasharray="4 3" marker-end="url(#a1-arrow-bad)"/>
+        <rect x="300" y="136" width="100" height="40" rx="6" fill="none" stroke="currentColor" stroke-dasharray="3 3"/>
+        <text x="350" y="160" text-anchor="middle" class="chart-label">원본 재조회</text>
+      </svg>
+      </div>
+      <figcaption>이 그림은 캐시 미스가 정상 경로 어느 지점에서 추가 단계를 만드는지 보여준다.</figcaption>
+    </figure>
+    <!-- snippet:end:a1 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="a1">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="a2">
+    <h3>A2. 플로우/퍼널</h3>
+    <p class="trigger">이럴 때 이 형태: 단계마다 건수가 줄어드는 흐름을 보여줄 때</p>
+    <!-- snippet:start:a2 -->
+    <figure role="group" aria-labelledby="a2-caption">
+      <div class="chart-wrap"><svg id="chart-a2" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="a2-caption">이 그림은 각 단계를 지나며 건수가 얼마나 줄어드는지 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: funnel = [{stage, count}, ...]
+      var svg = document.getElementById("chart-a2");
+      var data = EXPL.get("funnel", svg) || [];
+      var w = 640, rowH = 40, gap = 10, top = 8;
+      svg.setAttribute("viewBox", "0 0 " + w + " " + (data.length * (rowH + gap) + top));
+      var max = Math.max.apply(null, data.map(function(d){ return d.count; }));
+      data.forEach(function(d, i){
+        var y = top + i * (rowH + gap);
+        var bw = (w - 40) * (d.count / max);
+        var x = (w - bw) / 2;
+        var bar = EXPL.svgEl("rect", { x: x, y: y, width: bw, height: rowH, rx: 6, fill: "var(--accent)", tabindex: "0" });
+        svg.appendChild(bar);
+        EXPL.wireTip(bar, d.stage + ": " + EXPL.fmt("int", d.count) + "건");
+        var label = EXPL.svgEl("text", { x: w / 2, y: y + rowH * 0.62, "text-anchor": "middle", class: "chart-label on-accent" });
+        label.textContent = d.stage + " · " + EXPL.fmt("int", d.count) + "건";
+        svg.appendChild(label);
+      });
+    });
+    </script>
+    <!-- snippet:end:a2 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="a2">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="a3">
+    <h3>A3. 상태 전이</h3>
+    <p class="trigger">이럴 때 이 형태: 상태와 상태 사이의 전이(재시도 등 되돌아가는 경로 포함)를 보여줄 때</p>
+    <!-- snippet:start:a3 -->
+    <figure role="img" aria-label="대기, 처리중, 완료 상태와 재시도로 되돌아가는 전이를 보여주는 상태 다이어그램">
+      <div class="chart-wrap">
+      <svg viewBox="0 0 560 180" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a3-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <circle cx="80" cy="70" r="42" fill="none" stroke="currentColor"/>
+        <text x="80" y="75" text-anchor="middle" class="chart-label">대기</text>
+        <circle cx="280" cy="70" r="42" fill="none" stroke="currentColor"/>
+        <text x="280" y="75" text-anchor="middle" class="chart-label">처리중</text>
+        <circle cx="480" cy="70" r="42" fill="none" stroke="var(--pos)" stroke-width="2"/>
+        <text x="480" y="75" text-anchor="middle" class="chart-label" fill="var(--pos)">완료</text>
+
+        <path d="M122,70 H238" fill="none" stroke="currentColor" marker-end="url(#a3-arrow)"/>
+        <text x="180" y="62" text-anchor="middle" class="chart-label">시작</text>
+        <path d="M322,70 H438" fill="none" stroke="currentColor" marker-end="url(#a3-arrow)"/>
+        <text x="380" y="62" text-anchor="middle" class="chart-label">성공</text>
+
+        <path d="M280,112 V140 H80 V112" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#a3-arrow)"/>
+        <text x="180" y="156" text-anchor="middle" class="chart-label">재시도</text>
+      </svg>
+      </div>
+      <figcaption>이 그림은 처리중 상태가 실패 시 재시도로 대기 상태로 되돌아가는 경로를 보여준다.</figcaption>
+    </figure>
+    <!-- snippet:end:a3 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="a3">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="a4">
+    <h3>A4. 의사결정 트리</h3>
+    <p class="trigger">이럴 때 이 형태: 두 단계의 분기 판단이 결과를 어떻게 나누는지 보여줄 때</p>
+    <!-- snippet:start:a4 -->
+    <figure role="img" aria-label="2단계 이진 의사결정 트리">
+      <div class="chart-wrap">
+      <svg viewBox="0 0 560 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a4-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <rect x="230" y="10" width="100" height="36" rx="6" fill="none" stroke="currentColor"/>
+        <text x="280" y="33" text-anchor="middle" class="chart-label">임계값 초과?</text>
+
+        <path d="M260,46 V64 H130 V82" fill="none" stroke="currentColor" marker-end="url(#a4-arrow)"/>
+        <text x="180" y="60" text-anchor="middle" class="chart-label">예</text>
+        <rect x="80" y="82" width="100" height="36" rx="6" fill="none" stroke="currentColor"/>
+        <text x="130" y="105" text-anchor="middle" class="chart-label">재검토 대상?</text>
+
+        <path d="M300,46 V64 H430 V82" fill="none" stroke="currentColor" marker-end="url(#a4-arrow)"/>
+        <text x="380" y="60" text-anchor="middle" class="chart-label">아니오</text>
+        <rect x="380" y="82" width="100" height="36" rx="6" fill="none" stroke="currentColor"/>
+        <text x="430" y="105" text-anchor="middle" class="chart-label">보류 대상?</text>
+
+        <path d="M110,118 V136 H50 V154" fill="none" stroke="currentColor" marker-end="url(#a4-arrow)"/>
+        <text x="60" y="132" text-anchor="middle" class="chart-label">예</text>
+        <rect x="10" y="154" width="90" height="34" rx="6" fill="var(--warn-soft)" stroke="var(--warn)"/>
+        <text x="55" y="176" text-anchor="middle" class="chart-label">보류</text>
+
+        <path d="M150,118 V136 H210 V154" fill="none" stroke="currentColor" marker-end="url(#a4-arrow)"/>
+        <text x="200" y="132" text-anchor="middle" class="chart-label">아니오</text>
+        <rect x="165" y="154" width="90" height="34" rx="6" fill="none" stroke="currentColor"/>
+        <text x="210" y="176" text-anchor="middle" class="chart-label">일반 처리</text>
+
+        <path d="M410,118 V136 H350 V154" fill="none" stroke="currentColor" marker-end="url(#a4-arrow)"/>
+        <text x="360" y="132" text-anchor="middle" class="chart-label">예</text>
+        <rect x="305" y="154" width="90" height="34" rx="6" fill="var(--warn-soft)" stroke="var(--warn)"/>
+        <text x="350" y="176" text-anchor="middle" class="chart-label">보류</text>
+
+        <path d="M450,118 V136 H510 V154" fill="none" stroke="currentColor" marker-end="url(#a4-arrow)"/>
+        <text x="500" y="132" text-anchor="middle" class="chart-label">아니오</text>
+        <rect x="465" y="154" width="90" height="34" rx="6" fill="none" stroke="var(--pos)"/>
+        <text x="510" y="176" text-anchor="middle" class="chart-label" fill="var(--pos)">자동 승인</text>
+      </svg>
+      </div>
+      <figcaption>이 그림은 두 번의 이진 판단이 네 가지 처리 결과로 갈라지는 구조를 보여준다.</figcaption>
+    </figure>
+    <!-- snippet:end:a4 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="a4">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="a5">
+    <h3>A5. 타임라인</h3>
+    <p class="trigger">이럴 때 이 형태: 사건이 시간순으로 언제 일어났는지 보여줄 때</p>
+    <!-- snippet:start:a5 -->
+    <figure role="group" aria-labelledby="a5-caption">
+      <div class="chart-wrap"><svg id="chart-a5" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="a5-caption">이 그림은 경보 발생이 전체 기간 중 어느 시점에 일어났는지 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: timeline = [{pos, label}, ...] (pos: 0~100 스케일)
+      var svg = document.getElementById("chart-a5");
+      var events = EXPL.get("timeline", svg) || [];
+      var w = 640, h = 90, left = 20, right = 20, y = 50;
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      svg.appendChild(EXPL.svgEl("line", { x1: left, y1: y, x2: w - right, y2: y, stroke: "currentColor", "stroke-width": "1" }));
+      events.forEach(function(ev, i){
+        var x = left + (w - left - right) * (ev.pos / 100);
+        var c = EXPL.svgEl("circle", { cx: x, cy: y, r: 5, fill: "var(--c1)", tabindex: "0" });
+        svg.appendChild(c);
+        EXPL.wireTip(c, ev.label + " (전체 구간의 " + ev.pos + "% 지점)");
+        var textY = i % 2 === 0 ? y - 14 : y + 24;
+        var t = EXPL.svgEl("text", { x: x, y: textY, "text-anchor": "middle", class: "chart-label" });
+        t.textContent = ev.label;
+        svg.appendChild(t);
+      });
+    });
+    </script>
+    <!-- snippet:end:a5 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="a5">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+</section>
+
+<section id="group-b">
+  <h2><span class="num">B</span> 데이터 차트</h2>
+  <p class="group-intro">3개 이상의 값을 비교하거나 추세·분포를 보여줄 때 쓰는, JSON에서 렌더링되는 차트다.</p>
+
+  <article class="recipe" id="b1">
+    <h3>B1. 겹친 히스토그램 + 임계선</h3>
+    <p class="trigger">이럴 때 이 형태: 기준선 하나를 두고 두 분포가 어떻게 갈리는지 보여줄 때</p>
+    <!-- snippet:start:b1 -->
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--c1)"></span>이전 분포</span>
+      <span><span class="swatch" style="background:var(--c3)"></span>이후 분포</span>
+    </div>
+    <figure role="group" aria-labelledby="b1-caption">
+      <div class="chart-wrap"><svg id="chart-b1" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="b1-caption">이 그림은 고정 임계값 기준으로 이전/이후 분포가 각각 어떻게 나뉘는지 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: hist = { bins:[...], before:[...], after:[...], threshold:Number }
+      var svg = document.getElementById("chart-b1");
+      var h = EXPL.get("hist", svg);
+      if (!h) return;
+      var w = 640, ht = 200, top = 10, left = 30, bottom = 30;
+      svg.setAttribute("viewBox", "0 0 " + w + " " + ht);
+      var n = h.bins.length, bw = (w - left - 20) / n;
+      var maxV = Math.max.apply(null, h.before.concat(h.after));
+      function scaleY(v){ return (ht - bottom) - (v / maxV) * (ht - top - bottom); }
+      h.before.forEach(function(v, i){
+        var x = left + i * bw;
+        var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), fill: "var(--c1)", opacity: ".8", tabindex: "0" });
+        svg.appendChild(bar);
+        EXPL.wireTip(bar, "구간 " + h.bins[i] + " 이전: " + EXPL.fmt("int", v));
+      });
+      h.after.forEach(function(v, i){
+        var x = left + i * bw + bw * 0.44;
+        var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), fill: "var(--c3)", opacity: ".8", tabindex: "0" });
+        svg.appendChild(bar);
+        EXPL.wireTip(bar, "구간 " + h.bins[i] + " 이후: " + EXPL.fmt("int", v));
+      });
+      var thx = left + h.threshold * bw + bw / 2;
+      svg.appendChild(EXPL.svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
+      var lbl = EXPL.svgEl("text", { x: thx + 4, y: top + 12, class: "chart-value num", fill: "var(--neg)" });
+      lbl.textContent = "임계값 " + h.threshold;
+      svg.appendChild(lbl);
+    });
+    </script>
+    <!-- snippet:end:b1 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="b1">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="b2">
+    <h3>B2. 순위 막대 + 주석</h3>
+    <p class="trigger">이럴 때 이 형태: 순위와 함께 각 항목의 변화율을 같이 보여줄 때</p>
+    <!-- snippet:start:b2 -->
+    <figure role="group" aria-labelledby="b2-caption">
+      <div class="chart-wrap"><svg id="chart-b2" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="b2-caption">이 그림은 항목별 순위와 함께 전월 대비 변화율을 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: ranked = [{label, value, note}, ...] · 전제: EXPL.renderBarsH
+      EXPL.renderBarsH("chart-b2", EXPL.get("ranked", document.getElementById("chart-b2")), { fmt: "int", annotate: true });
+    });
+    </script>
+    <!-- snippet:end:b2 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="b2">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="b3">
+    <h3>B3. 추세선 + 강조점</h3>
+    <p class="trigger">이럴 때 이 형태: 시간에 따른 추세와 그중 주목할 한 지점을 같이 보여줄 때</p>
+    <!-- snippet:start:b3 -->
+    <figure role="group" aria-labelledby="b3-caption">
+      <div class="chart-wrap"><svg id="chart-b3" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="b3-caption">이 그림은 값이 증가하는 추세와 그중 급상승한 한 지점을 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: trend = [{x, y}, ...], trendHighlight = Number(강조할 인덱스)
+      var svg = document.getElementById("chart-b3");
+      var pts = EXPL.get("trend", svg) || [];
+      var hi = EXPL.get("trendHighlight", svg);
+      if (!pts.length) return;
+      var w = 640, h = 200, left = 30, right = 20, top = 16, bottom = 24;
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      var maxX = Math.max.apply(null, pts.map(function(p){ return p.x; }));
+      var maxY = Math.max.apply(null, pts.map(function(p){ return p.y; }));
+      function sx(x){ return left + (w - left - right) * (x / maxX); }
+      function sy(y){ return (h - bottom) - (y / maxY) * (h - top - bottom); }
+      var d = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + sx(p.x) + "," + sy(p.y); }).join(" ");
+      svg.appendChild(EXPL.svgEl("path", { d: d, fill: "none", stroke: "var(--c1)", "stroke-width": "2" }));
+      pts.forEach(function(p, i){
+        var isHi = i === hi;
+        var c = EXPL.svgEl("circle", { cx: sx(p.x), cy: sy(p.y), r: isHi ? 6 : 3, fill: isHi ? "var(--neg)" : "var(--c1)", tabindex: "0" });
+        svg.appendChild(c);
+        EXPL.wireTip(c, (i + 1) + "번째 지점: " + EXPL.fmt("int", p.y));
+        if (isHi){
+          var t = EXPL.svgEl("text", { x: sx(p.x), y: sy(p.y) - 12, "text-anchor": "middle", class: "chart-value num", fill: "var(--neg)" });
+          t.textContent = EXPL.fmt("int", p.y);
+          svg.appendChild(t);
+        }
+      });
+    });
+    </script>
+    <!-- snippet:end:b3 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="b3">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="b4">
+    <h3>B4. 슬로프 차트</h3>
+    <p class="trigger">이럴 때 이 형태: 조치 전후로 그룹마다 값이 어떻게 바뀌었는지 보여줄 때</p>
+    <!-- snippet:start:b4 -->
+    <figure role="group" aria-labelledby="b4-caption">
+      <div class="chart-wrap"><svg id="chart-b4" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="b4-caption">이 그림은 조치 전과 후 사이에 그룹별 값이 오르거나 내린 정도를 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: slope = [{label, before, after}, ...]
+      var svg = document.getElementById("chart-b4");
+      var pairs = EXPL.get("slope", svg) || [];
+      if (!pairs.length) return;
+      var w = 640, h = 200, top = 16, bottom = 30, xBefore = 160, xAfter = 480;
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      var maxV = Math.max.apply(null, pairs.map(function(p){ return Math.max(p.before, p.after); }));
+      function sy(v){ return (h - bottom) - (v / maxV) * (h - top - bottom); }
+      svg.appendChild(EXPL.svgEl("text", { x: xBefore, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 전";
+      svg.appendChild(EXPL.svgEl("text", { x: xAfter, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 후";
+      pairs.forEach(function(p, i){
+        var color = "var(--c" + ((i % 8) + 1) + ")";
+        var line = EXPL.svgEl("line", { x1: xBefore, y1: sy(p.before), x2: xAfter, y2: sy(p.after), stroke: color, "stroke-width": "2", tabindex: "0" });
+        svg.appendChild(line);
+        EXPL.wireTip(line, p.label + ": " + EXPL.fmt("int", p.before) + " → " + EXPL.fmt("int", p.after));
+        svg.appendChild(EXPL.svgEl("circle", { cx: xBefore, cy: sy(p.before), r: 4, fill: color }));
+        svg.appendChild(EXPL.svgEl("circle", { cx: xAfter, cy: sy(p.after), r: 4, fill: color }));
+      });
+      // 라벨은 목표 y(조치 후 위치) 기준으로 정렬한 뒤 최소 13px 간격을 강제해 겹침을 막는다.
+      var order = pairs.map(function(p, i){ return i; }).sort(function(a, b){ return sy(pairs[a].after) - sy(pairs[b].after); });
+      var lastY = -Infinity;
+      order.forEach(function(i){
+        var p = pairs[i];
+        var ly = Math.max(sy(p.after) + 4, lastY + 13);
+        lastY = ly;
+        var lbl = EXPL.svgEl("text", { x: xAfter + 10, y: ly, class: "chart-label" });
+        lbl.textContent = p.label + " (" + EXPL.fmt("int", p.before) + " → " + EXPL.fmt("int", p.after) + ")";
+        svg.appendChild(lbl);
+      });
+    });
+    </script>
+    <!-- snippet:end:b4 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="b4">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="b5">
+    <h3>B5. KPI 통계 행</h3>
+    <p class="trigger">이럴 때 이 형태: 값을 하나씩 눈에 띄게, 목표와 함께 보여줄 때</p>
+    <!-- snippet:start:b5 -->
+    <div class="kpi-row" id="kpi-row-b5">
+      <div class="kpi">
+        <div class="kpi-value"><span class="num" data-src="kpis.0.value" data-fmt="int">3,210</span></div>
+        <div class="kpi-sub">전주 대비 +<span class="num" data-src="kpis.0.sub_num" data-fmt="pct0">8%</span></div>
+        <div class="kpi-label">전체 처리</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value"><span class="num" data-src="kpis.1.value" data-fmt="num1">2.7</span></div>
+        <div class="kpi-sub">목표 <span class="num" data-src="kpis.1.sub_num" data-fmt="num1">3.0</span> 이내</div>
+        <div class="kpi-label">평균 소요</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value"><span class="num" data-src="kpis.2.value" data-fmt="pct1">3.4%</span></div>
+        <div class="kpi-sub">목표 <span class="num" data-src="kpis.2.sub_num" data-fmt="pct0">5%</span> 이내</div>
+        <div class="kpi-label">오류율</div>
+      </div>
+    </div>
+    <!-- snippet:end:b5 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="b5">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="b6">
+    <h3>B6. 히트맵 그리드</h3>
+    <p class="trigger">이럴 때 이 형태: 두 축의 조합에 따라 값이 어떻게 바뀌는지 한눈에 보여줄 때</p>
+    <!-- snippet:start:b6 -->
+    <figure role="group" aria-labelledby="b6-caption">
+      <div class="chart-wrap"><svg id="chart-b6" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="b6-caption">이 그림은 행-열 조합에 따라 값이 얼마나 큰지를 색 농도로 보여준다. 셀을 클릭하면 값이 아래에 표시된다.</figcaption>
+    </figure>
+    <p class="heatmap-selected" id="b6-selected" aria-live="polite">선택: —</p>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: heatmap = { rows:[...], cols:[...], values:[[...]] }
+      var svg = document.getElementById("chart-b6");
+      var hm = EXPL.get("heatmap", svg);
+      if (!hm) return;
+      var out = document.getElementById("b6-selected");
+      var cell = 60, left = 60, top = 10;
+      var w = left + hm.cols.length * cell, h = top + hm.rows.length * cell + 10;
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      var flat = hm.values.reduce(function(a, r){ return a.concat(r); }, []);
+      var min = Math.min.apply(null, flat), max = Math.max.apply(null, flat);
+      hm.cols.forEach(function(c, ci){
+        var t = EXPL.svgEl("text", { x: left + ci * cell + cell / 2, y: top - 2, "text-anchor": "middle", class: "chart-label" });
+        t.textContent = c;
+        svg.appendChild(t);
+      });
+      hm.rows.forEach(function(r, ri){
+        var y = top + 12 + ri * cell;
+        var t = EXPL.svgEl("text", { x: left - 8, y: y + cell / 2, "text-anchor": "end", class: "chart-label" });
+        t.textContent = r;
+        svg.appendChild(t);
+        hm.values[ri].forEach(function(v, ci){
+          var x = left + ci * cell;
+          var colName = hm.cols[ci];
+          var opacity = 0.12 + 0.55 * ((v - min) / (max - min || 1));
+          var rect = EXPL.svgEl("rect", {
+            x: x, y: y, width: cell - 3, height: cell - 3, rx: 4,
+            fill: "var(--c1)", "fill-opacity": opacity.toFixed(2),
+            stroke: "var(--line)", tabindex: "0", cursor: "pointer",
+            role: "button", "aria-controls": "b6-selected"
+          });
+          svg.appendChild(rect);
+          EXPL.wireTip(rect, r + " · " + colName + ": " + EXPL.fmt("int", v));
+          function select(){ out.textContent = "선택: " + r + " · " + colName + " = " + EXPL.fmt("int", v); }
+          rect.addEventListener("click", select);
+          rect.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " "){ e.preventDefault(); select(); } });
+          var vt = EXPL.svgEl("text", { x: x + (cell - 3) / 2, y: y + cell / 2 + 4, "text-anchor": "middle", class: "chart-value num" });
+          vt.textContent = EXPL.fmt("int", v);
+          svg.appendChild(vt);
+        });
+      });
+    });
+    </script>
+    <!-- snippet:end:b6 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="b6">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+</section>
+
+<section id="group-c">
+  <h2><span class="num">C</span> 기하적 직관</h2>
+  <p class="group-intro">정형 차트로 담기지 않는 수식·개념을 도형으로 옮겨 보여준다.</p>
+
+  <article class="recipe" id="c1">
+    <h3>C1. 코사인 유사도를 각도로</h3>
+    <p class="trigger">이럴 때 이 형태: 벡터 사이 각도라는 수식의 의미를 실제 도형으로 보여줄 때</p>
+    <!-- snippet:start:c1 -->
+    <figure role="group" aria-labelledby="c1-caption">
+      <div class="chart-wrap"><svg id="chart-c1" viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="c1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+      </svg></div>
+      <figcaption id="c1-caption">이 그림은 두 벡터 사이의 각도가 좁을수록 코사인 유사도(방향이 같은 정도)가 1에 가까워짐을 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: cosine = { v1:[x, y], v2:[x, y] }
+      var svg = document.getElementById("chart-c1");
+      var cos = EXPL.get("cosine", svg);
+      if (!cos) return;
+      var origin = { x: 30, y: 190 }, scale = 200;
+      function tipPoint(v){ return { x: origin.x + v[0] * scale, y: origin.y - v[1] * scale }; }
+      var p1 = tipPoint(cos.v1), p2 = tipPoint(cos.v2);
+      var dot = cos.v1[0]*cos.v2[0] + cos.v1[1]*cos.v2[1];
+      var n1 = Math.hypot(cos.v1[0], cos.v1[1]), n2 = Math.hypot(cos.v2[0], cos.v2[1]);
+      var cosSim = dot / (n1 * n2);
+      var angleDeg = Math.acos(Math.min(1, Math.max(-1, cosSim))) * 180 / Math.PI;
+      var line1 = EXPL.svgEl("line", { x1: origin.x, y1: origin.y, x2: p1.x, y2: p1.y, stroke: "currentColor", "stroke-width": "2", "marker-end": "url(#c1-arrow)", tabindex: "0" });
+      svg.appendChild(line1);
+      EXPL.wireTip(line1, "문서 A: 유사도 " + cosSim.toFixed(2) + ", 각도 " + angleDeg.toFixed(0) + "°");
+      svg.appendChild(EXPL.svgEl("text", { x: p1.x + 6, y: p1.y, class: "chart-label" })).textContent = "문서 A";
+      var line2 = EXPL.svgEl("line", { x1: origin.x, y1: origin.y, x2: p2.x, y2: p2.y, stroke: "var(--accent)", "stroke-width": "2", "marker-end": "url(#c1-arrow)", tabindex: "0" });
+      svg.appendChild(line2);
+      EXPL.wireTip(line2, "문서 B: 유사도 " + cosSim.toFixed(2) + ", 각도 " + angleDeg.toFixed(0) + "°");
+      svg.appendChild(EXPL.svgEl("text", { x: p2.x + 6, y: p2.y, class: "chart-label", fill: "var(--accent)" })).textContent = "문서 B";
+      var lbl = EXPL.svgEl("text", { x: origin.x + 60, y: origin.y - 20, class: "chart-label num" });
+      lbl.textContent = angleDeg.toFixed(0) + "° · 유사도 " + cosSim.toFixed(2);
+      svg.appendChild(lbl);
+      document.getElementById("c1-caption").textContent =
+        "이 그림은 두 벡터 사이의 각도(" + angleDeg.toFixed(0) + "°)가 좁을수록 코사인 유사도(" + cosSim.toFixed(2) + ")가 1에 가까워짐을 보여준다.";
+    });
+    </script>
+    <!-- snippet:end:c1 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="c1">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="c2">
+    <h3>C2. 강조 산점도</h3>
+    <p class="trigger">이럴 때 이 형태: 다수의 점 중 몇 개만 주목해서 보여줄 때</p>
+    <!-- snippet:start:c2 -->
+    <figure role="group" aria-labelledby="c2-caption">
+      <div class="chart-wrap"><svg id="chart-c2" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="c2-caption">이 그림은 대부분의 점이 몰려 있는 가운데 세 지점만 눈에 띄게 벗어나 있음을 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: scatter = [{x, y, label?, emph?}, ...]
+      var svg = document.getElementById("chart-c2");
+      var pts = EXPL.get("scatter", svg) || [];
+      if (!pts.length) return;
+      var w = 640, h = 220, left = 20, right = 20, top = 16, bottom = 24;
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      var maxX = Math.max.apply(null, pts.map(function(p){ return p.x; }));
+      var maxY = Math.max.apply(null, pts.map(function(p){ return p.y; }));
+      function sx(x){ return left + (w - left - right) * (x / maxX); }
+      function sy(y){ return (h - bottom) - (y / maxY) * (h - top - bottom); }
+      pts.forEach(function(p, i){
+        var c = EXPL.svgEl("circle", {
+          cx: sx(p.x), cy: sy(p.y), r: p.emph ? 6 : 3,
+          fill: p.emph ? "var(--c2)" : "currentColor", opacity: p.emph ? "1" : ".35",
+          tabindex: "0"
+        });
+        svg.appendChild(c);
+        EXPL.wireTip(c, (p.label || ("점 " + (i + 1))) + ": (" + p.x + ", " + p.y + ")");
+        if (p.emph){
+          var t = EXPL.svgEl("text", { x: sx(p.x) + 8, y: sy(p.y) - 8, class: "chart-label", fill: "var(--c2)" });
+          t.textContent = p.label;
+          svg.appendChild(t);
+        }
+      });
+    });
+    </script>
+    <!-- snippet:end:c2 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="c2">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+</section>
+
+<section id="group-d">
+  <h2><span class="num">D</span> 인터랙션 부품</h2>
+  <p class="group-intro">사용자가 조작해 값을 바꾸거나 초점을 옮길 때 쓰는 부품이다.</p>
+
+  <article class="recipe" id="d1">
+    <h3>D1. 슬라이더 → 재렌더링</h3>
+    <p class="trigger">이럴 때 이 형태: 사용자가 기준값을 바꿔가며 강조되는 항목이 달라지는 것을 보여줄 때</p>
+    <!-- snippet:start:d1 -->
+    <div class="wctl">
+      <label for="d1-slider">상위 N개 강조</label>
+      <input type="range" id="d1-slider" min="1" max="5" step="1" value="2">
+      <output id="d1-out" for="d1-slider">2</output>
+    </div>
+    <figure role="group" aria-labelledby="d1-caption">
+      <div class="chart-wrap"><svg id="chart-d1" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="d1-caption">이 그림은 슬라이더로 고른 상위 항목만 강조색으로 표시함을 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: topN = [{label, value}, ...] · 전제: EXPL.renderBarsH
+      var slider = document.getElementById("d1-slider");
+      var out = document.getElementById("d1-out");
+      var caption = document.getElementById("d1-caption");
+      var data = EXPL.get("topN", document.getElementById("chart-d1")) || [];
+      function draw(){
+        var n = parseInt(slider.value, 10);
+        EXPL.renderBarsH("chart-d1", data, { fmt: "int", colorFn: function(d, i){ return i < n ? "var(--c1)" : "var(--line)"; } });
+        out.textContent = String(n);
+        caption.textContent = "이 그림은 상위 " + n + "개 항목만 강조색으로 표시함을 보여준다.";
+      }
+      slider.addEventListener("input", draw);
+      draw();
+    });
+    </script>
+    <!-- snippet:end:d1 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="d1">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="d2">
+    <h3>D2. 칩 필터</h3>
+    <p class="trigger">이럴 때 이 형태: 항목이 소속된 그룹만 골라 보이게 하고 나머지는 흐리게 둘 때</p>
+    <!-- snippet:start:d2 -->
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--c1)"></span>그룹1</span>
+      <span><span class="swatch" style="background:var(--c2)"></span>그룹2</span>
+    </div>
+    <div class="chips" id="d2-chips" role="group" aria-label="그룹 필터">
+      <button type="button" aria-pressed="false" data-group="그룹1">그룹1</button>
+      <button type="button" aria-pressed="false" data-group="그룹2">그룹2</button>
+    </div>
+    <figure role="group" aria-labelledby="d2-caption">
+      <div class="chart-wrap"><svg id="chart-d2" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="d2-caption">이 그림은 칩으로 고른 그룹만 강조하고 나머지는 흐리게 표시함을 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: groupBars = [{label, value, group}, ...] · 전제: EXPL.renderBarsH
+      var data = EXPL.get("groupBars", document.getElementById("chart-d2")) || [];
+      EXPL.renderBarsH("chart-d2", data, { fmt: "int", barId: function(d, i){ return "d2-bar-" + i; }, colorFn: function(d){ return d.group === "그룹1" ? "var(--c1)" : "var(--c2)"; } });
+      var chips = document.querySelectorAll("#d2-chips button");
+      chips.forEach(function(chip){
+        chip.addEventListener("click", function(){
+          var wasPressed = chip.getAttribute("aria-pressed") === "true";
+          chips.forEach(function(c){ c.setAttribute("aria-pressed", "false"); });
+          if (!wasPressed) chip.setAttribute("aria-pressed", "true");
+          var active = wasPressed ? null : chip.dataset.group;
+          data.forEach(function(d, i){
+            var bar = document.getElementById("d2-bar-" + i);
+            if (bar) bar.style.opacity = (!active || d.group === active) ? "1" : ".25";
+          });
+        });
+      });
+    });
+    </script>
+    <!-- snippet:end:d2 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="d2">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="d3">
+    <h3>D3. 탭 전환</h3>
+    <p class="trigger">이럴 때 이 형태: 같은 틀에서 서로 다른 사례의 데이터를 전환해 보여줄 때</p>
+    <!-- snippet:start:d3 -->
+    <div class="tablist segmented" role="tablist" aria-label="사례 전환" id="d3-tablist">
+      <button role="tab" id="d3-tab-a" aria-controls="d3-panel" aria-selected="true" tabindex="0">사례 A</button>
+      <button role="tab" id="d3-tab-b" aria-controls="d3-panel" aria-selected="false" tabindex="-1">사례 B</button>
+    </div>
+    <div id="d3-panel" role="tabpanel" aria-labelledby="d3-tab-a">
+      <figure role="group" aria-labelledby="d3-caption">
+        <div class="chart-wrap"><svg id="chart-d3" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <figcaption id="d3-caption">이 그림은 같은 항목 구성이 사례에 따라 값이 어떻게 달라지는지 보여준다.</figcaption>
+      </figure>
+    </div>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: tabsData = { caseA:[{label,value}], caseB:[{label,value}] } · 전제: EXPL.renderBarsH
+      var tabs = document.querySelectorAll("#d3-tablist [role=tab]");
+      var panel = document.getElementById("d3-panel");
+      var tabsData = EXPL.get("tabsData", document.getElementById("chart-d3"));
+      function activate(tab){
+        tabs.forEach(function(t){ t.setAttribute("aria-selected", "false"); t.tabIndex = -1; });
+        tab.setAttribute("aria-selected", "true");
+        tab.tabIndex = 0;
+        tab.focus();
+        panel.setAttribute("aria-labelledby", tab.id);
+        var key = tab.id === "d3-tab-a" ? "caseA" : "caseB";
+        var rows = tabsData && tabsData[key];
+        if (!rows) return;
+        EXPL.renderBarsH("chart-d3", rows, { fmt: "int" });
+        document.getElementById("d3-caption").textContent =
+          "이 그림은 " + (key === "caseA" ? "사례 A" : "사례 B") + "의 항목별 값을 보여준다.";
+      }
+      tabs.forEach(function(tab, i){
+        tab.addEventListener("click", function(){ activate(tab); });
+        tab.addEventListener("keydown", function(e){
+          if (e.key === "ArrowRight" || e.key === "ArrowLeft"){
+            e.preventDefault();
+            var next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+            activate(next);
+          }
+        });
+      });
+      if (tabsData) EXPL.renderBarsH("chart-d3", tabsData.caseA, { fmt: "int" });
+    });
+    </script>
+    <!-- snippet:end:d3 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="d3">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="d4">
+    <h3>D4. hover/focus 툴팁</h3>
+    <p class="trigger">이럴 때 이 형태: 노드 각각의 세부 정보를 hover나 키보드 포커스로만 보여주고 화면은 그대로 둘 때</p>
+    <!-- snippet:start:d4 -->
+    <figure role="group" aria-labelledby="d4-caption">
+      <div class="chart-wrap"><svg id="chart-d4" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <figcaption id="d4-caption">이 그림은 각 노드에 hover하거나 Tab으로 포커스하면 값이 뜨는 것을 보여준다.</figcaption>
+    </figure>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: linked = [{label, value}, ...]
+      var svg = document.getElementById("chart-d4");
+      var nodes = EXPL.get("linked", svg) || [];
+      var w = 640, h = 100, gap = w / (nodes.length + 1);
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      nodes.forEach(function(n, i){
+        var x = gap * (i + 1);
+        var c = EXPL.svgEl("circle", { cx: x, cy: 50, r: 16, fill: "var(--c1)", tabindex: "0" });
+        svg.appendChild(c);
+        EXPL.wireTip(c, n.label + ": " + EXPL.fmt("int", n.value));
+        var t = EXPL.svgEl("text", { x: x, y: 82, "text-anchor": "middle", class: "chart-label" });
+        t.textContent = n.label;
+        svg.appendChild(t);
+      });
+    });
+    </script>
+    <!-- snippet:end:d4 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="d4">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+
+  <article class="recipe" id="d5">
+    <h3>D5. 차트-목록 연동</h3>
+    <p class="trigger">이럴 때 이 형태: 옆 목록과 차트가 같은 항목을 가리키게 하고, 어느 쪽을 짚어도 서로 강조되게 할 때</p>
+    <!-- snippet:start:d5 -->
+    <div style="display:flex; gap:1.5em; flex-wrap:wrap; align-items:flex-start;">
+      <figure role="group" aria-labelledby="d5-caption" style="flex:1 1 340px;">
+        <div class="chart-wrap"><svg id="chart-d5" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <figcaption id="d5-caption">이 그림은 목록 항목을 짚으면 대응하는 막대가, 막대를 짚으면 목록 항목이 강조됨을 보여준다.</figcaption>
+      </figure>
+      <ul class="link-list" id="d5-list" style="flex:1 1 200px;"></ul>
+    </div>
+    <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      // 필요 데이터: linked = [{label, value}, ...] · 전제: EXPL.renderBarsH
+      var data = EXPL.get("linked", document.getElementById("chart-d5")) || [];
+      var list = document.getElementById("d5-list");
+      // hover/focus 강조는 벗어나면 원래대로(클릭으로 고정된 항목, 없으면 -1) 되돌아가고,
+      // 클릭만 selected에 고정되어 다음 hover/focus가 끝날 때까지 남는다.
+      var selected = -1;
+      function setActive(idx){
+        document.querySelectorAll("#d5-list li").forEach(function(li, i){ li.classList.toggle("active", i === idx); });
+        data.forEach(function(d, i){
+          var bar = document.getElementById("d5-bar-" + i);
+          if (bar){
+            var rect = bar.querySelector("rect");
+            if (i === idx) rect.setAttribute("stroke", "var(--neg)"); else rect.removeAttribute("stroke");
+          }
+        });
+      }
+      function selectIndex(idx){ selected = idx; setActive(idx); }
+      function restore(){ setActive(selected); }
+      EXPL.renderBarsH("chart-d5", data, {
+        fmt: "int",
+        barId: function(d, i){ return "d5-bar-" + i; },
+        onEnter: function(d, i){ setActive(i); },
+        onFocus: function(d, i){ setActive(i); },
+        onLeave: function(){ restore(); }
+      });
+      data.forEach(function(d, i){
+        var li = document.createElement("li");
+        li.tabIndex = 0;
+        li.setAttribute("role", "button");
+        li.textContent = d.label;
+        var val = document.createElement("span");
+        val.className = "num";
+        val.textContent = EXPL.fmt("int", d.value);
+        li.appendChild(val);
+        li.addEventListener("mouseenter", function(){ setActive(i); });
+        li.addEventListener("mouseleave", function(){ restore(); });
+        li.addEventListener("focus", function(){ setActive(i); });
+        li.addEventListener("blur", function(){ restore(); });
+        li.addEventListener("click", function(){ selectIndex(i); });
+        li.addEventListener("keydown", function(e){
+          if (e.key === "Enter" || e.key === " "){ e.preventDefault(); selectIndex(i); }
+        });
+        list.appendChild(li);
+      });
+    });
+    </script>
+    <!-- snippet:end:d5 -->
+    <details class="src"><summary>마크업 보기</summary><pre><code data-snippet-for="d5">스니펫은 JS 실행 시 라이브 마크업에서 추출됩니다</code></pre></details>
+  </article>
+</section>
+
+</main>
+
+</body>
+</html>
