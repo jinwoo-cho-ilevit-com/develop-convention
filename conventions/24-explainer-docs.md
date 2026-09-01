@@ -14,6 +14,9 @@ This document governs deliverables whose product is a person's understanding —
 - Layer the structure: a summary stating what this is and why it matters, a body carrying the mechanisms with their examples, deep detail last — so the reader in a hurry and the reader starting from zero both have a path through.
 - Ship an HTML explainer as one self-contained file: no external network dependencies, light and dark themes both legible, diagrams inline (Mermaid or SVG), and all text selectable and greppable — never rendered into an image.
 - Use the viewport's full width for body content: on wide screens, flow section cards into two columns of readable line length — no fixed sidebars or navigation panes claiming that width (a table of contents goes inline at the top), and no narrow single column between empty margins.
+- In an HTML explainer, a quantitative claim about the subject (a measurement, rate, count, amount) appears as static text whose element names the field it came from in the file's single embedded data block, and a load-time check compares the text against that field, flagging a mismatch visibly. A hand-typed figure naming no source field is a violation; structural numbers (chapter numerals, "step 2 of 3") and mathematical identities used to explain a formula are exempt.
+- Set numeric runs in a monospace face with tabular figures, so digits align vertically across rows; Korean-language labels and table headers stay in the body face.
+- Start an HTML explainer from the shipped skeleton ([explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html)) — using its design tokens and component classes is the evidence of having started there. The gallery beside it ([explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html)) is a repertoire, not a ceiling: when a bespoke visual shows the mechanism better, invent it under the same caption, theme, and accessibility contract.
 - Before an explainer ships, run it through the fresh-reader review lane ([20-review-gate.md](20-review-gate.md) §2): a reviewer with no author context reads the document alone.
 
 ## Details
@@ -66,3 +69,9 @@ An HTML explainer is the same genre in a rendering that must survive being hande
 - **Both themes legible.** Check light and dark rendering; a page that inherits the viewer's theme but styles only one has an invisible half.
 - **Diagrams inline.** Mermaid or SVG in the file itself, chosen by the same triggers as §3.
 - **Text stays text.** Selectable and greppable, never rendered into an image — an image defeats search, copy, diff, and screen readers at once.
+
+### 6. The explainer skeleton
+
+The plugin ships two HTML files beside the explainer-docs skill: [explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html), the file a new explainer is copied from, and [explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html), a browsable catalog of visualization recipes. The decisions they embody — fonts, tokens, components, the number-verification wire contract — are commented inside the files themselves, which travel with every copy; this section does not restate them.
+
+One decision is anchored here because it interprets §5: body figures are static text checked against the embedded data block, not rendered by script. A figure that exists only after JavaScript runs is invisible to grep, copy, and script-blocked viewers — the failures "text stays text" exists to prevent — while a load-time check that only flags divergence, never rewriting the text, preserves those guarantees and still ties every figure to its source field. Interactive charts are the one runtime exception; a filterable table keeps its rows static and lets script toggle visibility only.
