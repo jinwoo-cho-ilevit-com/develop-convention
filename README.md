@@ -84,7 +84,7 @@ Trained-and-served-by-you models are the group above; this one is everything you
 
 | Doc | Contents |
 |---|---|
-| [24-explainer-docs.md](conventions/24-explainer-docs.md) | Human-facing explanatory deliverables: declared target reader, term glossing, mechanism over name-drop, one example per concept, visualization triggers (structure/quantities/concept), fresh-reader sizing test, self-contained HTML artifacts started from the shipped skeleton, static numbers checked against embedded data |
+| [24-explainer-docs.md](conventions/24-explainer-docs.md) | Human-facing explanatory deliverables: term glossing, mechanism over name-drop, one example per concept, visualization triggers (structure/quantities/concept), fresh-reader sizing test, self-contained HTML artifacts started from the shipped skeleton, static numbers checked against embedded data |
 
 Doc tracking keeps reference docs matching the code; this group is the other genre — documents whose product is a person's understanding.
 
@@ -341,11 +341,11 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Explainer Docs
 
-- An explainer — report, guide, tutorial, HTML artifact, anything whose product is a person's understanding — declares its target reader up front; every other rule is judged against that reader. Code-adjacent docs (AGENTS.md/ARCHITECTURE.md) are the other genre and stay lean.
-- Gloss every term the declared reader wouldn't know at first use. Never name a methodology without its mechanism — what it does and why it solves this problem, or what breaks without it; "uses X" alone is a violation.
+- An explainer — report, guide, tutorial, HTML artifact, anything whose product is a person's understanding — is judged against its intended reader. Code-adjacent docs (AGENTS.md/ARCHITECTURE.md) are the other genre and stay lean.
+- Gloss every term the intended reader wouldn't know at first use. Never name a methodology without its mechanism — what it does and why it solves this problem, or what breaks without it; "uses X" alone is a violation.
 - Pair every non-obvious concept with one concrete example: an input→output pair, a before/after, or a scenario.
 - Visualize by what is shown: structure → diagram (Mermaid in markdown, inline SVG or Mermaid in HTML); 3+ quantities, a trend, or a distribution → table plus one sentence, or an inline SVG chart in HTML; a concept text cannot carry → HTML only, with the same explanation in text. Single facts stay prose; a visual that cannot be introduced as "this shows X" in one sentence is decoration and gets cut.
-- Size by the fresh-reader test, not word count: the declared reader can re-explain each mechanism and act without follow-up questions — and nothing longer. Layer as summary → body with examples → deep detail.
+- Size by the fresh-reader test, not word count: the intended reader can re-explain each mechanism and act without follow-up questions — and nothing longer. Layer as summary → body with examples → deep detail.
 - HTML explainers ship as one self-contained file: no external network dependencies, both themes legible, diagrams inline, text selectable and greppable — and use the viewport's full width for body content, flowing cards into two readable columns on wide screens with no fixed sidebars. Before shipping, an explainer passes the fresh-reader review lane.
 - An HTML explainer starts from the shipped skeleton (its design tokens and component classes are the evidence); the gallery beside it is a repertoire, not a ceiling — bespoke visuals are invented under the same caption/theme/accessibility contract. Quantitative claims about the subject are static text naming their field in the embedded data block, checked on load; numeric runs use a monospace face with tabular figures while Korean labels keep the body face.
 
