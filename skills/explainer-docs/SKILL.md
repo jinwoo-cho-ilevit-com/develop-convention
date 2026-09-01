@@ -13,7 +13,6 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 | Question | Document |
 |---|---|
-| Who the document is for, and what that declaration decides | 24 |
 | When a term needs a plain-language gloss | 24 |
 | What naming a methodology obliges the author to explain | 24 |
 | When a concept needs an example, and of which kind | 24 |
@@ -23,7 +22,7 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 ## Order
 
-1. **24 before drafting.** The target reader and the layer structure are decisions made before the first paragraph, not repairs after it.
+1. **24 before drafting.** The layer structure is a decision made before the first paragraph, not a repair after it.
 2. **24 again when a visual is considered.** The trigger decides whether it exists; the medium decides its form.
 3. **20 before shipping.** An explainer's review is the fresh-reader lane — [verify-and-review](../verify-and-review/SKILL.md) routes it.
 
