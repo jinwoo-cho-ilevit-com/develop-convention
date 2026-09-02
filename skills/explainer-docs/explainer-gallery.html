@@ -94,8 +94,10 @@ h1{
 code{ background:var(--code-bg); padding:.1em .35em; border-radius:4px; font-size:.92em; }
 
 main, footer{ max-width:820px; margin:0 auto; padding:0 24px; }
-header{ max-width:820px; margin:0 auto; padding:var(--sp-6) 24px 0; }
-header{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:.5em 1.5em; }
+header{
+  max-width:820px; margin:0 auto; padding:var(--sp-6) 24px 0;
+  display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:.5em 1.5em;
+}
 .header-main{ flex:1 1 320px; min-width:0; }
 #theme-toggle{
   flex:0 0 auto; font:inherit; font-size:.85em;
@@ -965,23 +967,23 @@ document.addEventListener("DOMContentLoaded", function(){
       var maxV = Math.max.apply(null, h.before.concat(h.after));
       function scaleY(v){ return (ht - bottom) - (v / maxV) * (ht - top - bottom); }
       h.before.forEach(function(v, i){
-        var x = left + i * bw;
+        var x = left + i * bw + bw * 0.07;
         var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-a)", tabindex: "0", role: "img" });
         svg.appendChild(bar);
         EXPL.wireTip(bar, "조치 전 · 구간 " + h.bins[i] + ": " + EXPL.fmt("int", v));
       });
       h.after.forEach(function(v, i){
-        var x = left + i * bw + bw * 0.44;
+        var x = left + i * bw + bw * 0.51;
         var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-b)", tabindex: "0", role: "img" });
         svg.appendChild(bar);
         EXPL.wireTip(bar, "조치 후 · 구간 " + h.bins[i] + ": " + EXPL.fmt("int", v));
       });
-      EXPL.axes(svg, { x0: left, y0: top, w: w - left - 20, h: ht - top - bottom, yMax: maxV, yTicks: 3, xLabels: h.bins.map(String) });
+      EXPL.axes(svg, { x0: left, y0: top, w: w - left - 20, h: ht - top - bottom, yMax: maxV, yTicks: 4, xLabels: h.bins.map(String) });
       // 임계값 이하인 마지막 구간의 인덱스(구간이 0..n-1 정수가 아니어도 맞는다). 임계선은 그 구간과
       // 다음 구간 사이의 빈틈에 긋고, 누적 판독도 같은 인덱스를 쓴다: 선 왼쪽이 "이하"다.
       var upto = 0;
       while (upto < n - 1 && h.bins[upto + 1] <= h.threshold) upto++;
-      var thx = left + (upto + 1) * bw - bw * 0.07;
+      var thx = left + (upto + 1) * bw;
       svg.appendChild(EXPL.svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
       var right = thx > w / 2;
       var lbl = EXPL.svgEl("text", { x: thx + (right ? -4 : 4), y: 14, "text-anchor": right ? "end" : "start", class: "chart-label", fill: "var(--neg)" });

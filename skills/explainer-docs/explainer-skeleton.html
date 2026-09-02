@@ -94,8 +94,10 @@ h1{
 code{ background:var(--code-bg); padding:.1em .35em; border-radius:4px; font-size:.92em; }
 
 main, footer{ max-width:820px; margin:0 auto; padding:0 24px; }
-header{ max-width:820px; margin:0 auto; padding:var(--sp-6) 24px 0; }
-header{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:.5em 1.5em; }
+header{
+  max-width:820px; margin:0 auto; padding:var(--sp-6) 24px 0;
+  display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:.5em 1.5em;
+}
 .header-main{ flex:1 1 320px; min-width:0; }
 #theme-toggle{
   flex:0 0 auto; font:inherit; font-size:.85em;
@@ -343,8 +345,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
 
 <section id="s03">
   <h2><span class="num">03</span> 시각화 예시</h2>
-  <p>아래 4가지는 이 스킬이 다루는 시각화 형태의 최소 표본이다. 각 항목의 소제목 위에 있는
-  소스 주석이 "이럴 때 이 형태"를 고르는 기준을 말한다(브라우저에는 보이지 않으며, 파일을 복사해 편집할 때 읽는다). 더 많은 레시피는
+  <p>아래 4가지는 이 스킬이 다루는 시각화 형태의 최소 표본이다. 선택 기준("이럴 때 이 형태")은
+  각 소제목 위의 소스 주석에 있다. 더 많은 레시피는
   <code>explainer-gallery.html</code>에 있다.</p>
 
   <!-- 이럴 때 이 형태: 두 경로를 대조해 구조 차이를 보여줄 때 -->
@@ -393,7 +395,7 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
     <figcaption id="ranked-caption">이 그림은 항목별 값을 큰 순서로 보여준다. 막대에 초점을 두면 툴팁이 항목과 값을 읽어 준다.</figcaption>
   </figure>
 
-  <!-- 이럴 때 이 형태: 임계값을 바꾸며 두 분포의 변화를 비교할 때 -->
+  <!-- 이럴 때 이 형태: 임계값을 바꾸며 두 분포의 변화를 비교할 때. "조치 전/후"는 실제 비교 대상 이름으로 바꾼다 -->
   <h3 id="viz-c">03-c. 슬라이더 히스토그램</h3>
   <div class="wrap">
     <div class="wctl">
@@ -744,6 +746,7 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
     var n = h.bins.length;
     var bw = (w - left - 20) / n;
     var maxV = Math.max.apply(null, h.before.concat(h.after));
+    slider.min = h.bins[0]; slider.max = h.bins[n - 1];
     function scaleY(v){ return (ht - bottom) - (v / maxV) * (ht - top - bottom); }
     // 임계값 이하인 마지막 구간의 인덱스. 임계선과 누적 판독이 같은 기준을 쓰도록 여기서만 계산한다
     // (구간이 0..n-1 정수가 아니어도 맞는다).
@@ -753,23 +756,23 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       return i;
     }
     // 임계선은 해당 구간과 다음 구간 사이의 빈틈에 긋는다: 선 왼쪽이 "이하"다.
-    function thresholdX(th){ return left + (binIndex(th) + 1) * bw - bw * 0.07; }
+    function thresholdX(th){ return left + (binIndex(th) + 1) * bw; }
     function draw(){
       if (tipOwner && svg.contains(tipOwner)) hideTip();
       svg.innerHTML = "";
       h.before.forEach(function(v, i){
-        var x = left + i * bw;
+        var x = left + i * bw + bw * 0.07;
         var bar = svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-a)", tabindex: "0", role: "img" });
         svg.appendChild(bar);
         wireTip(bar, "조치 전 · 구간 " + h.bins[i] + ": " + fmt("int", v));
       });
       h.after.forEach(function(v, i){
-        var x = left + i * bw + bw * 0.44;
+        var x = left + i * bw + bw * 0.51;
         var bar = svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-b)", tabindex: "0", role: "img" });
         svg.appendChild(bar);
         wireTip(bar, "조치 후 · 구간 " + h.bins[i] + ": " + fmt("int", v));
       });
-      axes(svg, { x0: left, y0: top, w: w - left - 20, h: ht - top - bottom, yMax: maxV, xLabels: h.bins.map(String) });
+      axes(svg, { x0: left, y0: top, w: w - left - 20, h: ht - top - bottom, yMax: maxV, yTicks: 4, xLabels: h.bins.map(String) });
       var th = parseFloat(slider.value);
       var thx = thresholdX(th);
       svg.appendChild(svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
@@ -790,7 +793,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       readout.textContent = "임계값 " + th + " 이하 구간의 누적 건수는 조치 전 " +
         fmt("int", beforeLeft) + "건, 조치 후 " + fmt("int", afterLeft) + "건이다.";
     }
-    slider.addEventListener("input", function(){ draw(); updateReadout(); });
+    slider.addEventListener("input", draw);
+    slider.addEventListener("change", updateReadout);
     draw();
     updateReadout();
   })();
