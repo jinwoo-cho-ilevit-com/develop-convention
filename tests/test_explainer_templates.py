@@ -127,15 +127,14 @@ def _function_body(text, name, path):
     raise AssertionError(f"{path.name}: could not extract {name}")
 
 
-def test_the_shared_renderer_is_identical_in_both_files():
-    """Both files claim their renderBarsH copies are identical up to
+def test_shared_helpers_are_identical_in_both_files():
+    """Both files claim their renderBarsH and axes copies are identical up to
     indentation; this makes the claim mechanical."""
-    bodies = {}
-    for name, path in TEMPLATES.items():
-        bodies[name] = _function_body(path.read_text(encoding="utf-8"), "renderBarsH", path)
-    assert bodies["skeleton"] == bodies["gallery"], (
-        "renderBarsH drifted between skeleton and gallery"
-    )
+    for fn in ("renderBarsH", "axes"):
+        bodies = {}
+        for name, path in TEMPLATES.items():
+            bodies[name] = _function_body(path.read_text(encoding="utf-8"), fn, path)
+        assert bodies["skeleton"] == bodies["gallery"], f"{fn} drifted between skeleton and gallery"
 
 
 def test_snippet_markers_pair_up_and_match_their_code_blocks():
@@ -155,7 +154,63 @@ def test_snippet_markers_pair_up_and_match_their_code_blocks():
     )
 
 
+def _style_block(text, path):
+    m = re.search(r"<style\b[^>]*>(.*?)</style>", text, re.S)
+    assert m, f"{path.name}: no style block"
+    return m.group(1)
+
+
+def test_main_is_a_single_column(template):
+    """The Core Rule contract: <main> lays sections out as a single column;
+    no rule targeting it standalone may reintroduce a multi-column grid."""
+    name, path, text = template
+    style = re.sub(r"/\*.*?\*/", "", _style_block(text, path), flags=re.S)
+    for selectors, body in re.findall(r"([^{}]+)\{([^{}]*)\}", style):
+        items = [s.strip() for s in selectors.split(",")]
+        if "main" in items:
+            assert "grid-template-columns" not in body, (
+                f"{path.name}: main declares grid-template-columns: "
+                f"{selectors.strip()}{{{body.strip()}}}"
+            )
+
+
+def test_series_tokens_are_exactly_five(template):
+    """The Core Rule contract: the categorical series token set is --c1..--c5,
+    each defined in both the light and dark theme blocks."""
+    name, path, text = template
+    style = _style_block(text, path)
+    for n in range(1, 6):
+        count = len(re.findall(rf"--c{n}:", style))
+        assert count >= 2, f"{path.name}: --c{n}: declared {count} times, need at least 2"
+    for n in (6, 7, 8):
+        assert f"--c{n}:" not in style, f"{path.name}: --c{n}: must not exist"
+
+
+def test_series_tokens_are_identical_across_files():
+    """The categorical and two-series palette tokens must be the same
+    color set, in the same order, in both templates."""
+
+    def tokens(path):
+        style = _style_block(path.read_text(encoding="utf-8"), path)
+        return [
+            (name, value.strip())
+            for name, value in re.findall(r"(--c\d+|--series-[ab]):\s*([^;]+);", style)
+        ]
+
+    skeleton_tokens = tokens(SKELETON)
+    gallery_tokens = tokens(GALLERY)
+    assert skeleton_tokens == gallery_tokens, (
+        f"series tokens differ: skeleton={skeleton_tokens} gallery={gallery_tokens}"
+    )
+
+
 def test_every_figure_declares_its_accessibility_contract(template):
+    """The Core Rule contract: an interactive figure (declares role="group",
+    or has a focusable mark in its source; runtime-rendered charts add their
+    marks later, so the declaration is what the source can show) carries its
+    own role="group"/aria-labelledby/figcaption id triple; a static figure
+    carries none of that on <figure> and instead names itself through its
+    <svg role="img" aria-label="...">."""
     name, path, text = template
     # Strip comments and script/style bodies: the files quote sample markup
     # (e.g. the accessibility-contract comment) that must not scan as real.
@@ -163,12 +218,26 @@ def test_every_figure_declares_its_accessibility_contract(template):
     markup = re.sub(r"<(script|style)\b.*?</\1>", "", markup, flags=re.S)
     for figure in re.findall(r"<figure\b[^>]*>.*?</figure>", markup, re.S):
         opening = figure[: figure.index(">") + 1]
-        assert 'role="img"' in opening or 'role="group"' in opening, (
-            f"{path.name}: figure without role: {opening}"
-        )
-        assert "<figcaption" in figure, f"{path.name}: figure without figcaption: {opening}"
-        if 'role="img"' in opening:
-            assert "tabindex" not in figure, (
-                f"{path.name}: role='img' figure contains focusable marks "
-                f"(contract: interactive figures use role='group'): {opening}"
+        if 'role="group"' in opening or "tabindex" in figure:
+            assert 'role="group"' in opening, (
+                f'{path.name}: interactive figure missing role="group": {opening}'
+            )
+            m = re.search(r'aria-labelledby="([^"]+)"', opening)
+            assert m, f"{path.name}: interactive figure missing aria-labelledby: {opening}"
+            cap_id = m.group(1)
+            assert re.search(rf'<figcaption\b[^>]*\bid="{re.escape(cap_id)}"', figure), (
+                f"{path.name}: no figcaption with id={cap_id!r} for {opening}"
+            )
+        else:
+            assert "role=" not in opening, f"{path.name}: static figure declares a role: {opening}"
+            assert "<figcaption" in figure, f"{path.name}: figure without figcaption: {opening}"
+            svg_m = re.search(r"<svg\b[^>]*>", figure)
+            assert svg_m, f"{path.name}: static figure has no svg: {opening}"
+            svg_open = svg_m.group(0)
+            assert 'role="img"' in svg_open, (
+                f'{path.name}: static figure\'s svg missing role="img": {svg_open}'
+            )
+            label_m = re.search(r'aria-label="([^"]*)"', svg_open)
+            assert label_m and label_m.group(1).strip(), (
+                f"{path.name}: static figure's svg missing non-empty aria-label: {svg_open}"
             )
