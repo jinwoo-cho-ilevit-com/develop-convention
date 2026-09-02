@@ -167,7 +167,8 @@ def test_main_is_a_single_column(template):
     style = re.sub(r"/\*.*?\*/", "", _style_block(text, path), flags=re.S)
     for selectors, body in re.findall(r"([^{}]+)\{([^{}]*)\}", style):
         items = [s.strip() for s in selectors.split(",")]
-        if "main" in items:
+        # `main`, `main.x`, `main#x`, `main[..]`, `main:..` all target the element itself.
+        if any(re.match(r"main(?![\w-])", s) for s in items):
             assert "grid-template-columns" not in body, (
                 f"{path.name}: main declares grid-template-columns: "
                 f"{selectors.strip()}{{{body.strip()}}}"
@@ -179,11 +180,17 @@ def test_series_tokens_are_exactly_five(template):
     each defined in both the light and dark theme blocks."""
     name, path, text = template
     style = _style_block(text, path)
-    for n in range(1, 6):
-        count = len(re.findall(rf"--c{n}:", style))
-        assert count >= 2, f"{path.name}: --c{n}: declared {count} times, need at least 2"
-    for n in (6, 7, 8):
-        assert f"--c{n}:" not in style, f"{path.name}: --c{n}: must not exist"
+    expected = {f"--c{n}" for n in range(1, 6)}
+    assert set(re.findall(r"--c\d+(?=:)", style)) == expected, (
+        f"{path.name}: series token set is not exactly --c1..--c5"
+    )
+    # Every theme block (light :root, system dark, explicit dark) declares each token once.
+    blocks = re.findall(r":root(?:[^{]*)\{([^{}]*)\}", style)
+    assert len(blocks) == 3, f"{path.name}: expected 3 :root theme blocks, found {len(blocks)}"
+    for body in blocks:
+        for token in sorted(expected):
+            count = len(re.findall(rf"{token}:", body))
+            assert count == 1, f"{path.name}: {token} declared {count} times in a theme block"
 
 
 def test_series_tokens_are_identical_across_files():
@@ -216,6 +223,11 @@ def test_every_figure_declares_its_accessibility_contract(template):
     # (e.g. the accessibility-contract comment) that must not scan as real.
     markup = re.sub(r"<!--.*?-->", "", text, flags=re.S)
     markup = re.sub(r"<(script|style)\b.*?</\1>", "", markup, flags=re.S)
+    ids = re.findall(r'\bid="([^"]+)"', markup)
+    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    assert not duplicates, (
+        f"{path.name}: duplicate ids make aria references ambiguous: {duplicates}"
+    )
     for figure in re.findall(r"<figure\b[^>]*>.*?</figure>", markup, re.S):
         opening = figure[: figure.index(">") + 1]
         if 'role="group"' in opening or "tabindex" in figure:

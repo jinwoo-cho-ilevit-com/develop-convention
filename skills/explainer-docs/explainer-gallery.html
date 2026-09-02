@@ -25,7 +25,8 @@
 - slider: 네이티브 input[type=range] + 값이 항상 텍스트로 보임
 - tooltip: hover와 focus 모두에서 열리고 Escape로 닫힘
 - 정적 도형은 <figure>에 역할을 두지 않고 안쪽 <svg role="img" aria-label="짧은 이름">에 역할을 건다
-  (figure에 role="img"를 걸면 img 역할의 Children Presentational 특성으로 figcaption이 보조기술에서 사라진다);
+  (figure에 role="img"를 걸면 img 역할의 Children Presentational 특성, 곧 자식을 표현 전용으로 취급하는 성질 때문에
+  figcaption이 보조기술에서 사라진다; svg로 옮기면 figcaption이 가시 콘텐츠로 다시 노출된다);
   aria-label은 figcaption 문장을 반복하지 않는 짧은 이름이다; 포커스 가능한 마크(tabindex/툴팁)가 있으면
   <figure role="group" aria-labelledby="캡션 id">로 전환하고 마크마다 접근 가능한 이름을 부여한다
 - 색만으로 의미를 전달하지 않는다 (라벨을 항상 동반)
@@ -549,8 +550,8 @@ function wireTip(el, text){
 document.addEventListener("keydown", function(e){ if (e.key === "Escape") hideTip(); });
 
 // 범용 가로 막대 렌더러 — B2, D1, D2, D3, D5가 공유한다.
-// explainer-skeleton.html에도 들여쓰기를 제외하고 동일한 함수가 있다: 이 함수는 EXPL.* 로 자기
-// 의존성을 부르므로, 어느 문서에 복사해 붙여도 그대로 동작하고 드리프트가 없다.
+// explainer-skeleton.html에도 들여쓰기를 제외하고 동일한 함수가 있다(테스트가 동일성을 강제한다).
+// EXPL 과 이 파일의 툴팁 클로저(tipOwner/hideTip)가 로드된 문서 안에서 동작한다.
 function renderBarsH(svgId, data, opts){
   opts = opts || {};
   var svg = document.getElementById(svgId);
@@ -942,11 +943,11 @@ document.addEventListener("DOMContentLoaded", function(){
     <div class="wrap">
       <figure role="group" aria-labelledby="b1-caption">
         <div class="chart-wrap"><svg id="chart-b1" xmlns="http://www.w3.org/2000/svg"><text x="16" y="24" class="chart-note">이 그림은 스크립트가 켜져야 그려진다</text></svg></div>
-        <figcaption id="b1-caption">이 그림은 고정 임계값 기준으로 이전/이후 분포가 각각 어떻게 나뉘는지 보여준다.</figcaption>
+        <figcaption id="b1-caption">이 그림은 조치 전과 조치 후의 분포가 고정 임계값을 기준으로 어떻게 나뉘는지 보여준다.</figcaption>
       </figure>
       <div class="legend">
-        <span><span class="swatch" style="background:var(--series-a)"></span>이전 분포</span>
-        <span><span class="swatch" style="background:var(--series-b)"></span>이후 분포</span>
+        <span><span class="swatch" style="background:var(--series-a)"></span>조치 전</span>
+        <span><span class="swatch" style="background:var(--series-b)"></span>조치 후</span>
       </div>
       <p class="readout" id="b1-readout" aria-live="polite"></p>
     </div>
@@ -966,32 +967,29 @@ document.addEventListener("DOMContentLoaded", function(){
         var x = left + i * bw;
         var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-a)", tabindex: "0", role: "img" });
         svg.appendChild(bar);
-        EXPL.wireTip(bar, "구간 " + h.bins[i] + " 이전: " + EXPL.fmt("int", v));
+        EXPL.wireTip(bar, "조치 전 · 구간 " + h.bins[i] + ": " + EXPL.fmt("int", v));
       });
       h.after.forEach(function(v, i){
         var x = left + i * bw + bw * 0.44;
         var bar = EXPL.svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-b)", tabindex: "0", role: "img" });
         svg.appendChild(bar);
-        EXPL.wireTip(bar, "구간 " + h.bins[i] + " 이후: " + EXPL.fmt("int", v));
+        EXPL.wireTip(bar, "조치 후 · 구간 " + h.bins[i] + ": " + EXPL.fmt("int", v));
       });
       EXPL.axes(svg, { x0: left, y0: top, w: w - left - 20, h: ht - top - bottom, yMax: maxV, yTicks: 3, xLabels: h.bins.map(String) });
-      // 임계값이 어느 구간에 놓이는지 bins 값으로 역산한다 — 구간이 0..n-1 정수가 아니어도 맞는다.
-      var i = 0;
-      while (i < n - 2 && h.bins[i + 1] <= h.threshold) i++;
-      var span = h.bins[i + 1] - h.bins[i];
-      var frac = span ? (h.threshold - h.bins[i]) / span : 0;
-      var thx = left + (i + frac + 0.5) * bw;
+      // 임계값 이하인 마지막 구간의 인덱스(구간이 0..n-1 정수가 아니어도 맞는다). 임계선은 그 구간과
+      // 다음 구간 사이의 빈틈에 긋고, 누적 판독도 같은 인덱스를 쓴다: 선 왼쪽이 "이하"다.
+      var upto = 0;
+      while (upto < n - 1 && h.bins[upto + 1] <= h.threshold) upto++;
+      var thx = left + (upto + 1) * bw - bw * 0.07;
       svg.appendChild(EXPL.svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
       var right = thx > w / 2;
       var lbl = EXPL.svgEl("text", { x: thx + (right ? -4 : 4), y: 14, "text-anchor": right ? "end" : "start", class: "chart-value num", fill: "var(--neg)" });
       lbl.textContent = "임계값 " + h.threshold;
       svg.appendChild(lbl);
-      var upto = h.bins.indexOf(h.threshold);
-      if (upto < 0) upto = i;
       function cumulative(arr){ return arr.slice(0, upto + 1).reduce(function(a, b){ return a + b; }, 0); }
       document.getElementById("b1-readout").textContent =
-        "임계값 " + h.threshold + " 이하 구간의 누적 건수는 이전 " + EXPL.fmt("int", cumulative(h.before)) +
-        "건, 이후 " + EXPL.fmt("int", cumulative(h.after)) + "건이다.";
+        "임계값 " + h.threshold + " 이하 구간의 누적 건수는 조치 전 " + EXPL.fmt("int", cumulative(h.before)) +
+        "건, 조치 후 " + EXPL.fmt("int", cumulative(h.after)) + "건이다.";
     });
     </script>
     <!-- snippet:end:b1 -->
