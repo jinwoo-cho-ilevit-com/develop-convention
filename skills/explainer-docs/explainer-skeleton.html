@@ -682,7 +682,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       g.appendChild(tick);
     }
     if (Array.isArray(opts.xLabels)) opts.xLabels.forEach(function(s, i){
-      var lab = EXPL.svgEl("text", { x: x0 + (i + 0.5) * w / opts.xLabels.length, y: y0 + h + 14, "text-anchor": "middle", class: "chart-label" });
+      var numeric = /^[\d.,%°-]+$/.test(String(s));
+      var lab = EXPL.svgEl("text", { x: x0 + (i + 0.5) * w / opts.xLabels.length, y: y0 + h + 14, "text-anchor": "middle", class: numeric ? "chart-value num" : "chart-label" });
       lab.textContent = s;
       g.appendChild(lab);
     });
@@ -774,6 +775,7 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       });
       axes(svg, { x0: left, y0: top, w: w - left - 20, h: ht - top - bottom, yMax: maxV, yTicks: 4, xLabels: h.bins.map(String) });
       var th = parseFloat(slider.value);
+      out.textContent = String(th);
       var thx = thresholdX(th);
       svg.appendChild(svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
       var right = thx > w / 2;
@@ -789,7 +791,6 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       var idx = binIndex(th);
       var beforeLeft = h.before.slice(0, idx + 1).reduce(function(a, b){ return a + b; }, 0);
       var afterLeft = h.after.slice(0, idx + 1).reduce(function(a, b){ return a + b; }, 0);
-      out.textContent = String(th);
       readout.textContent = "임계값 " + th + " 이하 구간의 누적 건수는 조치 전 " +
         fmt("int", beforeLeft) + "건, 조치 후 " + fmt("int", afterLeft) + "건이다.";
     }

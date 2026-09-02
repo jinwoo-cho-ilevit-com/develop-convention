@@ -609,7 +609,8 @@ function axes(svg, opts){
     g.appendChild(tick);
   }
   if (Array.isArray(opts.xLabels)) opts.xLabels.forEach(function(s, i){
-    var lab = EXPL.svgEl("text", { x: x0 + (i + 0.5) * w / opts.xLabels.length, y: y0 + h + 14, "text-anchor": "middle", class: "chart-label" });
+    var numeric = /^[\d.,%°-]+$/.test(String(s));
+    var lab = EXPL.svgEl("text", { x: x0 + (i + 0.5) * w / opts.xLabels.length, y: y0 + h + 14, "text-anchor": "middle", class: numeric ? "chart-value num" : "chart-label" });
     lab.textContent = s;
     g.appendChild(lab);
   });
@@ -1083,7 +1084,7 @@ document.addEventListener("DOMContentLoaded", function(){
       function sy(v){ return (h - bottom) - (v / maxV) * (h - top - bottom); }
       svg.appendChild(EXPL.svgEl("text", { x: xBefore, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 전";
       svg.appendChild(EXPL.svgEl("text", { x: xAfter, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 후";
-      // 그룹 3개 이하를 전제로 series-a/series-b/muted 3색만 순환한다(초록·주황·파랑이 섞인 원색 배합 금지).
+      // 그룹 3개 이하를 전제로 series-a/series-b/dim 3색만 순환한다(초록·주황·파랑이 섞인 원색 배합 금지).
       var slopeColors = ["var(--series-a)", "var(--series-b)", "var(--dim)"];
       pairs.forEach(function(p, i){
         var color = slopeColors[i % slopeColors.length];
@@ -1357,7 +1358,7 @@ document.addEventListener("DOMContentLoaded", function(){
       var data = EXPL.get("topN", document.getElementById("chart-d1")) || [];
       function draw(){
         var n = parseInt(slider.value, 10);
-        // 강조에서 빠진 막대도 값을 읽을 수 있어야 하므로 투명도가 아니라 --muted 로 칠한다.
+        // 강조에서 빠진 막대도 값을 읽을 수 있어야 하므로 투명도가 아니라 --dim 으로 칠한다.
         EXPL.renderBarsH("chart-d1", data, { fmt: "int", colorFn: function(d, i){ return i < n ? "var(--c1)" : "var(--dim)"; } });
         out.textContent = String(n);
         readout.textContent = "상위 " + n + "개 항목을 강조색으로, 나머지는 회색으로 표시한다.";
