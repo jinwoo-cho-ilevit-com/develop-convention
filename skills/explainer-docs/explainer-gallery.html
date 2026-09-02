@@ -43,11 +43,12 @@
   --bg:#F4F6F8; --surface:#FFFFFF; --ink:#1B2430; --muted:#5B6673; --line:#DCE1E7;
   --accent:#2456A6; --accent-soft:#E4EBF6; --on-accent:#fff; --pos:#147D5B; --neg:#C2452F; --warn:#9A6B1F; --warn-soft:#F7EFDD;
   --code-bg:#EDF0F4; --tip-shadow:rgba(0,0,0,.25);
-  /* 계열 색 --c1~--c5 와 --series-a/b 는 dataviz 스킬의 validate_palette.js(Claude Code 번들 2.1.258)로
-     모든 쌍(--pairs all) 기준 다섯 검사를 두 테마 각각 통과한 값이며, 실행 결과는 이 값을 도입한 커밋 본문에 있다.
-     --c1 은 강조색과 같은 색상각(260°)에 앵커하되 다크는 검증기 명도 대역 안의 값을 쓰고, 슬롯 N 은 두 테마에서 같은 색 계열이다. */
+  /* 계열 색 --c1~--c5 와 --series-a/b 는 dataviz 스킬의 validate_palette.js(Claude Code 번들 2.1.258)로 검증한 값이다.
+     재현: node validate_palette.js "<다섯 색>" --mode light --surface "#FFFFFF" --pairs all (다크는 --mode dark --surface "#1B2128").
+     --c1 은 강조색과 같은 색상각(260°)에 앵커하되 다크는 검증기 명도 대역 안의 값을 쓰고, 슬롯 N 은 두 테마에서 같은 색 계열이다.
+     --dim 은 비강조 데이터 마크 전용 회색이다: 표면 대비 3:1 이상, 계열 색과 정상 시각 ΔE 15 이상(텍스트는 --muted 를 쓴다). */
   --c1:#2456A6; --c2:#882B7F; --c3:#D25F26; --c4:#565F00; --c5:#129A92;
-  --series-a:#2456A6; --series-b:#865901;
+  --series-a:#2456A6; --series-b:#865901; --dim:#848E9A;
   /* 수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
   --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem; --sp-7:3rem;
   --radius-xs:4px; --radius-sm:6px; --radius-md:10px; --radius-pill:999px;
@@ -58,7 +59,7 @@
     --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
     --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
     --c1:#3F79D9; --c2:#9F5FA8; --c3:#C55224; --c4:#9D9A01; --c5:#09A9AA;
-    --series-a:#3F79D9; --series-b:#AA811A;
+    --series-a:#3F79D9; --series-b:#AA811A; --dim:#93A0AF;
   }
 }
 :root[data-theme="dark"]{
@@ -66,7 +67,7 @@
   --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
   --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
   --c1:#3F79D9; --c2:#9F5FA8; --c3:#C55224; --c4:#9D9A01; --c5:#09A9AA;
-  --series-a:#3F79D9; --series-b:#AA811A;
+  --series-a:#3F79D9; --series-b:#AA811A; --dim:#93A0AF;
 }
 
 * { box-sizing: border-box; }
@@ -983,8 +984,11 @@ document.addEventListener("DOMContentLoaded", function(){
       var thx = left + (upto + 1) * bw - bw * 0.07;
       svg.appendChild(EXPL.svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
       var right = thx > w / 2;
-      var lbl = EXPL.svgEl("text", { x: thx + (right ? -4 : 4), y: 14, "text-anchor": right ? "end" : "start", class: "chart-value num", fill: "var(--neg)" });
-      lbl.textContent = "임계값 " + h.threshold;
+      var lbl = EXPL.svgEl("text", { x: thx + (right ? -4 : 4), y: 14, "text-anchor": right ? "end" : "start", class: "chart-label", fill: "var(--neg)" });
+      lbl.appendChild(document.createTextNode("임계값 "));
+      var lblNum = EXPL.svgEl("tspan", { class: "chart-value num" });
+      lblNum.textContent = String(h.threshold);
+      lbl.appendChild(lblNum);
       svg.appendChild(lbl);
       function cumulative(arr){ return arr.slice(0, upto + 1).reduce(function(a, b){ return a + b; }, 0); }
       document.getElementById("b1-readout").textContent =
@@ -1078,7 +1082,7 @@ document.addEventListener("DOMContentLoaded", function(){
       svg.appendChild(EXPL.svgEl("text", { x: xBefore, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 전";
       svg.appendChild(EXPL.svgEl("text", { x: xAfter, y: h - 8, "text-anchor": "middle", class: "chart-label" })).textContent = "조치 후";
       // 그룹 3개 이하를 전제로 series-a/series-b/muted 3색만 순환한다(초록·주황·파랑이 섞인 원색 배합 금지).
-      var slopeColors = ["var(--series-a)", "var(--series-b)", "var(--muted)"];
+      var slopeColors = ["var(--series-a)", "var(--series-b)", "var(--dim)"];
       pairs.forEach(function(p, i){
         var color = slopeColors[i % slopeColors.length];
         var line = EXPL.svgEl("line", { x1: xBefore, y1: sy(p.before), x2: xAfter, y2: sy(p.after), stroke: color, "stroke-width": "2", tabindex: "0", role: "img" });
@@ -1154,8 +1158,9 @@ document.addEventListener("DOMContentLoaded", function(){
       svg.setAttribute("viewBox", "0 0 " + w + " " + h);
       var flat = hm.values.reduce(function(a, r){ return a.concat(r); }, []);
       var min = Math.min.apply(null, flat), max = Math.max.apply(null, flat);
-      // 셀 색은 --accent를 --surface에 섞은 비율로 값을 나타낸다. 가장 옅은 셀도 표면색과
-      // 2:1 이상 대비를 유지해야 하므로 두 테마 모두를 만족하는 42%를 하한으로 잡았다.
+      // 셀 색은 --accent를 --surface에 섞은 비율로 값을 나타낸다. 가장 옅은 셀도 표면색과 2:1 이상
+      // (dataviz 검증기의 순차 램프 하한)을 유지해야 하므로 두 테마 모두 만족하는 42%를 하한으로 잡았고,
+      // 셀 사이 구분은 --line 테두리가 맡는다. 값은 툴팁·판독문·램프 범례가 텍스트로 전달한다.
       var FLOOR = 42;
       function shade(v){
         var p = FLOOR + (100 - FLOOR) * ((v - min) / (max - min || 1));
@@ -1261,8 +1266,10 @@ document.addEventListener("DOMContentLoaded", function(){
       svg.appendChild(line2);
       EXPL.wireTip(line2, "문서 B: 유사도 " + EXPL.fmt("num2", cosSim) + ", 각도 " + EXPL.fmt("deg0", angleDeg));
       svg.appendChild(EXPL.svgEl("text", { x: p2.x + 6, y: p2.y, class: "chart-label", fill: "var(--accent)" })).textContent = "문서 B";
-      var lbl = EXPL.svgEl("text", { x: origin.x + 60, y: origin.y - 20, class: "chart-label num" });
-      lbl.textContent = EXPL.fmt("deg0", angleDeg) + " · 유사도 " + EXPL.fmt("num2", cosSim);
+      var lbl = EXPL.svgEl("text", { x: origin.x + 60, y: origin.y - 20, class: "chart-label" });
+      var lblDeg = EXPL.svgEl("tspan", { class: "chart-value num" }); lblDeg.textContent = EXPL.fmt("deg0", angleDeg);
+      var lblSim = EXPL.svgEl("tspan", { class: "chart-value num" }); lblSim.textContent = EXPL.fmt("num2", cosSim);
+      lbl.appendChild(lblDeg); lbl.appendChild(document.createTextNode(" · 유사도 ")); lbl.appendChild(lblSim);
       svg.appendChild(lbl);
       document.getElementById("c1-readout").textContent =
         "두 벡터 사이의 각도는 " + EXPL.fmt("deg0", angleDeg) + "이고 코사인 유사도는 " + EXPL.fmt("num2", cosSim) + "이다.";
@@ -1301,7 +1308,7 @@ document.addEventListener("DOMContentLoaded", function(){
       pts.forEach(function(p, i){
         var c = EXPL.svgEl("circle", {
           cx: sx(p.x), cy: sy(p.y), r: p.emph ? 6 : 3,
-          fill: p.emph ? "var(--c2)" : "var(--muted)",
+          fill: p.emph ? "var(--c2)" : "var(--dim)",
           tabindex: "0", role: "img"
         });
         svg.appendChild(c);
@@ -1349,7 +1356,7 @@ document.addEventListener("DOMContentLoaded", function(){
       function draw(){
         var n = parseInt(slider.value, 10);
         // 강조에서 빠진 막대도 값을 읽을 수 있어야 하므로 투명도가 아니라 --muted 로 칠한다.
-        EXPL.renderBarsH("chart-d1", data, { fmt: "int", colorFn: function(d, i){ return i < n ? "var(--c1)" : "var(--muted)"; } });
+        EXPL.renderBarsH("chart-d1", data, { fmt: "int", colorFn: function(d, i){ return i < n ? "var(--c1)" : "var(--dim)"; } });
         out.textContent = String(n);
         readout.textContent = "상위 " + n + "개 항목을 강조색으로, 나머지는 회색으로 표시한다.";
       }
@@ -1399,7 +1406,7 @@ document.addEventListener("DOMContentLoaded", function(){
           data.forEach(function(d, i){
             var g = document.getElementById("d2-bar-" + i);
             var rect = g && g.querySelector("rect");
-            if (rect) rect.setAttribute("fill", (!active || d.group === active) ? groupColor(d) : "var(--muted)");
+            if (rect) rect.setAttribute("fill", (!active || d.group === active) ? groupColor(d) : "var(--dim)");
           });
           readout.textContent = active
             ? active + "만 각자의 색으로 두고 나머지 항목은 회색으로 표시한다."

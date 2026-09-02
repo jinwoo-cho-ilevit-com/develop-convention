@@ -43,11 +43,12 @@
   --bg:#F4F6F8; --surface:#FFFFFF; --ink:#1B2430; --muted:#5B6673; --line:#DCE1E7;
   --accent:#2456A6; --accent-soft:#E4EBF6; --on-accent:#fff; --pos:#147D5B; --neg:#C2452F; --warn:#9A6B1F; --warn-soft:#F7EFDD;
   --code-bg:#EDF0F4; --tip-shadow:rgba(0,0,0,.25);
-  /* 계열 색 --c1~--c5 와 --series-a/b 는 dataviz 스킬의 validate_palette.js(Claude Code 번들 2.1.258)로
-     모든 쌍(--pairs all) 기준 다섯 검사를 두 테마 각각 통과한 값이며, 실행 결과는 이 값을 도입한 커밋 본문에 있다.
-     --c1 은 강조색과 같은 색상각(260°)에 앵커하되 다크는 검증기 명도 대역 안의 값을 쓰고, 슬롯 N 은 두 테마에서 같은 색 계열이다. */
+  /* 계열 색 --c1~--c5 와 --series-a/b 는 dataviz 스킬의 validate_palette.js(Claude Code 번들 2.1.258)로 검증한 값이다.
+     재현: node validate_palette.js "<다섯 색>" --mode light --surface "#FFFFFF" --pairs all (다크는 --mode dark --surface "#1B2128").
+     --c1 은 강조색과 같은 색상각(260°)에 앵커하되 다크는 검증기 명도 대역 안의 값을 쓰고, 슬롯 N 은 두 테마에서 같은 색 계열이다.
+     --dim 은 비강조 데이터 마크 전용 회색이다: 표면 대비 3:1 이상, 계열 색과 정상 시각 ΔE 15 이상(텍스트는 --muted 를 쓴다). */
   --c1:#2456A6; --c2:#882B7F; --c3:#D25F26; --c4:#565F00; --c5:#129A92;
-  --series-a:#2456A6; --series-b:#865901;
+  --series-a:#2456A6; --series-b:#865901; --dim:#848E9A;
   /* 수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
   --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem; --sp-7:3rem;
   --radius-xs:4px; --radius-sm:6px; --radius-md:10px; --radius-pill:999px;
@@ -58,7 +59,7 @@
     --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
     --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
     --c1:#3F79D9; --c2:#9F5FA8; --c3:#C55224; --c4:#9D9A01; --c5:#09A9AA;
-    --series-a:#3F79D9; --series-b:#AA811A;
+    --series-a:#3F79D9; --series-b:#AA811A; --dim:#93A0AF;
   }
 }
 :root[data-theme="dark"]{
@@ -66,7 +67,7 @@
   --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
   --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
   --c1:#3F79D9; --c2:#9F5FA8; --c3:#C55224; --c4:#9D9A01; --c5:#09A9AA;
-  --series-a:#3F79D9; --series-b:#AA811A;
+  --series-a:#3F79D9; --series-b:#AA811A; --dim:#93A0AF;
 }
 
 * { box-sizing: border-box; }
@@ -410,7 +411,7 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       <span><span class="swatch" style="background:var(--series-a)"></span>조치 전</span>
       <span><span class="swatch" style="background:var(--series-b)"></span>조치 후</span>
     </div>
-    <p class="readout" aria-live="polite"></p>
+    <p class="readout" id="hist-readout" aria-live="polite"></p>
   </div>
 
   <!-- 이럴 때 이 형태: 정형 카탈로그(막대/선/히스토그램)로 담기지 않는 개념을 기하로 번역할 때 -->
@@ -734,7 +735,7 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
     var svg = document.getElementById("chart-hist");
     var slider = document.getElementById("threshold-slider");
     var out = document.getElementById("threshold-out");
-    var readout = document.querySelector(".readout");
+    var readout = document.getElementById("hist-readout");
     if (!svg || !slider || !readout) return;
     var h = get("hist", svg);
     if (!h) return;
@@ -773,8 +774,11 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       var thx = thresholdX(th);
       svg.appendChild(svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
       var right = thx > w / 2;
-      var lbl = svgEl("text", { x: thx + (right ? -4 : 4), y: 14, "text-anchor": right ? "end" : "start", class: "chart-value num", fill: "var(--neg)" });
-      lbl.textContent = "임계값 " + th;
+      var lbl = svgEl("text", { x: thx + (right ? -4 : 4), y: 14, "text-anchor": right ? "end" : "start", class: "chart-label", fill: "var(--neg)" });
+      lbl.appendChild(document.createTextNode("임계값 "));
+      var lblNum = svgEl("tspan", { class: "chart-value num" });
+      lblNum.textContent = String(th);
+      lbl.appendChild(lblNum);
       svg.appendChild(lbl);
     }
     function updateReadout(){

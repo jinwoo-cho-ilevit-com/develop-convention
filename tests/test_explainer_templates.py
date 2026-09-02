@@ -162,17 +162,39 @@ def _style_block(text, path):
 
 def test_main_is_a_single_column(template):
     """The Core Rule contract: <main> lays sections out as a single column;
-    no rule targeting it standalone may reintroduce a multi-column grid."""
+    no rule whose selector ends on the main element may reintroduce a
+    multi-column layout through grid or CSS columns."""
     name, path, text = template
     style = re.sub(r"/\*.*?\*/", "", _style_block(text, path), flags=re.S)
+    # The last compound of the selector is `main` (optionally with a class, id,
+    # attribute, or pseudo suffix): `main`, `main.x`, `body > main`, `.page main:hover`.
+    targets_main = re.compile(r"(?:^|[\s>+~])main(?![\w-])[^\s>+~]*$")
+    multi_column = re.compile(r"\b(grid-template(?:-columns)?|grid|columns|column-count)\s*:")
     for selectors, body in re.findall(r"([^{}]+)\{([^{}]*)\}", style):
-        items = [s.strip() for s in selectors.split(",")]
-        # `main`, `main.x`, `main#x`, `main[..]`, `main:..` all target the element itself.
-        if any(re.match(r"main(?![\w-])", s) for s in items):
-            assert "grid-template-columns" not in body, (
-                f"{path.name}: main declares grid-template-columns: "
-                f"{selectors.strip()}{{{body.strip()}}}"
-            )
+        for selector in (s.strip() for s in selectors.split(",")):
+            if targets_main.search(selector):
+                assert not multi_column.search(body), (
+                    f"{path.name}: main declares a multi-column layout: "
+                    f"{selector}{{{body.strip()}}}"
+                )
+
+
+def test_shared_stylesheet_is_identical_in_both_files():
+    """The gallery's style block is the skeleton's followed by gallery-only
+    rules after a marker comment; the shared prefix must not drift (the
+    only allowed difference is each file naming the other in its
+    accessibility-contract heading)."""
+    marker = "/* 아래부터는 갤러리 전용 규칙이다"
+    skeleton = _style_block(SKELETON.read_text(encoding="utf-8"), SKELETON)
+    gallery = _style_block(GALLERY.read_text(encoding="utf-8"), GALLERY)
+    assert marker in gallery, f"{GALLERY.name}: gallery-only marker comment missing"
+    shared = gallery[: gallery.index(marker)]
+    normalise = lambda s: s.replace("explainer-gallery.html", "X").replace(  # noqa: E731
+        "explainer-skeleton.html", "X"
+    )
+    assert normalise(skeleton.strip()) == normalise(shared.strip()), (
+        "shared stylesheet drifted between skeleton and gallery"
+    )
 
 
 def test_series_tokens_are_exactly_five(template):

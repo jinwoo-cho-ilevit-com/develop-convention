@@ -68,7 +68,7 @@ An HTML explainer is the same genre in a rendering that must survive being hande
 - **Both themes legible.** Check light and dark rendering; a page that inherits the viewer's theme but styles only one has an invisible half.
 - **Diagrams inline.** Mermaid or SVG in the file itself, chosen by the same triggers as §3.
 - **Text stays text.** Selectable and greppable, never rendered into an image — an image defeats search, copy, diff, and screen readers at once.
-- **Single reading column.** An explainer is read in order, each section standing on the one before it; a two-column flow splits that path into two tracks the reader must reconcile, and forces exception CSS wherever a section outgrows its column. A readable text measure at 16px Korean body text is roughly 740–800px, about 45 to 50 characters per line — wide enough to use the viewport without spreading text past a comfortable line length.
+- **Single reading column.** An explainer is read in order, each section standing on the one before it; a two-column flow splits that path into two tracks the reader must reconcile, and forces exception CSS wherever a section outgrows its column. A readable measure for Korean body text is about 45 to 50 characters per line — wide enough to use the viewport without spreading text past a comfortable line length; the shipped skeleton's `max-width` is the concrete value.
 
 ### 6. The explainer skeleton
 
