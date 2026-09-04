@@ -1,4 +1,4 @@
-<!-- explainer-skeleton v3 -->
+<!-- explainer-skeleton v4 -->
 <!-- 이 파일의 주석과 자리표시자는 한국어 독자가 그대로 복사해 쓰는 자산이므로 한국어로 쓴다. -->
 <!doctype html>
 <html lang="ko">
@@ -38,7 +38,8 @@
      --dim 은 비강조 데이터 마크 전용 회색이다: 표면 대비 3:1 이상, 계열 색과 정상 시각 ΔE 15 이상(텍스트는 --muted 를 쓴다). */
   --c1:#2456A6; --c2:#882B7F; --c3:#D25F26; --c4:#565F00; --c5:#129A92;
   --series-a:#2456A6; --series-b:#865901; --dim:#848E9A;
-  /* 수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
+  /* 새 색 토큰은 :root 세 블록(라이트·시스템 다크·명시 다크) 모두에 선언한다; 한 곳만 추가하면 다크에서 조용히 깨진다.
+     수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
   --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem; --sp-7:3rem;
   --radius-xs:4px; --radius-sm:6px; --radius-md:10px; --radius-pill:999px;
 }
@@ -253,7 +254,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
   <p>[이 문서가 설명하는 대상과 그 메커니즘을 한 단락으로. 용어는 첫 등장에서 풀어 쓰고,
   개념마다 예시 하나를 붙인다.]</p>
 
-  <!-- 주제에 관한 수치는 아래처럼 data-src 로 데이터 블록의 필드를 가리킨다. 손으로 친 숫자는 위반이다. -->
+  <!-- 주제에 관한 수치는 아래처럼 data-src 로 데이터 블록의 필드를 가리킨다. 손으로 친 숫자는 위반이다.
+       data-fmt 는 int·num1·num2·deg0·pct1·pct0 중 하나이며, pct* 는 0~1 비율을 받는다. -->
   <p>[수치가 들어가는 문장 — 예: 예시 비율은
   <span class="num" data-src="metrics.example_rate" data-fmt="pct1">29.2%</span>다.]</p>
   <p class="evidence">근거: explainer-data → metrics.example_rate</p>
@@ -285,7 +287,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
     <figcaption>이 그림은 입력이 변환을 거쳐 출력에 이르는 순서를 보여준다.</figcaption>
   </figure>
 
-  <!-- 시각화 슬롯. 형태는 conventions/24-explainer-docs.md §3 의 트리거 표와 보여 줄 메커니즘에서 정한다;
+  <!-- 시각화 슬롯. 형태는 규약 24(https://jinwoo-cho-ilevit-com.github.io/develop-convention/conventions/24-explainer-docs/) §3 의
+       트리거 표와 보여 줄 메커니즘에서 정한다;
        explainer-gallery.html 은 같은 메커니즘을 이미 그린 레시피가 있을 때 복사한다(레시피는 아래 EXPL 을 전제한다). -->
 </section>
 

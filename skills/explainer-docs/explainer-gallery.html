@@ -38,7 +38,8 @@
      --dim 은 비강조 데이터 마크 전용 회색이다: 표면 대비 3:1 이상, 계열 색과 정상 시각 ΔE 15 이상(텍스트는 --muted 를 쓴다). */
   --c1:#2456A6; --c2:#882B7F; --c3:#D25F26; --c4:#565F00; --c5:#129A92;
   --series-a:#2456A6; --series-b:#865901; --dim:#848E9A;
-  /* 수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
+  /* 새 색 토큰은 :root 세 블록(라이트·시스템 다크·명시 다크) 모두에 선언한다; 한 곳만 추가하면 다크에서 조용히 깨진다.
+     수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
   --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem; --sp-7:3rem;
   --radius-xs:4px; --radius-sm:6px; --radius-md:10px; --radius-pill:999px;
 }
@@ -271,7 +272,7 @@ details.src code{ background:none; padding:0; }
     <p class="kicker">DEV-HARNESS · EXPLAINER TOOLKIT</p>
     <h1>설명 문서 시각화 레퍼토리</h1>
     <p class="lede">이 파일은 열람용 레퍼토리이며 문서는 <code>explainer-skeleton.html</code>에서 시작한다.
-    시각화의 형태는 보여 줄 메커니즘에서 먼저 설계하고, 같은 메커니즘을 이미 그린 레시피가 여기 있을 때만 복사한다.</p>
+    이 갤러리를 언제 여는지는 규약 24 의 Core Rule 이 정한다; 컴포넌트 클래스와 인터랙티브 figure 접근성 관용구의 용례도 여기서 본다.</p>
     <!-- 성장 정책: 실제 설명 문서가 필요로 한 유형만 추가한다. 선제적 확장은 금지한다. -->
     <p class="growth-note">아래 레시피의 JS는 <code>window.EXPL</code>(get/fmt/svgEl/wireTip/verifyNumbers/renderBarsH/axes)이
     본문 상단 공통 스크립트에서 이미 로드되어 있다고 가정하며, 레시피는 항상 <code>EXPL.get(...)</code>처럼 이 네임스페이스를 통해 호출한다 —
