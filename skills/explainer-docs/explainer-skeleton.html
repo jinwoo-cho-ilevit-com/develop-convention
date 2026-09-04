@@ -1,4 +1,4 @@
-<!-- explainer-skeleton v4 -->
+<!-- explainer-skeleton v5 -->
 <!-- 이 파일의 주석과 자리표시자는 한국어 독자가 그대로 복사해 쓰는 자산이므로 한국어로 쓴다. -->
 <!doctype html>
 <html lang="ko">
@@ -24,7 +24,7 @@
 시각화 불변식:
 시각화마다 "이 그림은 X를 보여준다" 캡션 한 문장(없으면 장식이므로 삭제);
 토큰 색만 사용; 구조선·텍스트는 currentColor로 테마 대응, 의미를 담는 요소에만 실제 색;
-이중 축 금지; 값 하나면 차트가 아니라 수치 타일; 시리즈 4개부터 직접 라벨;
+이중 축 금지; 값 하나면 차트가 아니라 본문 문장; 시리즈 4개부터 직접 라벨;
 다이어그램 복잡도 예산 노드 ≤9·화살표 ≤12·강조 ≤2; 연결선은 직교 꺾임;
 명사가 아니라 메커니즘을 그린다.
 */
@@ -145,19 +145,6 @@ h3{ margin-top:var(--sp-6); margin-bottom:var(--sp-2); font-size:1.05em; font-we
   display:inline-block; font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
   font-size:.78em; color:var(--on-accent); background:var(--neg); border-radius:var(--radius-xs); padding:.05em .4em; margin-left:.4em;
 }
-
-/* KPI row: value carries the weight, label/sub stay quiet and tight */
-.kpi-row{ display:flex; flex-wrap:wrap; gap:var(--sp-3); margin:var(--sp-5) 0; }
-.kpi{
-  flex:1 1 160px; border:1px solid var(--line); border-left:3px solid var(--accent);
-  border-radius:var(--radius-md); padding:var(--sp-4); background:var(--surface);
-}
-.kpi .kpi-value{
-  font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
-  font-variant-numeric:tabular-nums; font-weight:500; font-size:2.1em; line-height:1.1; letter-spacing:-.01em;
-}
-.kpi .kpi-sub{ font-size:.8em; color:var(--muted); margin-top:var(--sp-2); }
-.kpi .kpi-label{ font-size:.78em; color:var(--muted); margin-top:.15em; }
 
 /* data table */
 .table-wrap{ overflow-x:auto; margin:1.2em 0; }
