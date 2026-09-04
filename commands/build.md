@@ -1,5 +1,5 @@
 ---
-description: Run the lanes in a plan — fan out to worktree-isolated agents, review each lane the moment it finishes, then merge and verify end to end
+description: Run the lanes in a plan — fan out to worktree-isolated agents, review each lane the moment it finishes, then merge, review the merged whole, and verify end to end
 argument-hint: '[feature name — defaults to the only plan under .plans/]'
 ---
 
@@ -33,8 +33,9 @@ It returns `{ passed, halted, unanswered, escalations, vendorDiversity }`. **Han
 2. **`unanswered` > 0 means a lane never returned at all.** A lane that finished is not a lane that answered — re-run it rather than reporting a short build.
 3. **`escalations` is the list that needs a person.** Every entry must be answered or reported; none of them is a completion.
 4. Merge each lane in `passed`. Run the integration lane last.
-5. Run the whole-project completion condition from `PLAN.md`.
-6. Close the merged lanes: `git worktree remove <path>` (no `--force`) and `git branch -d <branch>` (not `-D`) for each lane in `passed`. Either command refusing is a safety check firing — investigate before touching the flag. Leave every halted lane's worktree and branch in place; fix rounds continue in them (→ `09-agentic-workflow.md` §2).
-7. Report the criteria table with the commands that were run and their output — not a narrative summary (→ `19-evidence.md`). Include every lane's `carried` findings; the merge may downgrade a finding but never silently drops one. Report `vendorDiversity` verbatim: every review lens ran on one model family, and a report that stays quiet about it reads as if the rule were met.
+5. Run the merged-whole round (→ `20-review-gate.md` §2): pin the assembled change to two commits and give the absence lens that range, `PLAN.md`, and each lane's own pinned range. Findings cross lanes, so dispatch one agent without a worktree to fix in the main tree, re-pin to the fix commit, and re-review; the round ends the same three ways as a lane's. Record its exit in the review points table.
+6. Run the whole-project completion condition from `PLAN.md`.
+7. Close the merged lanes: `git worktree remove <path>` (no `--force`) and `git branch -d <branch>` (not `-D`) for each lane in `passed`. Either command refusing is a safety check firing — investigate before touching the flag. Leave every halted lane's worktree and branch in place; fix rounds continue in them (→ `09-agentic-workflow.md` §2).
+8. Report the criteria table with the commands that were run and their output — not a narrative summary (→ `19-evidence.md`). Include every lane's `carried` findings; the merge may downgrade a finding but never silently drops one. Report `vendorDiversity` verbatim: every review lens ran on one model family, and a report that stays quiet about it reads as if the rule were met.
 
-Claim completion only when `halted` is empty, `unanswered` is zero, and `escalations` is empty.
+Claim completion only when `halted` is empty, `unanswered` is zero, `escalations` is empty, and the merged-whole round has closed.
