@@ -22,8 +22,8 @@ Takes precedence over every other document, so it belongs to no single skill and
 
 | Doc | Contents |
 |---|---|
-| [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, boundary contract tests, worktree fan-out, review on each lane's finish, merge and end-to-end verification |
-| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict, decidable inside the owning lane), the four surfaces a boundary can split on, lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
+| [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, plan challenge before approval, boundary contract tests, worktree fan-out, review on each lane's finish, merge, merged-whole review, end-to-end verification |
+| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: review points table before approval, completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict, decidable inside the owning lane), the four surfaces a boundary can split on, lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
 | [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, merge-then-cleanup, model routing, spec gating |
 | [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
 
@@ -49,7 +49,7 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 | Doc | Contents |
 |---|---|
 | [06-testing-verification.md](conventions/06-testing-verification.md) | Minimal-meaningful testing, boundary contracts over symbols and value sets as well as payloads, one fixture per object that crosses boundaries, fixtures and doubles that cannot teach a wrong implementation, spec-derived expected values, sabotage checks for characterization tests, change-detector deletion, golden files, tolerance bands, CPU smoke tests, completion verification |
-| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, what the author's evidence executed, lanes defined by input (module/project/absence/security/fresh-reader), fan-in with confirmed/refuted/unverified findings and severity, review tool paths without pinned model ids |
+| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, what the author's evidence executed, lanes defined by input (module/project/absence/security/fresh-reader), two points fixed by time (plan before approval, merged-whole after the last merge), fan-in with confirmed/refuted/unverified findings and severity, review tool paths without pinned model ids |
 | [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, command output with secret masking, provenance, human verdict records, recorded bypasses |
 
 ### Data and ML pipelines — `ml-pipeline`
@@ -117,8 +117,8 @@ Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste co
 
 | Command | Does |
 |---|---|
-| `/dev-harness:spec` | Interviews you until the work is specific enough to split, then writes `PLAN.md` and one brief per lane |
-| `/dev-harness:build` | Freezes each boundary with a contract test, fans the lanes out to worktree-isolated agents, reviews each lane the moment it finishes, merges and verifies |
+| `/dev-harness:spec` | Interviews you until the work is specific enough to split, then writes `PLAN.md` — review points table included — and one brief per lane |
+| `/dev-harness:build` | Freezes each boundary with a contract test, fans the lanes out to worktree-isolated agents, reviews each lane the moment it finishes, merges, reviews the merged whole, and verifies |
 | `/dev-harness:setup` | Writes the short `AGENTS.md` by hand |
 
 Eight skills load themselves when the work matches, so you do not have to remember which rules apply. Each routes to the documents in its Document Map group and copies none of them — a rule stays in exactly one place, where it can only be wrong once:
@@ -296,13 +296,15 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 - The main session orchestrates and does not develop — it interviews, splits, judges, and delegates every edit to a subagent. Reading a large file there costs the same budget an edit would.
 - Specify by interview, not by template. Derive the axes from this project: infer from the request and the repository, check once for what recent practice adds, then keep only those naming a way this project could fail. Keep the list open during the interview and record each axis's state — that record is the only account of what was never asked.
+- Challenge the plan before asking for its approval, at the depth the done level sets; the plan is shown only once that round has closed.
 - Split as far as disjoint file ownership allows, and freeze every boundary with a contract test written **before** the lanes start, owned by no lane. Store its representative payload as a sample file and have the factory load it; separate files do not stop two lanes holding contradictory assumptions about what crosses between them.
 - Review a lane the moment that lane finishes, not when all of them do. Send findings back to the lane that wrote the code and re-review; end on no blockers, on most findings coming from the previous fix (change the approach), or on a runaway cap that calls a person.
-- Merge a lane only after its criteria pass, run the integration lane last, and verify the assembled project end to end before claiming completion.
+- Merge a lane only after its criteria pass and run the integration lane last; then review the merged whole for the seams unit reviews cannot see, and verify the assembled project end to end before claiming completion.
 
 ### Work Contract
 
 - Write the contract before development starts and freeze it during execution. Record changes with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
+- At `reviewed` and above, a plan shown for approval carries a review points table: one row per unit plus the pre-approval and post-merge points, each row closed with the round's final state before approval or completion respectively.
 - Write completion criteria in EARS or Given-When-Then with `SHALL`, and apply the judgment test: if two agents could disagree about whether it passed, rewrite it.
 - Pair every criterion with the command that checks it, or mark it `[human]`. The two halves fail differently: a command with no sentence is never asked whether it checks the right thing, and a sentence with no command defers the judgment to verification time.
 - The command must reach a verdict inside the lane that owns the criterion, against that lane's work alone — a command importing a sibling lane's module fails on import and says nothing about the lane it was given to. Cross-lane contracts and the end-to-end condition are the integration step's criteria, not a lane's.
@@ -324,7 +326,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 - Every change goes through a review its author did not perform, on a tool chosen before development starts and named in the review report. The reviewer gets the diff and the criteria, never the author's reasoning.
 - A lane judging code runs the code, and reports how many commands it ran; a verdict from a lane that ran none is a reading and says so. Measured on one document at one commit, a read-only lane found nothing where an executing lane found ten. Ask the same of the author's evidence — whether any of it ran outside the module under change, since a defect crossing a boundary appears only when something runs both sides.
-- Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched, and a fresh-reader lane (the explainer document alone, no code or author context) only when the deliverable is an explainer doc.
+- Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched, and a fresh-reader lane (the explainer document alone, no code or author context) only when the deliverable is an explainer doc. Two further points are fixed by time rather than risk: a plan lane before approval and a merged-whole lane (the absence lane over the assembled change) after the last merge, at the depth the done level sets.
 - Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered *with content*, dedupe by `file:line`, resolve contradictions, verify each finding against the code, rank by severity. A lane that finished is not a lane that answered — an agent can end with its report undelivered. An unsynthesized merge amplifies manufactured issues once per lane.
 - Mark every finding in three states, not two: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran. A refutation is reported as a result. A reproduction that will not run — a gate the change added rejects the input, a state that can no longer be constructed — is a finding about the procedure and never evidence of a fix.
 - Severity carries an action: blocker blocks the merge and is re-reviewed by the lane that raised it, major is fixed in the same work, minor becomes a follow-up, nit may be ignored. A finding with no concrete failing scenario is a nit.

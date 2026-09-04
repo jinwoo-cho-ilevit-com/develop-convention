@@ -21,6 +21,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | Which model, and what belongs in the instruction file rather than a skill | 09 |
 | What stays in my context and what goes out to a subagent | 14 |
 | What survives a compaction, and where the durable copy lives | 14 |
+| What the plan must carry before it is shown | 18 |
 
 ## Order
 

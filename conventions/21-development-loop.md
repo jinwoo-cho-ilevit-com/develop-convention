@@ -13,8 +13,10 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Split by disjoint file ownership | [18-work-contract.md](18-work-contract.md) |
 | Freeze each boundary with a contract test before the lanes start | [06-testing-verification.md](06-testing-verification.md) |
 | Write criteria as sentence plus command, `[human]` where no command exists | [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md) |
+| Challenge the plan before asking for approval | [18-work-contract.md](18-work-contract.md) §3, [20-review-gate.md](20-review-gate.md) |
 | Review each lane on its own finish, then fix and re-review | [20-review-gate.md](20-review-gate.md) |
-| Merge, integrate last, verify end to end | [09-agentic-workflow.md](09-agentic-workflow.md), [06-testing-verification.md](06-testing-verification.md) |
+| Merge, integrate last | [09-agentic-workflow.md](09-agentic-workflow.md) |
+| Review the merged whole, then verify end to end | [20-review-gate.md](20-review-gate.md), [06-testing-verification.md](06-testing-verification.md) |
 
 - Specify by interview, not by template. What to ask about is derived from this project — infer the axes from the request and the repository, check once for what recent practice adds, then keep only those that name a way this project could fail. A fixed axis list can only cover what someone already knew to list.
 - Keep the axis list open during the interview. When an answer reveals an axis you did not have, add it. Record every axis and its state — decided, not applicable, still open — because that record is the only account of what was never asked.
@@ -27,7 +29,7 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Step | What happens | Specified in |
 |---|---|---|
 | Interview | Axes derived from the project, one question at a time, every proposal sourced | §2 below, [16-research-protocol.md](16-research-protocol.md) |
-| Plan | `PLAN.md` (decisions, rejected alternatives, axis table, boundaries, lanes, whole-project condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
+| Plan | `PLAN.md` (decisions, rejected alternatives, axis table, boundaries, lanes, review points, whole-project condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
 | Freeze | One contract test per boundary, plus its sample payload. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1 |
 | Fan out | One worktree-isolated agent per lane, disjoint `owns` | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 | Review | Starts per lane on that lane's finish; lanes defined by input; fix and recheck | [20-review-gate.md](20-review-gate.md) |
@@ -52,6 +54,8 @@ A greenfield project has no repository to ground the first step, which is where 
 **Ownership is not agreement.** The split rule guarantees two lanes never write the same file. It guarantees nothing about the two of them agreeing on what passes between them, and the more finely the work divides the more such boundaries exist. Freezing each one as an executable test before either lane starts is the only step that closes this, and it has to happen before, not after — a boundary discovered at merge time costs both lanes.
 
 **A barrier is a choice, not a fact.** Lanes finish at different times. Reviewing on each finish means a lane's review overlaps with other lanes still working, and the wait disappears rather than being filled. Collecting all lanes before reviewing any creates the pause and then invites the question of what to do during it. Prefer the pipeline (→ [14-context-management.md](14-context-management.md) §1).
+
+**Two review points are fixed by time, not by risk.** Every other lane is chosen by what the change touches; the plan review and the merged-whole review are chosen by when they run. Before approval is the last moment a direction can change cheaply, and after the last merge is the first moment the seams between units exist to be read — a unit review passes each piece against itself, and what only appears where pieces meet has no earlier reader.
 
 **A fix is a change, and changes have defects.** A review loop with no exit but "reviewers stopped finding things" has no fixed point. The signal that ends it is not the count of rounds — one loop in this repository ran eleven without converging — but the finding that this round's defects came from last round's fix. At that point another round adds defects faster than it removes them.
 

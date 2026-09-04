@@ -20,6 +20,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | What to write when a check was skipped, bypassed, or waiting on a person | 19 |
 | Who reviews this, and what input each reviewer gets | 20 |
 | When the review loop stops, and which exits need a human | 20 |
+| What reviews the plan, and what reviews the merged whole | 20 |
 
 ## Order
 

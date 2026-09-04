@@ -5,6 +5,7 @@ A **work contract** fixes three things in the same identifiers before the work s
 ## Core Rules
 
 - Write the contract before development starts and freeze it during execution. Record any change with its kind; an additive change touching no existing criterion or ownership entry updates only the affected lane.
+- At `reviewed` and above, a plan shown for approval carries a `## Review points` table — one row per unit the work is split by (a lane, or a commit when the work is sequential) plus the pre-approval and post-merge points, with columns unit, lane, input, tool, ran (commands the lane executed), exit. `exit` is the round's final state only — `no blocker`, `regression-halt`, `round-cap`, or the workflow's own outcome string when a harness ran the lane — and round history goes in a line under the table; an `auto` plan writes `skipped (auto)`. An empty exit on the pre-approval row blocks approval, on any other row blocks completion. The plan file keeps the table as the record; in the harness that file is `PLAN.md`.
 - Scale the contract to the work. Three to five lines — what is being built, done level, criteria, out of scope — is complete for small work, and that form is not the heavyweight spec [09-agentic-workflow.md](09-agentic-workflow.md) §4 warns against.
 - Write every criterion in EARS or Given-When-Then with `SHALL`, and apply the judgment test: **if two agents could disagree about whether it passed, rewrite it.**
 - Pair every criterion with the command that checks it, or mark it `[human]`. A criterion that is neither is not a criterion. The sentence is not decoration: without it nothing can be judged against the criterion, and a test that checks the wrong thing still passes.
@@ -82,7 +83,7 @@ The upper-right cell is what a size-only rule misses: a one-line change to a pub
 
 Evidence sits outside the dial deliberately. If it were a property of the higher levels, "this is only `auto`" would become the way to skip it.
 
-There is no separate planning-depth setting. How hard a plan is challenged before execution follows the done level: `auto` skips it, `reviewed` gets one adversarial pass, `proven` gets the full lane set (→ [20-review-gate.md](20-review-gate.md)). A second dial would only be another thing to under-report.
+There is no separate planning-depth setting. How hard a plan is challenged follows the done level: `auto` skips it, `reviewed` gets one adversarial pass, `proven` gets the full lane set. The challenge runs **before the plan is shown for approval**, and once more **after the last lane has merged**, over the assembled change; the same level sets the depth at both points (→ [20-review-gate.md](20-review-gate.md) §2 for each point's input). A second dial would only be another thing to under-report.
 
 ### 4. Changing and closing a contract
 
