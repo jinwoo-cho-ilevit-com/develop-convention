@@ -38,13 +38,13 @@ One question at a time. For each:
 - **Change the angle per axis.** Running every axis through the same "pick A or B, here's the cost" shape reads as one question asked twice. Frame each from what actually differs about it — a failure scenario for one, a user-visible difference for another, a cost-if-wrong for a third.
 - If the user cannot answer, say what you would choose and why, and record it as an assumption with the cost of being wrong.
 
-The plan presented in plan mode carries the review points table 18 requires — one row per lane plus the pre-approval and post-merge points. Before `ExitPlanMode`, run the plan lane at the depth the done level sets (→ 18 §3, 20 §2) and fix what it finds; the pre-approval row's exit is filled before the plan is shown.
+Settle the done level in the interview (→ 18 §3); it decides how deep the plan is challenged. The plan presented in plan mode carries the review points table 18 requires. Inside plan mode, before `ExitPlanMode`, run the plan lane with read-only agents at that depth (→ 20 §2) and fix what it finds in the plan text; the pre-approval row's exit is filled before the plan is shown.
 
 ## 3. Write the artifacts
 
 After `ExitPlanMode` is approved — not before, because plan mode blocks these writes — write `.plans/<feature>/`:
 
-**`PLAN.md`** — decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, the review points table carried from section 2, and the whole-project completion condition (every lane plus end-to-end).
+**`PLAN.md`** — the done level, decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, the review points table carried from section 2, and the whole-project completion condition (every lane plus end-to-end).
 
 **`lane-<name>.md`** per lane — scope, owned files, completion criteria, out of scope.
 
