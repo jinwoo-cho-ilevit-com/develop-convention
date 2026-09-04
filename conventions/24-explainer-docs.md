@@ -15,7 +15,7 @@ This document governs deliverables whose product is a person's understanding —
 - Flow body content as one column of readable line length, sections in reading order — no fixed sidebars or navigation panes; the table of contents goes inline at the top. Two small figures may sit side by side.
 - In an HTML explainer, a quantitative claim about the subject (a measurement, rate, count, amount) appears as static text whose element names the field it came from in the file's single embedded data block, and a load-time check compares the text against that field, flagging a mismatch visibly. A hand-typed figure naming no source field is a violation; structural numbers (chapter numerals, "step 2 of 3") and mathematical identities used to explain a formula are exempt.
 - Set numeric runs in a monospace face with tabular figures, so digits align vertically across rows; Korean-language labels and table headers stay in the body face.
-- Start an HTML explainer from the shipped skeleton ([explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html)) — using its design tokens and component classes is the evidence of having started there. The gallery beside it ([explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html)) is a repertoire, not a ceiling: when a bespoke visual shows the mechanism better, invent it under the same caption, theme, and accessibility contract.
+- Start an HTML explainer from the shipped skeleton ([explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html)) — using its design tokens and component classes is the evidence of having started there. Design each visual from the trigger table (§3) and the mechanism it must show, under the skeleton's caption, theme, and accessibility contract; the gallery beside it ([explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html)) is consulted only for a recipe that already draws that mechanism, never browsed for a form to fit the content to.
 - Before an explainer ships, run it through the fresh-reader review lane ([20-review-gate.md](20-review-gate.md) §2): a reviewer with no author context reads the document alone.
 
 ## Details
@@ -52,6 +52,8 @@ Visuals are chosen by what is being shown; each kind has its own trigger and med
 
 The medium split follows from what each medium can carry: markdown has no reliable inline charting, and a table is text — it renders everywhere and diffs cleanly — while an HTML file can embed the chart itself.
 
+In HTML the decision starts in the "Showing" column and ends in a drawing of that mechanism; a catalog of forms is a place to check whether the mechanism has already been drawn, not the place the decision starts.
+
 The gate against decoration is the caption test from the Core Rules: a visual that cannot be introduced as "this shows X" in one sentence is cut — the same spirit as recording status in words rather than emoji ([01-structure-naming.md](01-structure-naming.md)).
 
 ### 4. The fresh-reader test
@@ -72,6 +74,6 @@ An HTML explainer is the same genre in a rendering that must survive being hande
 
 ### 6. The explainer skeleton
 
-The plugin ships two HTML files beside the explainer-docs skill: [explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html), the file a new explainer is copied from, and [explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html), a browsable catalog of visualization recipes. The decisions they embody — fonts, tokens, components, the number-verification wire contract — are commented inside the files themselves, which travel with every copy; this section does not restate them.
+The plugin ships two HTML files beside the explainer-docs skill: [explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html), the file a new explainer is copied from, and [explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html), a browsable catalog of visualization recipes. The skeleton carries the structure, tokens, component classes, the shared script infrastructure (`window.EXPL`), and one topic-neutral figure as the idiom sample — no subject content, so a copy is designed from the subject rather than filled in. The gallery's recipes assume that infrastructure and are pasted into a skeleton copy. The decisions the files embody are commented inside them, which travel with every copy; this section does not restate them.
 
 One decision is anchored here because it interprets §5: body figures are static text checked against the embedded data block, not rendered by script. A figure that exists only after JavaScript runs is invisible to grep, copy, and script-blocked viewers — the failures "text stays text" exists to prevent — while a load-time check that only flags divergence, never rewriting the text, preserves those guarantees and still ties every figure to its source field. Interactive charts are the one runtime exception; a filterable table keeps its rows static and lets script toggle visibility only.

@@ -28,7 +28,7 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 ## Starting point
 
-An HTML explainer is copied from `${CLAUDE_PLUGIN_ROOT}/skills/explainer-docs/explainer-skeleton.html`; visualization recipes beyond its samples live in `explainer-gallery.html` beside it. What the files carry is documented inside them — this file only points.
+An HTML explainer is copied from `${CLAUDE_PLUGIN_ROOT}/skills/explainer-docs/explainer-skeleton.html`; the recipe gallery beside it is `explainer-gallery.html`. What the files carry, and when the gallery is opened, is documented inside them and in 24 — this file only points.
 
 ## Boundaries with other skills
 
