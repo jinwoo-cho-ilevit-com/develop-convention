@@ -32,7 +32,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 
 ## Boundaries with other skills
 
-Writing the code once the lanes exist is [code-and-config](../code-and-config/SKILL.md). Deciding whether the result is acceptable is [verify-and-review](../verify-and-review/SKILL.md); 18 sets the criteria, 20 runs the gate against them.
+Writing the code once the lanes exist is [code-and-config](../code-and-config/SKILL.md). Deciding whether the result is acceptable is [verify-and-review](../verify-and-review/SKILL.md); 18 sets the criteria, 20 runs the gate against them — the pre-approval plan challenge included.
 
 ## When two documents disagree
 
