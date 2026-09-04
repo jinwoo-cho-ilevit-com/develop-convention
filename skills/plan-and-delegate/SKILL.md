@@ -17,11 +17,11 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | What do I have to ask before a plan exists, and when is the interview over | 21 |
 | How do I split this so two lanes cannot collide | 18 |
 | What does "done" mean here, what command decides it, what needs a person | 18 |
+| What the plan must carry before it is shown | 18 |
 | Subagent, workflow, or inline — and how much isolation | 09 |
 | Which model, and what belongs in the instruction file rather than a skill | 09 |
 | What stays in my context and what goes out to a subagent | 14 |
 | What survives a compaction, and where the durable copy lives | 14 |
-| What the plan must carry before it is shown | 18 |
 
 ## Order
 

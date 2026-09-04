@@ -11,9 +11,9 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Orchestrate, do not develop | [09-agentic-workflow.md](09-agentic-workflow.md), [14-context-management.md](14-context-management.md) |
 | Interview to a plan and one brief per lane | this document |
 | Split by disjoint file ownership | [18-work-contract.md](18-work-contract.md) |
-| Freeze each boundary with a contract test before the lanes start | [06-testing-verification.md](06-testing-verification.md) |
 | Write criteria as sentence plus command, `[human]` where no command exists | [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md) |
 | Challenge the plan before asking for approval | [18-work-contract.md](18-work-contract.md) §3, [20-review-gate.md](20-review-gate.md) |
+| Freeze each boundary with a contract test before the lanes start | [06-testing-verification.md](06-testing-verification.md) |
 | Review each lane on its own finish, then fix and re-review | [20-review-gate.md](20-review-gate.md) |
 | Merge, integrate last | [09-agentic-workflow.md](09-agentic-workflow.md) |
 | Review the merged whole, then verify end to end | [20-review-gate.md](20-review-gate.md), [06-testing-verification.md](06-testing-verification.md) |
@@ -30,10 +30,12 @@ Run the steps in this order, each governed by the document beside it. Only the i
 |---|---|---|
 | Interview | Axes derived from the project, one question at a time, every proposal sourced | §2 below, [16-research-protocol.md](16-research-protocol.md) |
 | Plan | `PLAN.md` (decisions, rejected alternatives, axis table, boundaries, lanes, review points, whole-project condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
+| Challenge | The plan lane runs at the done level's depth; the plan is shown for approval only once its exit is recorded | [20-review-gate.md](20-review-gate.md) §2 |
 | Freeze | One contract test per boundary, plus its sample payload. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1 |
 | Fan out | One worktree-isolated agent per lane, disjoint `owns` | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 | Review | Starts per lane on that lane's finish; lanes defined by input; fix and recheck | [20-review-gate.md](20-review-gate.md) |
 | Merge | Criteria pass → merge; integration lane last | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
+| Merged-whole | One lane over the assembled change, pinned to two commits, before any worktree is removed | [20-review-gate.md](20-review-gate.md) §2 |
 | Verify | Whole-project condition, `[human]` criteria answered, evidence reported as a criteria table | [19-evidence.md](19-evidence.md) |
 | Clean up | Merged lanes lose worktree and branch; halted lanes keep theirs | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 

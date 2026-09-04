@@ -304,7 +304,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Work Contract
 
 - Write the contract before development starts and freeze it during execution. Record changes with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
-- At `reviewed` and above, a plan shown for approval carries a review points table: one row per unit plus the pre-approval and post-merge points, each row closed with the round's final state before approval or completion respectively.
+- A plan shown for approval carries a review points table, and no row of it is left without an exit at approval or at completion.
 - Write completion criteria in EARS or Given-When-Then with `SHALL`, and apply the judgment test: if two agents could disagree about whether it passed, rewrite it.
 - Pair every criterion with the command that checks it, or mark it `[human]`. The two halves fail differently: a command with no sentence is never asked whether it checks the right thing, and a sentence with no command defers the judgment to verification time.
 - The command must reach a verdict inside the lane that owns the criterion, against that lane's work alone — a command importing a sibling lane's module fails on import and says nothing about the lane it was given to. Cross-lane contracts and the end-to-end condition are the integration step's criteria, not a lane's.
