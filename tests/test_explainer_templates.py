@@ -66,6 +66,15 @@ def test_no_external_network_references_in_attributes(template):
     assert not hits, f"{path.name}: external references in attributes: {hits}"
 
 
+def test_no_embedded_font_data(template):
+    """Fonts come from the system stack: a base64 face is dead weight a model
+    copying the file corrupts, and it is not what makes a copy legible."""
+    name, path, text = template
+    assert "@font-face" not in text and "base64," not in text, (
+        f"{path.name}: embedded font data is not allowed"
+    )
+
+
 def test_the_embedded_data_block_parses(template):
     name, path, text = template
     _data_block(text, path)
