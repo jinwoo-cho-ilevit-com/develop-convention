@@ -240,13 +240,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
 <nav class="toc" aria-label="목차">
   <ul>
     <li><a href="#s01"><span class="num">01</span> 핵심 개념</a></li>
-    <li><a href="#s02"><span class="num">02</span> 핵심 지표</a></li>
-    <li><a href="#s03"><span class="num">03</span> 시각화 예시</a></li>
-    <li><a href="#viz-a"><span class="num">03-a</span> 구조 다이어그램</a></li>
-    <li><a href="#viz-b"><span class="num">03-b</span> 순위 막대</a></li>
-    <li><a href="#viz-c"><span class="num">03-c</span> 슬라이더 히스토그램</a></li>
-    <li><a href="#viz-d"><span class="num">03-d</span> 맞춤 시각화</a></li>
-    <li><a href="#s04"><span class="num">04</span> 부록</a></li>
+    <li><a href="#s02"><span class="num">02</span> 시각화</a></li>
+    <li><a href="#s03"><span class="num">03</span> 부록</a></li>
   </ul>
 </nav>
 
@@ -255,184 +250,47 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
 <section id="s01">
   <h2><span class="num">01</span> 핵심 개념</h2>
 
-  <p>이 시스템은 고아 항목(orphan item, 상위 참조가 끊어져 어디에도 연결되지 않은 레코드)을
-  야간 배치로 주기적으로 정리한다. 참조가 끊기는 대부분의 원인은 상위 레코드 삭제 시점과
-  하위 레코드 갱신 시점이 어긋나는 경쟁 조건(race condition)이며, 아래는 그 과정에서 자주
-  나오는 표기 예시다.</p>
+  <p>[이 문서가 설명하는 대상과 그 메커니즘을 한 단락으로. 용어는 첫 등장에서 풀어 쓰고,
+  개념마다 예시 하나를 붙인다.]</p>
 
-  <div class="tip">
-    <p><strong>팁.</strong> 표를 먼저 훑고 본문을 읽으면 숫자의 맥락을 더 빨리 파악할 수 있다.</p>
-  </div>
-
-  <div class="caution">
-    <p><strong>주의.</strong> 아래 비율은 지난 배치 기준이며, 실시간 값이 아니다. 배포 직후 값과 다를 수 있다.</p>
-  </div>
-
-  <p>고아 항목 비율은
-  <span class="num" data-src="metrics.orphan_rate" data-fmt="pct1">29.2%</span>다.</p>
-  <p class="evidence">근거: explainer-data → metrics.orphan_rate</p>
+  <!-- 주제에 관한 수치는 아래처럼 data-src 로 데이터 블록의 필드를 가리킨다. 손으로 친 숫자는 위반이다. -->
+  <p>[수치가 들어가는 문장 — 예: 예시 비율은
+  <span class="num" data-src="metrics.example_rate" data-fmt="pct1">29.2%</span>다.]</p>
+  <p class="evidence">근거: explainer-data → metrics.example_rate</p>
 </section>
 
 <section id="s02">
-  <h2><span class="num">02</span> 핵심 지표</h2>
+  <h2><span class="num">02</span> 시각화</h2>
 
-  <p>지난 배치 기준 핵심 지표는 아래와 같다. 목표 대비 얼마나 벗어났는지는 각 카드의
-  보조 지표에서 바로 확인한다.</p>
-
-  <div class="kpi-row">
-    <div class="kpi">
-      <div class="kpi-value"><span class="num" data-src="kpis.0.value" data-fmt="int">1,840</span></div>
-      <div class="kpi-sub">전월 대비 +<span class="num" data-src="kpis.0.sub_num" data-fmt="pct0">12%</span></div>
-      <div class="kpi-label">전체 항목</div>
+  <!-- 아래 도형은 관용구 표본이다: figure 에 role 없음, svg 에 role="img"+aria-label, 구조선은 currentColor,
+       강조는 토큰 색 하나, 캡션은 "이 그림은 X를 보여준다". 주제에 맞는 도형으로 바꾸거나 지운다. -->
+  <figure>
+    <div class="chart-wrap is-compact" style="max-width:420px">
+    <svg viewBox="0 0 380 80" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="입력·변환·출력 3단계 흐름">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <rect x="10" y="20" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
+      <text x="60" y="44" text-anchor="middle" class="chart-label">입력</text>
+      <path d="M110,40 H140" fill="none" stroke="currentColor" marker-end="url(#arrow)"/>
+      <rect x="140" y="20" width="100" height="40" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="190" y="44" text-anchor="middle" class="chart-label">변환</text>
+      <path d="M240,40 H270" fill="none" stroke="currentColor" marker-end="url(#arrow)"/>
+      <rect x="270" y="20" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
+      <text x="320" y="44" text-anchor="middle" class="chart-label">출력</text>
+    </svg>
     </div>
-    <div class="kpi">
-      <div class="kpi-value"><span class="num" data-src="kpis.1.value" data-fmt="pct1">29.2%</span></div>
-      <div class="kpi-sub">목표 <span class="num" data-src="kpis.1.sub_num" data-fmt="pct0">20%</span> 이하</div>
-      <div class="kpi-label">고아 비율</div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-value"><span class="num" data-src="kpis.2.value" data-fmt="num1">3.4</span></div>
-      <div class="kpi-sub">목표 <span class="num" data-src="kpis.2.sub_num" data-fmt="num1">4.0</span>일 이내</div>
-      <div class="kpi-label">평균 처리일</div>
-    </div>
-  </div>
+    <figcaption>이 그림은 입력이 변환을 거쳐 출력에 이르는 순서를 보여준다.</figcaption>
+  </figure>
 
-  <div class="chips" id="team-chips" role="group" aria-label="팀 필터">
-    <button type="button" aria-pressed="false" data-team="A팀">A팀</button>
-    <button type="button" aria-pressed="false" data-team="B팀">B팀</button>
-    <button type="button" aria-pressed="false" data-team="C팀">C팀</button>
-  </div>
-
-  <div class="table-wrap">
-    <table id="team-table">
-      <caption>팀별 처리 현황 — 칩을 눌러 특정 팀만 강조한다</caption>
-      <thead>
-        <tr><th>팀</th><th class="ta-r">처리 건수</th><th class="ta-r">완료율</th></tr>
-      </thead>
-      <tbody>
-        <tr data-team="A팀">
-          <td>A팀</td>
-          <td class="ta-r"><span class="num" data-src="teams.0.count" data-fmt="int">612</span></td>
-          <td class="ta-r"><span class="num" data-src="teams.0.rate" data-fmt="pct1">88.4%</span></td>
-        </tr>
-        <tr data-team="B팀">
-          <td>B팀</td>
-          <td class="ta-r"><span class="num" data-src="teams.1.count" data-fmt="int">448</span></td>
-          <td class="ta-r"><span class="num" data-src="teams.1.rate" data-fmt="pct1">76.1%</span></td>
-        </tr>
-        <tr data-team="C팀">
-          <td>C팀</td>
-          <td class="ta-r"><span class="num" data-src="teams.2.count" data-fmt="int">780</span></td>
-          <td class="ta-r"><span class="num" data-src="teams.2.rate" data-fmt="pct1">91.2%</span></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <!-- 시각화 슬롯. 형태는 conventions/24-explainer-docs.md §3 의 트리거 표와 보여 줄 메커니즘에서 정한다;
+       explainer-gallery.html 은 같은 메커니즘을 이미 그린 레시피가 있을 때 복사한다(레시피는 아래 EXPL 을 전제한다). -->
 </section>
 
 <section id="s03">
-  <h2><span class="num">03</span> 시각화 예시</h2>
-  <p>아래 4가지는 이 스킬이 다루는 시각화 형태의 최소 표본이다. 선택 기준("이럴 때 이 형태")은
-  각 소제목 위의 소스 주석에 있다. 더 많은 레시피는
-  <code>explainer-gallery.html</code>에 있다.</p>
-
-  <!-- 이럴 때 이 형태: 두 경로를 대조해 구조 차이를 보여줄 때 -->
-  <h3 id="viz-a">03-a. 구조 다이어그램</h3>
-  <figure>
-    <div class="chart-wrap">
-    <svg viewBox="0 0 470 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="정상 경로와 문제 경로 대조 다이어그램">
-      <defs>
-        <marker id="arrow-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
-        </marker>
-        <marker id="arrow-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="var(--neg)"/>
-        </marker>
-      </defs>
-      <text x="70" y="24" text-anchor="middle" class="chart-label">정상</text>
-      <rect x="20" y="40" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
-      <text x="70" y="64" text-anchor="middle" class="chart-label">수집</text>
-      <path d="M120,60 H180" fill="none" stroke="currentColor" marker-end="url(#arrow-ok)"/>
-      <rect x="180" y="40" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
-      <text x="230" y="64" text-anchor="middle" class="chart-label">참조 연결</text>
-      <path d="M280,60 H340" fill="none" stroke="currentColor" marker-end="url(#arrow-ok)"/>
-      <rect x="340" y="40" width="110" height="40" rx="6" fill="none" stroke="currentColor"/>
-      <text x="395" y="64" text-anchor="middle" class="chart-label">보관 완료</text>
-
-      <text x="70" y="124" text-anchor="middle" class="chart-label">문제</text>
-      <rect x="20" y="140" width="100" height="40" rx="6" fill="none" stroke="currentColor"/>
-      <text x="70" y="164" text-anchor="middle" class="chart-label">수집</text>
-      <path d="M120,160 H180" fill="none" stroke="var(--neg)" stroke-dasharray="4 3" marker-end="url(#arrow-bad)"/>
-      <rect x="180" y="140" width="110" height="40" rx="6" fill="var(--warn-soft)" stroke="var(--neg)"/>
-      <text x="235" y="164" text-anchor="middle" class="chart-label" fill="var(--neg)">참조 끊김</text>
-      <path d="M290,160 H340" fill="none" stroke="var(--neg)" stroke-dasharray="4 3" marker-end="url(#arrow-bad)"/>
-      <rect x="340" y="140" width="110" height="40" rx="6" fill="none" stroke="currentColor" stroke-dasharray="3 3"/>
-      <text x="395" y="164" text-anchor="middle" class="chart-label">고아 상태</text>
-    </svg>
-    </div>
-    <figcaption>이 그림은 참조가 끊기는 지점이 정상 경로의 어느 단계에 해당하는지 보여준다.</figcaption>
-  </figure>
-
-  <!-- 이럴 때 이 형태: 값 여러 개를 순위로 비교할 때 -->
-  <h3 id="viz-b">03-b. 순위 막대</h3>
-  <figure role="group" aria-labelledby="ranked-caption">
-    <div class="chart-wrap">
-      <svg id="chart-ranked" xmlns="http://www.w3.org/2000/svg"><text x="16" y="24" class="chart-note">이 그림은 스크립트가 켜져야 그려진다</text></svg>
-    </div>
-    <figcaption id="ranked-caption">이 그림은 항목별 값을 큰 순서로 보여준다. 막대에 초점을 두면 툴팁이 항목과 값을 읽어 준다.</figcaption>
-  </figure>
-
-  <!-- 이럴 때 이 형태: 임계값을 바꾸며 두 분포의 변화를 비교할 때. "조치 전/후"는 실제 비교 대상 이름으로 바꾼다 -->
-  <h3 id="viz-c">03-c. 슬라이더 히스토그램</h3>
-  <div class="wrap">
-    <div class="wctl">
-      <label for="threshold-slider">임계값</label>
-      <input type="range" id="threshold-slider" min="0" max="10" step="1" value="5">
-      <output id="threshold-out" for="threshold-slider">5</output>
-    </div>
-    <figure role="group" aria-labelledby="hist-caption">
-      <div class="chart-wrap">
-        <svg id="chart-hist" xmlns="http://www.w3.org/2000/svg"><text x="16" y="24" class="chart-note">이 그림은 스크립트가 켜져야 그려진다</text></svg>
-      </div>
-      <figcaption id="hist-caption">이 그림은 조치 전과 조치 후의 분포가 임계값을 기준으로 어떻게 나뉘는지 보여준다.</figcaption>
-    </figure>
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--series-a)"></span>조치 전</span>
-      <span><span class="swatch" style="background:var(--series-b)"></span>조치 후</span>
-    </div>
-    <p class="readout" id="hist-readout" aria-live="polite"></p>
-  </div>
-
-  <!-- 이럴 때 이 형태: 정형 카탈로그(막대/선/히스토그램)로 담기지 않는 개념을 기하로 번역할 때 -->
-  <!-- 정형 카탈로그가 내용을 못 담으면 같은 캡션·토큰·테마·접근성 계약 아래 맞춤 그림을 새로 설계하라;
-       더 많은 레시피는 explainer-gallery.html -->
-  <h3 id="viz-d">03-d. 맞춤 시각화 — 두 상품명 임베딩의 코사인 유사도를 각도로</h3>
-  <figure>
-    <div class="chart-wrap is-compact" style="max-width:380px">
-    <svg viewBox="10 35 280 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="두 벡터 사이의 각도">
-      <defs>
-        <marker id="arrow-vec" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
-        </marker>
-      </defs>
-      <!-- 정적 기하: explainer-data의 cosine.v1/cosine.v2로부터 계산한 좌표다. origin=(30,190),
-           scale=200, p=(origin.x + v[0]*scale, origin.y - v[1]*scale). 벡터를 바꾸면 이 좌표와
-           cosine.sim/cosine.angle_deg를 함께 갱신해야 한다. -->
-      <line x1="30" y1="190" x2="270" y2="190" stroke="currentColor" stroke-width="1"/>
-      <line x1="30" y1="190" x2="230" y2="190" stroke="currentColor" stroke-width="2" marker-end="url(#arrow-vec)"/>
-      <text x="236" y="190" class="chart-label">상품명 A</text>
-      <line x1="30" y1="190" x2="180" y2="60" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow-vec)"/>
-      <text x="186" y="60" class="chart-label" fill="var(--accent)">상품명 B</text>
-      <text x="90" y="170" class="chart-label"><tspan class="num" data-src="cosine.angle_deg" data-fmt="deg0">41°</tspan><tspan> · 유사도 </tspan><tspan class="num" data-src="cosine.sim" data-fmt="num2">0.76</tspan></text>
-    </svg>
-    </div>
-    <figcaption id="cosine-caption">이 그림은 두 상품명 임베딩 벡터 사이의 각도가 좁을수록 코사인 유사도(방향이 같은 정도)가
-    1에 가까워짐을 보여준다. 각도가 0°면 완전히 같은 이름 방향(유사도 1), 90°면 무관(유사도 0)이다.</figcaption>
-  </figure>
-</section>
-
-<section id="s04">
-  <h2><span class="num">04</span> 부록</h2>
+  <h2><span class="num">03</span> 부록</h2>
   <p class="appendix-slot">[참고 자료, 원본 데이터 위치, 변경 이력처럼 본문 흐름을 끊지 않고
   깊이를 더하는 내용을 여기에 둔다.]</p>
 </section>
@@ -445,30 +303,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
 <script type="application/json" id="explainer-data">
 {
   "metrics": {
-    "orphan_rate": 0.292
-  },
-  "kpis": [
-    { "value": 1840, "sub_num": 0.12 },
-    { "value": 0.292, "sub_num": 0.20 },
-    { "value": 3.4, "sub_num": 4.0 }
-  ],
-  "teams": [
-    { "name": "A팀", "count": 612, "rate": 0.884 },
-    { "name": "B팀", "count": 448, "rate": 0.761 },
-    { "name": "C팀", "count": 780, "rate": 0.912 }
-  ],
-  "ranked": [
-    { "label": "항목 A", "value": 842 },
-    { "label": "항목 B", "value": 611 },
-    { "label": "항목 C", "value": 405 },
-    { "label": "항목 D", "value": 198 }
-  ],
-  "hist": {
-    "bins": [0,1,2,3,4,5,6,7,8,9,10],
-    "before": [2,5,9,14,18,20,17,11,6,3,1],
-    "after": [1,3,6,10,15,19,20,15,9,4,2]
-  },
-  "cosine": { "v1": [1, 0], "v2": [0.75, 0.65], "sim": 0.7556890827898175, "angle_deg": 40.91438322002513 }
+    "example_rate": 0.292
+  }
 }
 </script>
 
@@ -693,98 +529,6 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
       else document.documentElement.dataset.theme = next;
       btn.textContent = labels[next];
     });
-  })();
-
-  // 팀 표 칩 필터 (dim non-matching) — 행 자체는 정적 마크업이라 JS 없이도 보인다.
-  (function(){
-    var chips = document.querySelectorAll("#team-chips button");
-    var rows = document.querySelectorAll("#team-table tbody tr");
-    chips.forEach(function(chip){
-      chip.addEventListener("click", function(){
-        var wasPressed = chip.getAttribute("aria-pressed") === "true";
-        chips.forEach(function(c){ c.setAttribute("aria-pressed", "false"); });
-        if (!wasPressed) chip.setAttribute("aria-pressed", "true");
-        var active = wasPressed ? null : chip.dataset.team;
-        rows.forEach(function(row){
-          row.classList.toggle("dim", !!active && row.dataset.team !== active);
-        });
-      });
-    });
-  })();
-
-  // 03-b. 순위 막대 (런타임에 JSON에서 렌더링) · 전제: EXPL.renderBarsH
-  (function(){
-    var svg = document.getElementById("chart-ranked");
-    if (!svg) return;
-    var ranked = (get("ranked", svg) || []).slice().sort(function(a, b){ return b.value - a.value; });
-    EXPL.renderBarsH("chart-ranked", ranked, { fmt: "int" });
-  })();
-
-  // 03-c. 슬라이더 히스토그램
-  (function renderHist(){
-    var svg = document.getElementById("chart-hist");
-    var slider = document.getElementById("threshold-slider");
-    var out = document.getElementById("threshold-out");
-    var readout = document.getElementById("hist-readout");
-    if (!svg || !slider || !readout) return;
-    var h = get("hist", svg);
-    if (!h) return;
-    var w = 640, ht = 220, top = 24, left = 44, bottom = 30;
-    svg.setAttribute("viewBox", "0 0 " + w + " " + ht);
-    var n = h.bins.length;
-    var bw = (w - left - 20) / n;
-    var maxV = Math.max.apply(null, h.before.concat(h.after));
-    slider.min = h.bins[0]; slider.max = h.bins[n - 1];
-    function scaleY(v){ return (ht - bottom) - (v / maxV) * (ht - top - bottom); }
-    // 임계값 이하인 마지막 구간의 인덱스. 임계선과 누적 판독이 같은 기준을 쓰도록 여기서만 계산한다
-    // (구간이 0..n-1 정수가 아니어도 맞는다).
-    function binIndex(th){
-      var i = 0;
-      while (i < n - 1 && h.bins[i + 1] <= th) i++;
-      return i;
-    }
-    // 임계선은 해당 구간과 다음 구간 사이의 빈틈에 긋는다: 선 왼쪽이 "이하"다.
-    function thresholdX(th){ return left + (binIndex(th) + 1) * bw; }
-    function draw(){
-      if (tipOwner && svg.contains(tipOwner)) hideTip();
-      svg.innerHTML = "";
-      h.before.forEach(function(v, i){
-        var x = left + i * bw + bw * 0.07;
-        var bar = svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-a)", tabindex: "0", role: "img" });
-        svg.appendChild(bar);
-        wireTip(bar, "조치 전 · 구간 " + h.bins[i] + ": " + fmt("int", v));
-      });
-      h.after.forEach(function(v, i){
-        var x = left + i * bw + bw * 0.51;
-        var bar = svgEl("rect", { x: x, y: scaleY(v), width: bw * 0.42, height: (ht - bottom) - scaleY(v), rx: 2, fill: "var(--series-b)", tabindex: "0", role: "img" });
-        svg.appendChild(bar);
-        wireTip(bar, "조치 후 · 구간 " + h.bins[i] + ": " + fmt("int", v));
-      });
-      axes(svg, { x0: left, y0: top, w: w - left - 20, h: ht - top - bottom, yMax: maxV, yTicks: 4, xLabels: h.bins.map(String) });
-      var th = parseFloat(slider.value);
-      out.textContent = String(th);
-      var thx = thresholdX(th);
-      svg.appendChild(svgEl("line", { x1: thx, y1: top, x2: thx, y2: ht - bottom, stroke: "var(--neg)", "stroke-width": "2" }));
-      var right = thx > w / 2;
-      var lbl = svgEl("text", { x: thx + (right ? -4 : 4), y: 14, "text-anchor": right ? "end" : "start", class: "chart-label", fill: "var(--neg)" });
-      lbl.appendChild(document.createTextNode("임계값 "));
-      var lblNum = svgEl("tspan", { class: "chart-value num" });
-      lblNum.textContent = String(th);
-      lbl.appendChild(lblNum);
-      svg.appendChild(lbl);
-    }
-    function updateReadout(){
-      var th = parseFloat(slider.value);
-      var idx = binIndex(th);
-      var beforeLeft = h.before.slice(0, idx + 1).reduce(function(a, b){ return a + b; }, 0);
-      var afterLeft = h.after.slice(0, idx + 1).reduce(function(a, b){ return a + b; }, 0);
-      readout.textContent = "임계값 " + th + " 이하 구간의 누적 건수는 조치 전 " +
-        fmt("int", beforeLeft) + "건, 조치 후 " + fmt("int", afterLeft) + "건이다.";
-    }
-    slider.addEventListener("input", draw);
-    slider.addEventListener("change", updateReadout);
-    draw();
-    updateReadout();
   })();
 
   document.addEventListener("DOMContentLoaded", verifyNumbers);
