@@ -38,7 +38,7 @@ One question at a time. For each:
 - **Change the angle per axis.** Running every axis through the same "pick A or B, here's the cost" shape reads as one question asked twice. Frame each from what actually differs about it — a failure scenario for one, a user-visible difference for another, a cost-if-wrong for a third.
 - If the user cannot answer, say what you would choose and why, and record it as an assumption with the cost of being wrong.
 
-Settle the done level in the interview (→ 18 §3); it decides how deep the plan is challenged. The plan presented in plan mode carries the review points table 18 requires. Inside plan mode, before `ExitPlanMode`, run the plan lane with read-only agents at that depth (→ 20 §2) and fix what it finds in the plan text; the pre-approval row's exit is filled before the plan is shown.
+Settle the done level in the interview (→ 18 §3); it decides how deep the plan is challenged. The plan presented in plan mode carries the review points table 18 requires. Inside plan mode, before `ExitPlanMode`, run the plan lane with read-only agents at that depth (→ 20 §2) and fix what it finds in the plan text; every pre-approval row's exit is filled before the plan is shown.
 
 ## 3. Write the artifacts
 

@@ -298,7 +298,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Specify by interview, not by template. Derive the axes from this project: infer from the request and the repository, check once for what recent practice adds, then keep only those naming a way this project could fail. Keep the list open during the interview and record each axis's state — that record is the only account of what was never asked.
 - Challenge the plan before asking for its approval, at the depth the done level sets; the plan is shown only once that round has closed.
 - Split as far as disjoint file ownership allows, and freeze every boundary with a contract test written **before** the lanes start, owned by no lane. Store its representative payload as a sample file and have the factory load it; separate files do not stop two lanes holding contradictory assumptions about what crosses between them.
-- Review a lane the moment that lane finishes, not when all of them do. Send findings back to the lane that wrote the code and re-review; end on no blockers, on most findings coming from the previous fix (change the approach), or on a runaway cap that calls a person.
+- Review a lane the moment that lane finishes, not when all of them do. Send findings back to the lane that wrote the code and re-review; end on no blockers, on most findings coming from the previous fix (change the approach), or on the round cap that calls a person.
 - Merge a lane only after its criteria pass and run the integration lane last; then review the merged whole for the seams unit reviews cannot see, and verify the assembled project end to end before claiming completion.
 
 ### Work Contract
