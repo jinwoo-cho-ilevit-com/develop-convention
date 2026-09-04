@@ -84,7 +84,7 @@ Trained-and-served-by-you models are the group above; this one is everything you
 
 | Doc | Contents |
 |---|---|
-| [24-explainer-docs.md](conventions/24-explainer-docs.md) | Human-facing explanatory deliverables: term glossing, mechanism over name-drop, one example per concept, visualization triggers (structure/quantities/concept), fresh-reader sizing test, self-contained HTML artifacts started from the shipped skeleton, static numbers checked against embedded data |
+| [24-explainer-docs.md](conventions/24-explainer-docs.md) | Human-facing explanatory deliverables: term glossing, mechanism over name-drop, one-sentence definition opening each mechanism, one analogy carried through the document, one example per concept, visualization triggers (structure/quantities/concept), fresh-reader sizing test, self-contained HTML artifacts started from the shipped skeleton, static numbers checked against embedded data |
 
 Doc tracking keeps reference docs matching the code; this group is the other genre — documents whose product is a person's understanding.
 
@@ -344,6 +344,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - An explainer — report, guide, tutorial, HTML artifact, anything whose product is a person's understanding — is judged against its intended reader. Code-adjacent docs (AGENTS.md/ARCHITECTURE.md) are the other genre and stay lean.
 - Gloss every term the intended reader wouldn't know at first use. Never name a methodology without its mechanism — what it does and why it solves this problem, or what breaks without it; "uses X" alone is a violation.
 - Pair every non-obvious concept with one concrete example: an input→output pair, a before/after, or a scenario.
+- Open every mechanism section with a one-sentence definition in words the reader already has; if it cannot be written, the section waits. Choose one analogy for the document's central contrast and carry it through every section that touches it — a second analogy only for what the first cannot carry.
 - Visualize by what is shown: structure → diagram (Mermaid in markdown, inline SVG or Mermaid in HTML); 3+ quantities, a trend, or a distribution → table plus one sentence, or an inline SVG chart in HTML; a concept text cannot carry → HTML only, with the same explanation in text. Single facts stay prose; a visual that cannot be introduced as "this shows X" in one sentence is decoration and gets cut.
 - Size by the fresh-reader test, not word count: the intended reader can re-explain each mechanism and act without follow-up questions — and nothing longer. Layer as summary → body with examples → deep detail.
 - HTML explainers ship as one self-contained file: no external network dependencies, both themes legible, diagrams inline, text selectable and greppable — and flow body content as one column of readable line length, sections in reading order, with no fixed sidebars (the table of contents goes inline at the top; two small figures may sit side by side). Before shipping, an explainer passes the fresh-reader review lane.

@@ -22,9 +22,10 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 ## Order
 
+0. **Explain in the conversation before drafting.** Give the reader the explanation as a reply first — the opening sentence of each mechanism and the one analogy the document will carry — and only once that reply is understood is it turned into the document. The document is written from the explanation that worked, not the other way round; 24 names what the explanation must contain.
 1. **24 before drafting.** The layer structure is a decision made before the first paragraph, not a repair after it.
 2. **24 again when a visual is considered.** The trigger decides whether it exists; the medium decides its form.
-3. **20 before shipping.** An explainer's review is the fresh-reader lane — [verify-and-review](../verify-and-review/SKILL.md) routes it.
+3. **20 before shipping — run the lane, do not imagine it.** Hand the finished document, and nothing else, to a reviewer with no author context (a fresh subagent, or a colleague) with the intended reader named, and ask for the re-explanations and the unglossed-term list 20 specifies; fix what comes back and republish once. [verify-and-review](../verify-and-review/SKILL.md) routes the lane.
 
 ## Starting point
 

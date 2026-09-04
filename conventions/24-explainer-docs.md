@@ -17,6 +17,8 @@ This document governs deliverables whose product is a person's understanding —
 - Set numeric runs in a monospace face with tabular figures, so digits align vertically across rows; Korean-language labels and table headers stay in the body face.
 - Start an HTML explainer from the shipped skeleton ([explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html)) — using its design tokens and structure is the evidence of having started there; usage samples of its component classes and of the interactive-figure accessibility idiom live in the gallery. Design each visual from the trigger table (§3) and the mechanism it must show, under the skeleton's caption, theme, and accessibility contract; the gallery beside it ([explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html)) is consulted only for a recipe that already draws that mechanism, never browsed for a form to fit the content to.
 - Before an explainer ships, run it through the fresh-reader review lane ([20-review-gate.md](20-review-gate.md) §2): a reviewer with no author context reads the document alone.
+- Open every mechanism section with a one-sentence definition: a single sentence saying what the mechanism does, in words the intended reader already has, before any detail or formula. If that sentence cannot be written, the author does not yet understand the mechanism well enough to explain it, and the section waits until it can be.
+- Choose one concrete analogy for the document's central contrast and carry it through every section that touches that contrast — the same characters, the same objects — so later sections build on the picture the reader already holds. A second analogy is added only for a concept the first cannot carry, never as variety.
 
 ## Details
 
@@ -77,3 +79,31 @@ An HTML explainer is the same genre in a rendering that must survive being hande
 The plugin ships two HTML files beside the explainer-docs skill: [explainer-skeleton.html](../skills/explainer-docs/explainer-skeleton.html), the file a new explainer is copied from, and [explainer-gallery.html](../skills/explainer-docs/explainer-gallery.html), a browsable catalog of visualization recipes. The skeleton carries the structure, tokens, component classes, the shared script infrastructure (`window.EXPL`), and one topic-neutral figure as the idiom sample — no subject content, so a copy is designed from the subject rather than filled in. The gallery's recipes assume that infrastructure and are pasted into a skeleton copy. The decisions the files embody are commented inside them, which travel with every copy; this section does not restate them.
 
 One decision is anchored here because it interprets §5: body figures are static text checked against the embedded data block, not rendered by script. A figure that exists only after JavaScript runs is invisible to grep, copy, and script-blocked viewers — the failures "text stays text" exists to prevent — while a load-time check that only flags divergence, never rewriting the text, preserves those guarantees and still ties every figure to its source field. Interactive charts are the one runtime exception; a filterable table keeps its rows static and lets script toggle visibility only.
+
+### 7. Definition first, analogy throughout
+
+A mechanism section that opens with a name and moves straight into detail leaves the reader assembling the definition from fragments, and a reader who cannot assemble it has nothing to hang the detail on. The opening sentence is also the cheapest check the author can run on themselves: it can only be written once the mechanism is understood.
+
+Violation (opening sentence of a caching section):
+
+> The service uses an LRU cache in front of the product lookup.
+
+Compliant:
+
+> An LRU cache keeps the most recently used items and, when full, drops the one untouched longest — so a product looked up twice in a row is served from memory the second time instead of from the database.
+
+The compliant opening is one sentence and a reader with no cache background can repeat it. A draft that can say only "the router uses consistent hashing" and nothing more is a draft whose author has not yet understood consistent hashing well enough to write the section; the fix is to understand it, not to pad the sentence.
+
+An analogy is the same commitment held across the whole document. Once the reader has accepted one concrete picture for the document's central contrast, every later section that touches that contrast should reuse it — the same characters, the same objects — because a picture reused is one the reader already holds, while a picture swapped is one more thing to load.
+
+Violation (message-queue guide, §2 then §5):
+
+> §2: Think of the broker as a post office: producers drop letters, consumers collect from their box.
+> §5: The dead-letter queue is like a conveyor belt that shunts jammed parcels off to the side.
+
+Compliant:
+
+> §2: Think of the broker as a post office: producers drop letters, consumers collect from their box.
+> §5: The dead-letter queue is the post office's return shelf: a letter that could not be delivered after the allowed attempts goes there instead of back into the box.
+
+In the compliant version §5 costs the reader nothing new. A second analogy is introduced only when the first genuinely cannot carry a concept, and then it is introduced as such — "the post office has no picture for this; think instead of …" — not slipped in as variety.
