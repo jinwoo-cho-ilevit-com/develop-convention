@@ -21,6 +21,7 @@ Every change goes through a review that its author did not perform. This documen
 - A review terminates on evidence, not on output: confirmed blocker-severity findings are fixed and re-reviewed by the lane that raised them, and the remainder is reported with the completion evidence. Producing a findings list is not completing a review.
 - Send a lane review's findings back to the agent that wrote the code, in the tree it already has, and end the fix-and-recheck loop — the merged-whole round included — three ways: no blocker remains, or most of this round's findings are defects the previous round's fix introduced — stop and change the approach — or the round cap is reached, which calls a person rather than declaring the lane done. Ask each reviewer to mark whether a finding came from the previous fix; that mark is what makes the second exit measurable. The three exits and why round count is not one of them are in §3.
 - Run at least one lane on a different vendor's model family. Where only one family is reachable, record that in the review report rather than dropping the lane.
+- At the plan and merged-whole points, at the depth [18-work-contract.md](18-work-contract.md) §3 sets, run a Claude Code reviewer lane and Path A (Codex plugin) in parallel rather than choosing one by cadence — running the same input past two vendors is what §2's diversity rule asks for, and these two points are where that cost is worth paying. Substitute Path B (Cursor CLI) for the point only on an enumerated Path A failure — login failure or rate limit, not disagreement with its verdict — and pick its family different from the Claude Code lane's, since Path A did not run to be the reference. Record which tool(s) answered as a combined value in that point's review-points row (e.g. "Claude + Codex", or "Claude + Cursor" on substitution), in the review report. While the plan is being written, ask the user which cursor-agent tier to use if Path B ends up substituting at either point — regardless of whether it does — and record the answer in the plan.
 
 ## Details
 
@@ -49,7 +50,7 @@ A lane is defined by its **input**, not by its attitude. Telling three reviewers
 
 - **The absence lane's job is what is missing.** Scope it away from re-reading the changed lines, or it degrades into a second module lane. It needs a stated requirement to measure absence against; when the work carried no written plan, write the task statement down before dispatching.
 - **Lanes stay independent.** No lane receives another lane's output, and none receives the author's reasoning.
-- **Diversify the vendor, not the persona.** Personas layered on one model share that model's blind spots. Give the different-vendor lane the module role by default — its input is just the diff, which carries across tools cleanly.
+- **Diversify the vendor, not the persona.** Personas layered on one model share that model's blind spots. Give the different-vendor lane the module role by default — its input is just the diff, which carries across tools cleanly. At the plan and merged-whole points (§4), the diversity requirement is met directly by running Path A alongside the Claude Code lane instead.
 - **The fresh-reader lane judges the document, not the work.** Handing it the code or the author's notes defeats it: the lane would fill comprehension gaps from material the real reader will not have, and the verdict stops measuring the document.
 
 ### 3. Fan-in
@@ -78,7 +79,7 @@ Round count is not an exit condition. One loop here ran eleven rounds without co
 
 ### 4. Review tools
 
-Choose before development starts. A single-lane review uses one path; a multi-lane review mixes both so not every lane shares a vendor.
+Choose before development starts. Outside the two fixed points below, a single-lane review uses one path; a multi-lane review mixes both so not every lane shares a vendor.
 
 **Path A — Codex plugin (inside the development session).** With the Stop review gate on (`/codex:setup --enable-review-gate`), an automatic `ALLOW`/`BLOCK` review runs at the end of every turn that changed code, using whatever model the Codex CLI is configured with. After the work is complete, `/codex:review` (standard) and `/codex:adversarial-review` (design-adversarial) are available. The plugin returns the review verbatim and does not auto-fix, so the orchestrator reads and applies it.
 
@@ -87,6 +88,8 @@ Choose before development starts. A single-lane review uses one path; a multi-la
 - **Do not pin a model id in this document.** Lineups turn over faster than the doc is revised, and a pinned id fails closed: the command errors and the lane simply does not run. Resolve the id at use time with `cursor-agent models` (also `--list-models`, or `/models` interactively), then pick by role — the highest reasoning tier for depth, the cheapest tier that still reads a diff for speed, and a family *different* from Path A's for diversity.
 - Always run reviews read-only. Never use `-p` alone: it opens writes and shell access, letting the reviewer modify what it is inspecting.
 
-The two paths draw on separate quotas, so give them separate jobs rather than ranking them — Path A as the frequent cheap gate during development, Path B as the deeper pass at the end. When one is exhausted, the other keeps its own role rather than absorbing both.
+**The plan and merged-whole points, at the depth 18 §3 sets, run both instead of picking one by cadence.** Dispatch a Claude Code reviewer lane (no author context, per §1) alongside Path A at each of these two points — the redundancy is what §2's vendor-diversity rule already asks for, so it pays for itself only here. Substitute Path B for the point only on an enumerated Path A failure — login failure or rate limit, not disagreement with its verdict — and pick its family different from the Claude Code lane's, since Path A did not run to be the diversity reference. Record which tool(s) actually answered as a combined value next to that point's row (e.g. "Claude + Codex", or "Claude + Cursor" on substitution), in the review report (→ [18-work-contract.md](18-work-contract.md)). Because Path B's model is resolved at use time rather than pinned (above), ask the user for the cursor-agent tier while the plan is being written — regardless of whether the substitution ends up happening — and write the answer into the plan.
+
+For every other lane, the two paths draw on separate quotas, so give them separate jobs rather than ranking them — Path A as the frequent cheap gate while a lane is still being developed, Path B as the deeper pass once that lane's own review runs. When one is exhausted, the other keeps its own role rather than absorbing both.
 
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Cursor — headless CLI](https://cursor.com/docs/cli/headless)

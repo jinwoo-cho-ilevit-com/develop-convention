@@ -83,7 +83,7 @@ The upper-right cell is what a size-only rule misses: a one-line change to a pub
 
 Evidence sits outside the dial deliberately. If it were a property of the higher levels, "this is only `auto`" would become the way to skip it.
 
-There is no separate planning-depth setting. How hard a plan is challenged follows the done level, at the two points [20-review-gate.md](20-review-gate.md) §2 fixes by time: `auto` skips both, `reviewed` runs the point's lane once, `proven` runs it twice. A second dial would only be another thing to under-report.
+There is no separate planning-depth setting. How hard a plan is challenged follows the done level, at the two points [20-review-gate.md](20-review-gate.md) §2 fixes by time: `auto` skips both, `reviewed` runs the point once, `proven` runs it twice — a run being the parallel Claude-plus-Path-A pair [20-review-gate.md](20-review-gate.md) §4 dispatches at each point, not a per-tool count. A second dial would only be another thing to under-report.
 
 ### 4. Changing and closing a contract
 
