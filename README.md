@@ -200,14 +200,14 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ## Full Rule Summary (for Agent Injection)
 
-### Principles
+### Principles ([00](conventions/00-principles.md))
 
 - New development/refactoring starts from requirements and behavior (the spec), not from existing structure, comments, or memory.
 - Don't judge from prior knowledge. Verify library/API/model facts as of the current time via context7, web search, or HuggingFace before applying them.
 - Perform review/rewrites in a fresh context (a separate subagent/session), and claim completion only with execution evidence. Keep the author separate from the verifier.
 - Lock in existing behavior with a characterization test before rewriting. Claim performance/productivity improvements only with empirical measurement.
 
-### Structure & Naming
+### Structure & Naming ([01](conventions/01-structure-naming.md))
 
 - Separate by module/feature, with clear input/output contracts. Keep files small and boundaries clear.
 - Fit the structure to the design, not the design to the structure: when integrating a new module, restructuring the surrounding project is preferred over force-fitting — behavior pinned by tests, structural moves in separate commits.
@@ -218,35 +218,35 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Minimize emoji in docs, and use none at all in code comments: allow one only where the symbol is the data (a defined legend), never as decoration on headings or bullets. Write status as words (`OK`/`FAILED`/`TODO`) so it stays greppable.
 - Write non-ASCII text as literal UTF-8 wherever it lands — tool-call JSON parameters, file content, serialized JSON — never as `\uXXXX` escapes; in code, `json.dumps(..., ensure_ascii=False)` for output humans or agents read. Exempt: escapes JSON itself requires, and code/fixtures where the escape is the point.
 
-### Config
+### Config ([02](conventions/02-config.md))
 
 - Absolutely no hardcoding — paths/hyperparameters/constants all live in central config. Compose them as groups along independent axes and fail-fast with type validation.
 - Do ablations via config combinations only, without code changes. Every run saves its resolved config + git hash to the output directory.
 
-### Environment
+### Environment ([03](conventions/03-environment.md))
 
 - uv (commit uv.lock) + ruff + pre-commit/CI. Dev tools go in `[dependency-groups]`.
 - Runs identically on local (macOS/CPU/MPS) and a remote GPU host (Linux, CUDA) without modification — via uv platform markers or `--torch-backend=auto`.
 - Select the device only through a single helper (based on `torch.accelerator`) — no inline `.cuda()`. Must be runnable and testable on CPU when no GPU is available.
 
-### Secret Management
+### Secret Management ([13](conventions/13-secret-management.md))
 
 - Never hardcode secrets in code, config, logs, or images; never commit a plaintext `.env` (`.gitignore` + `.env.example` lists keys only). The single source of truth is a central secret manager (Infisical recommended).
 - Supply secrets to local, CI, and container environments alike via runtime injection (`infisical run -- <cmd>`), with no plaintext left on disk. Where an artifact on disk must be restricted, restrict every file carrying the content — a sidecar at `0600` beside its data at `0644` reads as protected and is not. Code reads secrets as env vars as usual (`os.environ[...]`). Coding agents follow the same rule, and in a session whose transcript an AI or a log retains they never run commands that print secret values (`infisical export`, `infisical secrets`) or dump the environment (`env`, `printenv`, `echo $KEY`).
 - Containers/CI authenticate via machine identity (Universal Auth) with least privilege and short-lived tokens. Separate environments (dev/staging/prod) + rotate + scan with gitleaks (pre-commit/CI). Immediately rotate and reissue any secret that was already committed.
 
-### Pipeline
+### Pipeline ([04](conventions/04-pipeline.md))
 
 - Every stage supports a `--limit N` small-sample run + input/output dump. Do a small-sample dry-run before the full run.
 - Save intermediate results per chunk + resume (skip completed portions). Save atomically via temp→`os.replace`. Stream large volumes — no loading everything into memory.
 - Long-running tasks show tqdm/rich progress + log processing throughput.
 
-### Performance
+### Performance ([05](conventions/05-performance.md))
 
 - CPU-bound → multiprocessing, IO-bound → asyncio. Identify bottlenecks with profiling first.
 - Log per-stage GPU utilization/VRAM/RAM/CPU + throughput as structured (JSON) logs.
 
-### Testing & Verification
+### Testing & Verification ([06](conventions/06-testing-verification.md))
 
 - Three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests through the project's real entry point. Only the third catches integration failures.
 - An end-to-end test enters where a user or CI enters, mocks no module of your own, runs on a small sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order. An isolated lane cannot hold this layer, so it belongs to the integration step after the merge rather than to a lane.
@@ -259,18 +259,30 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such. A test for code that already works has no red to observe — verify it by sabotage: break the behaviour it pins, watch it fail, revert.
 - Every fixed bug gains exactly one regression test, and the fix is checked against the defect's siblings on neighbouring paths before it closes. Assert ML metrics with a tolerance band; update golden files only via an explicit flag. CI smoke-tests GPU paths on CPU with small samples. TODOs/stubs/skips are blockers, not completion.
 
-### AI/ML
+### AI/ML ([07](conventions/07-ml-development.md))
 
 - Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); verify skew with sample replay.
 - Every run is logged to an experiment-tracking tool (Trackio by default; MLflow when self-hosting is a strong requirement) along with its config + commit. Save last-N + best + milestone checkpoints to a network volume/HF Hub. Design training to assume interruption (resumable).
 
-### LLM
+### LLM ([08](conventions/08-llm-development.md))
 
 - Route frameworks by use case (single GPU → Unsloth/TRL, multi-GPU reproducibility → Axolotl, RL → TRL+vLLM, pretraining → torchtitan). torchtune is no longer actively maintained — do not adopt it for new work. FSDP2 + bf16 by default.
 - Chat templates use `apply_chat_template` as the single source; golden-test string identity between training and inference; specify sampling parameters explicitly in config.
 - Evaluation records even the harness/task version, fewshot count, and whether a template was applied. Judges use bidirectional ordering + cross-family + length-aware rubrics.
 
-### LLM API Inference
+### Framework Wrapping ([22](conventions/22-framework-wrapping.md))
+
+- Test code that drives someone else's training framework through a layer that imports the real package; a double encodes your reading of the source and can never contradict you.
+- Shrink the fixture's expensive dimension and keep its structure (config-only tiny model, random weights, the real artifact's identifiers), run it inside the image that ships the framework with your code mounted over the installed copy, and judge with the production gate function rather than a copy.
+- Write every deviation the fixture forces into the code at the deviation, state what the layer cannot catch and keep that on the expensive hardware, and make each double able to express the asymmetry it claims to catch.
+
+### Remote GPU Iteration ([23](conventions/23-remote-gpu-iteration.md))
+
+- Keep the loop free of image rebuilds and git round trips: the image supplies dependencies, the working tree reaches the remote by direct sync.
+- Every training/evaluation entry point has a `--smoke` mode (real tokenizer, config-only tiny model, a handful of samples, one or two steps, local CPU/MPS) and passing it is the precondition for occupying a GPU; what smoke switches off is recorded as 22 requires of fixture deviations.
+- Open every entry point with a preflight that runs before the model or dataset loads (config, first-batch schema, one decoded batch for label masking, output-path writability). Reproduce a remote failure locally by replaying the failing stage on its dumped input.
+
+### LLM API Inference ([10](conventions/10-llm-api-inference.md), [11](conventions/11-llm-api-providers.md), [12](conventions/12-upstream-docs.md))
 
 - Provider abstraction is a thin native SDK adapter + a pure payload builder (testable without network access). "OpenAI-compatible" covers only the wire format — capability/schema/error/token mapping is isolated per provider.
 - Cap concurrency per model + adaptively control it based on rate-limit headers. Classify errors as typed exceptions, keep a single owner for retries, and retry ensembles per member. Log failed tasks as error rows and keep the batch running.
@@ -278,7 +290,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Response caching is dev/debug-only. Resume must verify a fingerprint (spec+seed+data+prompt). No hardcoding prices/model names — pin dated snapshots, log tokens+cost per row, and cap the budget.
 - Before writing provider API code, fetch and check the official docs from the canonical URL registry. For SDK usage, prefer the provider's official skill over ctx7; for exceptions/signatures, use the installed SDK source; confirm behavior not in the docs with an empirical smoke test.
 
-### Agentic Workflow
+### Agentic Workflow ([09](conventions/09-agentic-workflow.md))
 
 - Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills. Keep instruction anti-patterns out of them too: verification rituals, thoroughness boosters, redundant procedures/scratchpads, stale long-reasoning examples, contradictory rules, and dated configuration all cost tokens on current models without adding capability.
 - Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §4) rather than restarting everything; assign locks/migrations to a single owner. Confirm a subagent answered with content, not merely that it finished.
@@ -286,13 +298,13 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - A merged lane is a closed lane: remove its worktree and delete its branch (`git worktree remove` without `--force`, `git branch -d` never `-D` — refusals are safety signals). Halted lanes keep theirs; fix rounds resume there.
 - Write heavyweight spec documents only when they are an asset shared across PRs or workers; small or exploratory work uses lightweight iteration.
 
-### Context Management
+### Context Management ([14](conventions/14-context-management.md))
 
 - The main context is the orchestrator — keep only conclusions, and delegate exploration/search/large reads to subagents (separate context windows), receiving only summaries back. Don't sweep directories or read large files whole in the main context. Dispatch independent work in parallel, and run long-running work in the background.
 - Keep the source of truth in files, not the conversation — persist plans/decisions/progress to external files and checkpoint at every milestone. Keep durable rules/facts in CLAUDE.md (loaded every session, re-injected after compaction) and in auto memory (survives `/clear`, but it is a setting that can be off — check before relying on it).
 - Only the root CLAUDE.md and auto memory (when enabled) reliably survive a context reset; the conversation does not. Use `/compact <focus>` before it triggers automatically, `/clear` between unrelated tasks, and re-check git status, cwd, and state artifacts right after any resume.
 
-### Development Loop
+### Development Loop ([21](conventions/21-development-loop.md))
 
 - The main session orchestrates and does not develop — it interviews, splits, judges, and delegates every edit to a subagent. Reading a large file there costs the same budget an edit would.
 - Specify by interview, not by template. Derive the axes from this project: infer from the request and the repository, check once for what recent practice adds, then keep only those naming a way this project could fail. Keep the list open during the interview and record each axis's state — that record is the only account of what was never asked.
@@ -301,7 +313,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Review a lane the moment that lane finishes, not when all of them do. Send findings back to the lane that wrote the code and re-review; end on no blockers, on most findings coming from the previous fix (change the approach), or on the round cap that calls a person.
 - Merge a lane only after its criteria pass and run the integration lane last; then review the merged whole for the seams unit reviews cannot see, and verify the assembled project end to end before claiming completion.
 
-### Work Contract
+### Work Contract ([18](conventions/18-work-contract.md))
 
 - Write the contract before development starts and freeze it during execution. Record changes with a kind (additive/narrowing/breaking); an additive change that touches no existing criterion or ownership boundary updates only the affected lane.
 - A plan shown for approval carries a review points table, and no row of it is left without an exit at approval or at completion.
@@ -314,7 +326,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. Absence criteria almost always are.
 - Give every lane a disjoint set of owned paths — directory prefixes where the work divides that way, cross-cutting files named individually with one owner each, since a prefix rule cannot assign a README or an ignore file. When several kinds of change land in the same documents, slice by file rather than by phase. Assign lock files, migrations, and generated files to a single owner. Record model tier and effort level per lane, never a model id.
 
-### Evidence
+### Evidence ([19](conventions/19-evidence.md))
 
 - Report completion as the criteria table plus the output the commands produced — no narrative summary. Prose is where a hallucinated completion hides.
 - Fill the table as each criterion turns green, not at the end, and paste what the command printed rather than describing it. Record status as a word (`PASS`/`FAIL`/`PENDING-HUMAN`/`NO-BASELINE`), never a symbol.
@@ -322,7 +334,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Block completion on `PENDING-HUMAN` at every done level; a human criterion passes only once a verdict, its author, and its timestamp are recorded.
 - Name the commit and whether the tree was clean. Record every bypass with its reason — a skipped gate and a passed gate must never look alike in the record.
 
-### Review Gate
+### Review Gate ([20](conventions/20-review-gate.md))
 
 - Every change goes through a review its author did not perform, on a tool chosen before development starts and named in the review report. The reviewer gets the diff and the criteria, never the author's reasoning. The plan and merged-whole points are the exception to "one tool": both run a Claude reviewer lane and Codex in parallel, falling back to Cursor only on Codex login failure or rate limit.
 - A lane judging code runs the code, and reports how many commands it ran; a verdict from a lane that ran none is a reading and says so. Measured on one document at one commit, a read-only lane found nothing where an executing lane found ten. Ask the same of the author's evidence — whether any of it ran outside the module under change, since a defect crossing a boundary appears only when something runs both sides.
@@ -333,7 +345,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
 - Run at least one lane on a different vendor's family, and don't pin model ids in the docs — resolve them at use time and pick by role. A gate that passes is not evidence the gate works; confirm once that it fails when it should.
 
-### Doc Tracking
+### Doc Tracking ([15](conventions/15-doc-tracking.md))
 
 - Docs are split into 4 tiers: for input/output contracts, code is the single source (no hand-written docs); module logic goes in a per-directory AGENTS.md; overall flow goes in ARCHITECTURE.md + Mermaid (generate dependency graphs with a deterministic tool); decision history uses structured commit bodies (record reversed decisions and rollbacks too, with reasons — git log is where they are searched for).
 - Agents regenerate only inside `docsync:managed` markers (human sections are off-limits, stamped with a verification commit). Factual claims in managed docs must be citable to a code location (decision rationale/failure history go in human sections or the commit body); the primary update mechanism is incremental sync at change time — periodic runs are audit-only (dead-man's switch + blind-rebuild hallucination audit; semantically equivalent phrasing is not drift).
@@ -341,7 +353,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - When something ships, update what distributes it in the same change — the installer, the getting-started page, the excerpt loaded elsewhere, the published site's navigation. Docs-follow-code covers the description; nothing covers the delivery path, and that is the one that leaves a working artifact unreachable.
 - A copy that drifts is worse than a wrong original: it is loaded everywhere and matches nothing. Prefer a generated excerpt — marker blocks filled verbatim from Core Rules by `scripts/fill-excerpts.py`, which regenerates or fails loudly when the source moves. A hand-authored excerpt instead carries a header naming its source document and commit, checked automatically.
 
-### Explainer Docs
+### Explainer Docs ([24](conventions/24-explainer-docs.md))
 
 - An explainer — report, guide, tutorial, HTML artifact, anything whose product is a person's understanding — is judged against its intended reader. Code-adjacent docs (AGENTS.md/ARCHITECTURE.md) are the other genre and stay lean.
 - Gloss every term the intended reader wouldn't know at first use. Never name a methodology without its mechanism — what it does and why it solves this problem, or what breaks without it; "uses X" alone is a violation.
@@ -352,13 +364,13 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - HTML explainers ship as one self-contained file: no external network dependencies, both themes legible, diagrams inline, text selectable and greppable — and flow body content as one column of readable line length, sections in reading order, with no fixed sidebars (the table of contents goes inline at the top; two small figures may sit side by side). Before shipping, an explainer passes the fresh-reader review lane.
 - An HTML explainer starts from the shipped skeleton (its design tokens and structure are the evidence); each visual is designed from the trigger table and the mechanism it shows under the skeleton's caption/theme/accessibility contract, and the gallery beside it is consulted only for a recipe that already draws that mechanism. Quantitative claims about the subject are static text naming their field in the embedded data block, checked on load; numeric runs use a monospace face with tabular figures while Korean labels keep the body face.
 
-### Research Protocol
+### Research Protocol ([16](conventions/16-research-protocol.md))
 
 - Use prior knowledge only to form search queries and hypotheses — never to fix the candidate set or to populate facts in a deliverable. Every factual claim must be traceable to a source fetched in this research; mark anything not found as "unverified — needs research" (never fill gaps from memory).
 - Confirm enumeration facts (variants, sizes, dates, licenses) only from the official registry. Search snippets, leaderboards, and blogs are leads, not evidence; when a semantic search tool (exa) is available, use it to discover sources — its results are leads too, so fetch the canonical page before asserting. Establish completeness by querying the registry directly, not by search ranking. Don't assert negative/universal claims ("doesn't exist / all of them / the smallest is N") without primary-source enumeration.
 - Fetch each in-scope vendor's/library's official latest page at least once; seed already-cited repo URLs as must-fetch. If it contradicts an existing doc, resolve via the primary source and record the resolution.
 
-### Commits
+### Commits ([17](conventions/17-commit-protocol.md))
 
 - Headers use Conventional Commits (English type/scope, ≤72 characters); summaries and bodies are written in Korean — so git log doubles as a Korean research note. `feat`/`fix`/`refactor`/`perf` commits require a `## Why/What/How/Result` body (the commit-msg hook warns otherwise).
 - Never fabricate Result/numbers (write "not measured" instead). Before committing, classify changes by intent so one logical unit = one commit (split hunks with `git add -p`). Link research threads with the `Experiment:` trailer.
