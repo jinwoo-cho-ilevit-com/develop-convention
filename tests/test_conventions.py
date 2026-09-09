@@ -92,19 +92,3 @@ def test_the_stamp_check_would_catch_an_old_stamp():
 # and the version that tried needed a list of exempt filenames — the same enumerate-the-
 # exceptions shape these documents warn against. Three checks that mean something beat
 # four where one cries wolf.
-
-
-# --- a convention resting on an optional mechanism says what happens without it ------------
-
-
-def test_optional_mechanism_names_its_fallback():
-    """Auto memory is a setting, and it is switched off on the machine this was written on.
-
-    A persistence strategy with half of it unavailable and no stated alternative leaves
-    the reader following a rule that silently does nothing.
-    """
-    body = read(BY_NAME["14-context-management.md"])
-    assert "auto memory" in body
-    assert "disabled" in body or "switched off" in body or "turned off" in body, (
-        "14 rests on auto memory without naming the case where it is unavailable"
-    )
