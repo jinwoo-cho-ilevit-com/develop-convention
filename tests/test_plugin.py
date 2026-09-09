@@ -100,10 +100,22 @@ def test_the_route_map_carries_each_skill_description():
     assert result.returncode == 0, result.stderr
     missing = []
     for path in SKILLS:
-        front = yaml.safe_load(path.read_text(encoding="utf-8").split("---", 2)[1])
-        if f"- {front['description']} → {front['name']}" not in result.stdout:
+        front = yaml.safe_load(read(path).split("---", 2)[1])
+        # The trigger clause only: the full description already sits in the system prompt,
+        # and injecting it again on every prompt would repeat what the context holds.
+        _, _, clause = front["description"].partition(". Use ")
+        if f"- {clause or front['description']} → {front['name']}" not in result.stdout:
             missing.append(path.parent.name)
-    assert not missing, f"the routing map does not carry the description of: {missing}"
+    assert not missing, f"the routing map does not carry the trigger clause of: {missing}"
+
+
+def test_the_readme_skill_table_names_every_skill():
+    """The map is generated; the README's reader-facing table is the one copy left by hand."""
+    body = read("README.md")
+    table = body[body.index("| Skill | Loads when |") :]
+    table = table[: table.index("\n\n")]
+    unlisted = [p.parent.name for p in SKILLS if f"`{p.parent.name}`" not in table]
+    assert not unlisted, f"README's skill table omits {unlisted}"
 
 
 @pytest.mark.parametrize("path", sorted((ROOT / "commands").glob("*.md")), ids=lambda p: p.name)
@@ -262,8 +274,9 @@ def test_the_read_budget_is_the_one_the_environment_asks_for(tmp_path):
 def test_an_unusable_read_budget_falls_back_and_still_decides(limit, tmp_path):
     """A limit that is not a line count must not leave the comparison to run on it.
 
-    An empty `limit` makes the arithmetic test error out, and with no `set -e` the script
-    would reach its final `exit 0` — a silent global allow, from a typo in a settings file.
+    An empty `limit` is not a number; comparing against it would either raise (a non-blocking
+    hook error, so the read proceeds) or fall through to allow — either way a silent global
+    allow, from a typo in a settings file.
     """
     big = tmp_path / "big.py"
     big.write_text("x = 1\n" * 900, encoding="utf-8")
@@ -349,10 +362,10 @@ def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
 
 @pytest.mark.parametrize("path", [".plans/f/PLAN.md", "AGENTS.md"])
 def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
-    """Each exemption carries a leading alternative and a `*/` one.
+    """The exemptions match a relative spelling as well as an absolute one.
 
-    Every fixture built under `tmp_path` is absolute, so only the second was ever reached
-    and the first could be deleted with the suite still green.
+    Every other fixture here is built under `tmp_path` and absolute, so the relative
+    branch could be deleted with the suite still green.
     """
     target = tmp_path / path
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -362,7 +375,7 @@ def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
 
 
 def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
-    """`../.plans/x.md` still matches `*/.plans/*`, so only the `../*` alternative stops it."""
+    """`../.plans/x.md` holds the exempt name; the `..` segment is what forfeits the exemption."""
     brief = tmp_path / ".plans" / "x.md"
     brief.parent.mkdir(parents=True)
     brief.write_text("# plan\n" * 900, encoding="utf-8")
@@ -439,6 +452,21 @@ def test_an_unparseable_payload_is_refused_not_waved_through():
         env={"PATH": SYSTEM_PATH},
     )
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_refusal_survives_a_non_utf8_stdout():
+    """The reason carries non-ASCII. A text stdout under an ASCII locale raised on it, and a
+    hook that dies is a non-blocking error — the read went through unguarded.
+    """
+    result = subprocess.run(
+        [str(GUARD)],
+        input=b"not json",
+        capture_output=True,
+        env={"PATH": SYSTEM_PATH, "PYTHONIOENCODING": "ascii", "LANG": "C"},
+    )
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    out = json.loads(result.stdout.decode("utf-8"))
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
 def test_the_bypass_is_recorded_not_silent(tmp_path):

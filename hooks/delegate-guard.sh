@@ -22,6 +22,7 @@ import sys
 DEFAULT_READ_LINE_LIMIT = 500
 # What a line of source costs when the limit is expressed in lines but the file is minified.
 BYTES_PER_LINE = 200
+CHUNK = 1 << 20
 PLAN_DIR_NAME = ".plans"
 AGENTS_FILE_NAME = "AGENTS.md"
 UNPARSEABLE = (
@@ -44,8 +45,15 @@ def deny(reason):
             "permissionDecisionReason": reason,
         }
     }
-    sys.stdout.write(json.dumps(decision, ensure_ascii=False, separators=(",", ":")) + "\n")
+    # Bytes, not text: the reason carries non-ASCII, and a text stream under a non-UTF-8
+    # locale would raise here — a traceback is the one exit that lets the read through.
+    line = json.dumps(decision, ensure_ascii=False, separators=(",", ":")) + "\n"
+    sys.stdout.buffer.write(line.encode("utf-8"))
     sys.exit(0)
+
+
+def warn(message):
+    sys.stderr.buffer.write((message + "\n").encode("utf-8"))
 
 
 def counts(value):
@@ -58,7 +66,7 @@ def main():
     # before the tool call runs: session-scoped, set at launch or through the settings env
     # block, with no per-call form. Recorded on stderr (→ conventions/19-evidence.md).
     if os.environ.get("DEV_HARNESS_ALLOW_MAIN") == "1":
-        sys.stderr.write("dev-harness: main-session guard bypassed via DEV_HARNESS_ALLOW_MAIN\n")
+        warn("dev-harness: main-session guard bypassed via DEV_HARNESS_ALLOW_MAIN")
         allow()
 
     try:
@@ -104,9 +112,9 @@ def main():
 
     limit = os.environ.get("DEV_HARNESS_READ_LIMIT") or str(DEFAULT_READ_LINE_LIMIT)
     if not counts(limit):
-        sys.stderr.write(
+        warn(
             f"dev-harness: DEV_HARNESS_READ_LIMIT={limit} is not a line count; "
-            f"using {DEFAULT_READ_LINE_LIMIT}\n"
+            f"using {DEFAULT_READ_LINE_LIMIT}"
         )
         limit = str(DEFAULT_READ_LINE_LIMIT)
     limit = int(limit)
@@ -126,19 +134,28 @@ def main():
 
     if not os.path.isfile(path):
         allow()
+    # Streamed in chunks: the file may be far larger than the budget, and holding it in memory
+    # is the one way this hook could die and let the read through.
     try:
+        size = os.path.getsize(path)
+        lines = 0
+        binary = False
+        blank = True
         with open(path, "rb") as handle:
-            data = handle.read()
+            first = True
+            for chunk in iter(lambda: handle.read(CHUNK), b""):
+                # Line counts mean nothing for images and other binaries; the head decides.
+                if first and b"\x00" in chunk:
+                    binary = True
+                    break
+                first = False
+                lines += chunk.count(b"\n")
+                blank = blank and not chunk.replace(b"\n", b"")
     except OSError:
         allow()
-
-    # Line counts mean nothing for images and other binaries, and a file that is empty or only
-    # newlines has nothing to meter.
-    if b"\x00" in data or not data.replace(b"\n", b""):
+    # A file that is empty or only newlines has nothing to meter.
+    if binary or blank:
         allow()
-
-    lines = data.count(b"\n")
-    size = len(data)
     # A minified bundle is one line and still costs the context the limit exists to protect.
     if lines > limit or size > limit * BYTES_PER_LINE:
         deny(

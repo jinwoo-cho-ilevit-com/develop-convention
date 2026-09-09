@@ -1,4 +1,4 @@
-# Local hooks can be skipped, so CI runs the same set (→ conventions/03, 13).
+# Local hooks can be skipped, so CI runs the same checks (→ conventions/03, 13).
 repos:
   # ruff runs from the dev dependency group, so pyproject.toml holds the only pin in this
   # repository. A `rev` here would be a second version, and two of them format differently.
@@ -8,12 +8,13 @@ repos:
         name: ruff check
         entry: uv run --group dev ruff check --force-exclude --fix
         language: system
-        types_or: [python, pyi]
+        # The guard is python under a `.sh` name, which `types_or: [python]` would skip.
+        files: \.pyi?$|^hooks/delegate-guard\.sh$
       - id: ruff-format
         name: ruff format
         entry: uv run --group dev ruff format --force-exclude
         language: system
-        types_or: [python, pyi]
+        files: \.pyi?$|^hooks/delegate-guard\.sh$
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
