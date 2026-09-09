@@ -31,10 +31,12 @@ jobs:
           cp -r templates docs/templates
           cp -r skills docs/skills
 
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
       - name: Build site
-        run: |
-          pip install mkdocs-material
-          mkdocs build --strict
+        run: uvx --with mkdocs-material mkdocs build --strict
 
       - uses: actions/upload-pages-artifact@v5
         with:
