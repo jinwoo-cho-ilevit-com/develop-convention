@@ -23,8 +23,8 @@ Takes precedence over every other document, so it belongs to no single skill and
 | Doc | Contents |
 |---|---|
 | [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, plan challenge before approval, boundary contract tests, worktree fan-out, review on each lane's finish, merge, merged-whole review, end-to-end verification |
-| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: review points table before approval, completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict, decidable inside the owning lane), the four surfaces a boundary can split on, lane ownership, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
-| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, merge-then-cleanup, model routing, spec gating |
+| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: review points table before approval, completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict, decidable inside the owning lane), the four surfaces a boundary can split on, lane ownership with model tier and effort recorded per lane, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
+| [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md and the instruction anti-patterns to keep out of them, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, merge-then-cleanup, two-axis (tier + effort) model routing, spec gating |
 | [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
 
 ### Code and config — `code-and-config`
@@ -280,9 +280,9 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Agentic Workflow
 
-- Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills.
+- Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills. Keep instruction anti-patterns out of them too: verification rituals, thoroughness boosters, redundant procedures/scratchpads, stale long-reasoning examples, contradictory rules, and dated configuration all cost tokens on current models without adding capability.
 - Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §4) rather than restarting everything; assign locks/migrations to a single owner. Confirm a subagent answered with content, not merely that it finished.
-- Merge each branch only after its tests pass, then do one integration verification pass. Route models by difficulty (mechanical → lightweight, standard → mid-tier, architecture → top-tier).
+- Merge each branch only after its tests pass, then do one integration verification pass. Route models on two axes, tier and effort, not tier alone — a stronger model at lower effort can beat a weaker model pushed to high effort, so choose effort per task and re-choose it whenever tier changes rather than carrying the old setting over.
 - A merged lane is a closed lane: remove its worktree and delete its branch (`git worktree remove` without `--force`, `git branch -d` never `-D` — refusals are safety signals). Halted lanes keep theirs; fix rounds resume there.
 - Write heavyweight spec documents only when they are an asset shared across PRs or workers; small or exploratory work uses lightweight iteration.
 
@@ -312,7 +312,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Cover functional, non-functional, and **negative** criteria (what must not happen), and state what is out of scope. A three-to-five-line contract is complete for small work.
 - Declare the done level (`auto`/`reviewed`/`proven`) up front, chosen by size × reversibility. Regardless of level, three things are mandatory: every criterion passes, evidence exists, and each new test was observed failing at the base commit.
 - Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. Absence criteria almost always are.
-- Give every lane a disjoint set of owned paths — directory prefixes where the work divides that way, cross-cutting files named individually with one owner each, since a prefix rule cannot assign a README or an ignore file. When several kinds of change land in the same documents, slice by file rather than by phase. Assign lock files, migrations, and generated files to a single owner. Record model tier per lane, never a model id.
+- Give every lane a disjoint set of owned paths — directory prefixes where the work divides that way, cross-cutting files named individually with one owner each, since a prefix rule cannot assign a README or an ignore file. When several kinds of change land in the same documents, slice by file rather than by phase. Assign lock files, migrations, and generated files to a single owner. Record model tier and effort level per lane, never a model id.
 
 ### Evidence
 
