@@ -20,6 +20,8 @@
   <figure role="group" aria-labelledby="캡션 id">로 전환하고 마크마다 접근 가능한 이름을 부여한다
 - 색만으로 의미를 전달하지 않는다 (라벨을 항상 동반)
 */
+/* shared:start:css */
+/* 생성된 사본이다 — 원본은 skills/explainer-docs/shared/explainer.css 이고, 고친 뒤 scripts/render-explainer.py 를 실행한다. */
 /*
 시각화 불변식:
 시각화마다 "이 그림은 X를 보여준다" 캡션 한 문장(없으면 장식이므로 삭제);
@@ -128,15 +130,6 @@ h3{ margin-top:var(--sp-6); margin-bottom:var(--sp-2); font-size:1.05em; font-we
 .lede{ font-size:1.05em; color:var(--muted); }
 .lede strong{ color:var(--ink); }
 
-/* card / callouts */
-.card{ border:1px solid var(--line); border-radius:var(--radius-md); padding:var(--sp-4) var(--sp-5); background:var(--surface); }
-.tip, .caution{
-  background:var(--accent-soft);
-  padding:var(--sp-3) var(--sp-4); border-radius:var(--radius-sm); margin:var(--sp-4) 0;
-}
-.caution{ background:var(--warn-soft); }
-.tip p, .caution p{ margin:0; }
-
 /* evidence line under a quantitative claim */
 .evidence{ font-size:.85em; color:var(--muted); line-height:1.5; margin:var(--sp-1) 0 var(--sp-4); }
 
@@ -147,13 +140,10 @@ h3{ margin-top:var(--sp-6); margin-bottom:var(--sp-2); font-size:1.05em; font-we
 }
 
 /* data table */
-.table-wrap{ overflow-x:auto; margin:1.2em 0; }
 table{ border-collapse:collapse; width:100%; min-width:420px; }
 caption{ text-align:left; color:var(--muted); font-size:.9em; margin-bottom:.4em; caption-side:top; }
 th, td{ border-bottom:1px solid var(--line); padding:.5em .7em; text-align:left; }
 th{ color:var(--muted); font-weight:600; }
-.ta-r{ text-align:right; }
-tr.dim td{ color:var(--muted); }
 
 /* chips / segmented control: real buttons, aria-pressed driven */
 .chips, .segmented{ display:flex; flex-wrap:wrap; gap:.5em; margin:.6em 0 1em; }
@@ -211,6 +201,7 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
 #tip[hidden]{ display:none; }
 
 .appendix-slot{ color:var(--muted); font-size:.95em; }
+/* shared:end:css */
 </style>
 </head>
 <body>
@@ -301,6 +292,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
 <script>
 (function(){
   "use strict";
+  /* shared:start:js */
+  /* 생성된 사본이다 — 원본은 skills/explainer-docs/shared/explainer-helpers.js 이고, 고친 뒤 scripts/render-explainer.py 를 실행한다. */
   var DATA = {};
   try{ DATA = JSON.parse(document.getElementById("explainer-data").textContent); }
   catch(e){ console.error("[explainer-data] JSON 파싱 실패", e); }
@@ -439,8 +432,8 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
   }
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") hideTip(); });
 
-  // 범용 가로 막대 렌더러 — explainer-gallery.html에 들여쓰기를 제외하고 같은 소스가 들어 있으며,
-  // EXPL과 공용 툴팁 클로저가 로드된 문서 안에서라면 어디서든 그대로 동작한다.
+  // 범용 가로 막대 렌더러 — EXPL과 공용 툴팁 클로저(tipOwner/hideTip)가 로드된 문서
+  // 안에서라면 어디서든 그대로 동작한다.
   function renderBarsH(svgId, data, opts){
     opts = opts || {};
     var svg = document.getElementById(svgId);
@@ -505,6 +498,7 @@ svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2p
 
   // 다른 문서로 레시피를 복사했을 때도 동작하도록 공용 유틸리티를 전역에 노출한다.
   window.EXPL = Object.freeze({ get: get, fmt: fmt, svgEl: svgEl, wireTip: wireTip, verifyNumbers: verifyNumbers, renderBarsH: renderBarsH, axes: axes });
+  /* shared:end:js */
 
   // 테마 토글: 시스템 → 라이트 → 다크 순으로 순환한다.
   (function(){

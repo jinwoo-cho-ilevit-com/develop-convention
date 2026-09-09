@@ -31,6 +31,8 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 An HTML explainer is copied from `${CLAUDE_PLUGIN_ROOT}/skills/explainer-docs/explainer-skeleton.html`; the recipe gallery beside it is `explainer-gallery.html`. What the files carry, and when the gallery is opened, is documented inside them and in 24 — this file only points.
 
+The styling and the JS helpers both files carry are generated, not copied: their source is `shared/explainer.css` and `shared/explainer-helpers.js` beside them, and changing either means editing `shared/` and running `scripts/render-explainer.py` (`--check` to verify without writing).
+
 ## Boundaries with other skills
 
 Code-adjacent reference docs — AGENTS.md, ARCHITECTURE.md, managed module docs — are the other genre, synced by [docsync](../docsync/SKILL.md) under 15. Reviewing a finished explainer is [verify-and-review](../verify-and-review/SKILL.md), routing to 20. Facts an explainer asserts about external products follow [external-sources](../external-sources/SKILL.md).

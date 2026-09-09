@@ -1,0 +1,179 @@
+/*
+시각화 불변식:
+시각화마다 "이 그림은 X를 보여준다" 캡션 한 문장(없으면 장식이므로 삭제);
+토큰 색만 사용; 구조선·텍스트는 currentColor로 테마 대응, 의미를 담는 요소에만 실제 색;
+이중 축 금지; 값 하나면 차트가 아니라 본문 문장; 시리즈 4개부터 직접 라벨;
+다이어그램 복잡도 예산 노드 ≤9·화살표 ≤12·강조 ≤2; 연결선은 직교 꺾임;
+명사가 아니라 메커니즘을 그린다.
+*/
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#1B2430; --muted:#5B6673; --line:#DCE1E7;
+  --accent:#2456A6; --accent-soft:#E4EBF6; --on-accent:#fff; --pos:#147D5B; --neg:#C2452F; --warn:#9A6B1F; --warn-soft:#F7EFDD;
+  --code-bg:#EDF0F4; --tip-shadow:rgba(0,0,0,.25);
+  /* 계열 색 --c1~--c5 와 --series-a/b 는 dataviz 스킬의 validate_palette.js(Claude Code 번들 2.1.258)로 검증한 값이다.
+     재현: node validate_palette.js "<다섯 색>" --mode light --surface "#FFFFFF" --pairs all (다크는 --mode dark --surface "#1B2128").
+     --c1 은 강조색과 같은 색상각(260°)에 앵커하되 다크는 검증기 명도 대역 안의 값을 쓰고, 슬롯 N 은 두 테마에서 같은 색 계열이다.
+     --dim 은 비강조 데이터 마크 전용 회색이다: 표면 대비 3:1 이상, 계열 색과 정상 시각 ΔE 15 이상(텍스트는 --muted 를 쓴다). */
+  --c1:#2456A6; --c2:#882B7F; --c3:#D25F26; --c4:#565F00; --c5:#129A92;
+  --series-a:#2456A6; --series-b:#865901; --dim:#848E9A;
+  /* 새 색 토큰은 :root 세 블록(라이트·시스템 다크·명시 다크) 모두에 선언한다; 한 곳만 추가하면 다크에서 조용히 깨진다.
+     수직 리듬용 간격 스케일(테마 무관) — 임의의 margin 값 대신 이 토큰을 참조한다. */
+  --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem; --sp-7:3rem;
+  --radius-xs:4px; --radius-sm:6px; --radius-md:10px; --radius-pill:999px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181D; --surface:#1B2128; --ink:#E6EAEF; --muted:#93A0AF; --line:#2B323B;
+    --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
+    --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
+    --c1:#3F79D9; --c2:#9F5FA8; --c3:#C55224; --c4:#9D9A01; --c5:#09A9AA;
+    --series-a:#3F79D9; --series-b:#AA811A; --dim:#93A0AF;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181D; --surface:#1B2128; --ink:#E6EAEF; --muted:#93A0AF; --line:#2B323B;
+  --accent:#7AA5EC; --accent-soft:#20304A; --on-accent:#14181D; --pos:#3FBE93; --neg:#E58671; --warn:#D9A24C; --warn-soft:#332A18;
+  --code-bg:#20262D; --tip-shadow:rgba(0,0,0,.25);
+  --c1:#3F79D9; --c2:#9F5FA8; --c3:#C55224; --c4:#9D9A01; --c5:#09A9AA;
+  --series-a:#3F79D9; --series-b:#AA811A; --dim:#93A0AF;
+}
+
+* { box-sizing: border-box; }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  font-size:16px; line-height:1.75;
+}
+.kicker{
+  font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+  font-weight:500; font-size:.78em; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 var(--sp-2);
+}
+h1{
+  font-size:clamp(1.9em, 1.6em + 1.2vw, 2.6em); font-weight:700; line-height:1.22;
+  letter-spacing:-.01em; margin:0 0 var(--sp-2);
+}
+.num, code{
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+  font-variant-numeric: tabular-nums;
+}
+code{ background:var(--code-bg); padding:.1em .35em; border-radius:4px; font-size:.92em; }
+
+main, footer{ max-width:820px; margin:0 auto; padding:0 24px; }
+header{
+  max-width:820px; margin:0 auto; padding:var(--sp-6) 24px 0;
+  display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:.5em 1.5em;
+}
+.header-main{ flex:1 1 320px; min-width:0; }
+#theme-toggle{
+  flex:0 0 auto; font:inherit; font-size:.85em;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:var(--radius-pill); padding:.3em .9em; cursor:pointer;
+}
+#theme-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+h2{
+  border-top:2px solid var(--ink); padding-top:var(--sp-3);
+  margin-top:var(--sp-7); margin-bottom:var(--sp-4);
+  font-size:1.28em; font-weight:700; letter-spacing:-.005em;
+}
+h2 .num{
+  color:var(--accent); font-weight:500; font-size:.78em; margin-right:.5em;
+  font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+}
+h3{ margin-top:var(--sp-6); margin-bottom:var(--sp-2); font-size:1.05em; font-weight:600; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+/* TOC: two columns, collapses under 640px */
+.toc{ max-width:820px; margin:var(--sp-4) auto var(--sp-6); padding:0 24px; }
+.toc ul{
+  columns:2; column-gap:2.2em; list-style:none; margin:0; padding:0; font-size:.82em;
+}
+.toc li{ break-inside:avoid; margin:.15em 0; line-height:1.45; }
+.toc a{ display:flex; gap:.6em; color:var(--accent); text-decoration:none; }
+.toc a:hover, .toc a:focus-visible{ text-decoration:underline; }
+.toc .num{
+  flex:0 0 auto; min-width:2.9em; color:var(--accent); font-weight:500;
+  font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+}
+@media (max-width:640px){
+  .toc ul{ columns:1; }
+}
+
+/* lead */
+.lede{ font-size:1.05em; color:var(--muted); }
+.lede strong{ color:var(--ink); }
+
+/* evidence line under a quantitative claim */
+.evidence{ font-size:.85em; color:var(--muted); line-height:1.5; margin:var(--sp-1) 0 var(--sp-4); }
+
+/* verification badges (see script at bottom) */
+.data-badge, .verify-badge{
+  display:inline-block; font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+  font-size:.78em; color:var(--on-accent); background:var(--neg); border-radius:var(--radius-xs); padding:.05em .4em; margin-left:.4em;
+}
+
+/* data table */
+table{ border-collapse:collapse; width:100%; min-width:420px; }
+caption{ text-align:left; color:var(--muted); font-size:.9em; margin-bottom:.4em; caption-side:top; }
+th, td{ border-bottom:1px solid var(--line); padding:.5em .7em; text-align:left; }
+th{ color:var(--muted); font-weight:600; }
+
+/* chips / segmented control: real buttons, aria-pressed driven */
+.chips, .segmented{ display:flex; flex-wrap:wrap; gap:.5em; margin:.6em 0 1em; }
+.chips button, .segmented button{
+  font:inherit; border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:var(--radius-pill); padding:.35em 1em; cursor:pointer;
+}
+.segmented button{ border-radius:var(--radius-sm); }
+.chips button[aria-pressed="true"], .segmented button[aria-pressed="true"], .segmented button[aria-selected="true"]{
+  background:var(--accent); border-color:var(--accent); color:var(--on-accent);
+}
+.chips button:focus-visible, .segmented button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+/* slider control */
+.wctl{ display:flex; align-items:center; gap:.8em; margin:var(--sp-4) 0; }
+.wctl input[type="range"]{ flex:1; }
+.wctl input[type="range"]:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+.wctl output{ font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace; font-variant-numeric:tabular-nums; min-width:5em; }
+
+/* figures / charts */
+figure{ margin:var(--sp-5) 0; }
+figure svg{ width:100%; height:auto; display:block; }
+.chart-wrap{
+  overflow-x:auto;
+  border:1px solid var(--line); border-radius:var(--radius-md);
+  background:var(--surface); padding:var(--sp-4) var(--sp-5);
+}
+/* 작은 도형이 컬럼 폭까지 늘어나지 않도록 폭을 좁혀 가운데 정렬한다;
+   상한은 도형마다 다르므로 인라인 style="max-width:...px"로 지정한다. */
+.chart-wrap.is-compact{ margin-inline:auto; }
+figcaption{ font-size:.85em; color:var(--muted); line-height:1.5; margin-top:var(--sp-2); }
+/* 컨트롤·도형·범례·판독문을 한 위젯으로 묶는 껍데기 — 안쪽 .chart-wrap은 액자를 겹치지 않는다. */
+.wrap{ border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface); padding:var(--sp-4) var(--sp-5); margin:var(--sp-5) 0; }
+.wrap .chart-wrap{ border:0; background:transparent; padding:0; }
+.readout{ font-size:.9em; color:var(--muted); min-height:1.5em; margin:var(--sp-2) 0 0; }
+.chart-label{ font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif; font-size:11px; fill:currentColor; }
+.chart-label.on-accent{ fill:var(--on-accent); }
+.chart-value{
+  font-family:ui-monospace, "SF Mono", Menlo, Consolas, "D2Coding", monospace;
+  font-variant-numeric:tabular-nums; font-weight:500; font-size:11px; fill:currentColor;
+}
+.chart-note{ font-size:11px; fill:currentColor; opacity:.7; }
+/* 인터랙티브 rect/circle 위에 겹쳐 그려지는 라벨이 hover/click을 가로채지 않도록 한다. */
+.chart-label, .chart-value, .chart-note{ pointer-events:none; }
+svg [tabindex]:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+.legend{ display:flex; gap:1.2em; font-size:.85em; color:var(--muted); margin:.4em 0; flex-wrap:wrap; }
+.legend .swatch{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:.4em; vertical-align:middle; }
+
+/* global floating tooltip */
+#tip{
+  position:absolute; z-index:50; background:var(--ink); color:var(--bg);
+  padding:.45em .8em; border-radius:var(--radius-sm); font-size:.85em; max-width:260px;
+  box-shadow:0 2px 8px var(--tip-shadow); pointer-events:none;
+}
+#tip[hidden]{ display:none; }
+
+.appendix-slot{ color:var(--muted); font-size:.95em; }
