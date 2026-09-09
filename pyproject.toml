@@ -12,14 +12,13 @@ dependencies = []
 dev = [
   "pytest>=8",
   "pyyaml>=6",
-  # Pinned to the rev of the ruff-pre-commit hook in .pre-commit-config.yaml.
-  # A formatter that differs between the hook and `uv run ruff format` makes the
-  # hook rewrite what the local check just called clean.
+  # The only ruff pin here: .pre-commit-config.yaml runs `uv run --group dev ruff`, so the
+  # hook and the local check are one binary rather than two versions that format differently.
   "ruff==0.14.5",
 ]
 
-# Kept in step with templates/pyproject.toml — files under templates/ resolve that
-# file as their ruff config, so a setting that differs here lints them under two rules.
+# Kept in step with templates/pyproject.toml so a project bootstrapped from it lints
+# under the same rules this repository proves.
 [tool.ruff]
 line-length = 100
 target-version = "py313"

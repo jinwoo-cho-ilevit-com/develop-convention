@@ -1,11 +1,19 @@
 # Local hooks can be skipped, so CI runs the same set (→ conventions/03, 13).
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.5
+  # ruff runs from the dev dependency group, so pyproject.toml holds the only pin in this
+  # repository. A `rev` here would be a second version, and two of them format differently.
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix]
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --group dev ruff check --force-exclude --fix
+        language: system
+        types_or: [python, pyi]
       - id: ruff-format
+        name: ruff format
+        entry: uv run --group dev ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1

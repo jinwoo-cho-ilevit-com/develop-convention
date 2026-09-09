@@ -52,10 +52,22 @@ def test_ruff_pin_matches_the_hook_rev_in_the_template():
 
 
 def test_ruff_pin_matches_between_the_repository_and_the_template():
-    """`templates/pyproject.toml` is the ruff config for files under templates/."""
+    """A project bootstrapped from the template lints under the version this repository
+    proves, so the two pins move together or the template ships an unproven one.
+    """
     assert pinned_version(ROOT / "pyproject.toml", "ruff") == pinned_version(
         TEMPLATES / "pyproject.toml", "ruff"
     )
+
+
+def test_the_shared_hook_revs_match_between_the_repository_and_the_template():
+    """ruff is pinned in pyproject now, but gitleaks and the pre-commit-hooks set are still
+    pinned by `rev` in both files, and a project takes the template's copy unchanged.
+    """
+    for repo in ("gitleaks", "pre-commit-hooks"):
+        assert hook_rev(ROOT / ".pre-commit-config.yaml", repo) == hook_rev(
+            TEMPLATES / ".pre-commit-config.yaml", repo
+        ), f"{repo} is pinned to a different rev in the repository and the template"
 
 
 # --- AGENTS.md holds only what the harness cannot know ---------------------------------------
