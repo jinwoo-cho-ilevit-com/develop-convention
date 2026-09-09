@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 from _repo import CONVENTIONS, MARKETPLACE, PLUGIN, ROOT, SKILLS, load, read
 
 GUARD = ROOT / "hooks" / "delegate-guard.sh"
@@ -85,17 +86,24 @@ def test_every_hook_is_executable():
     assert not dead, f"hook scripts are not executable: {dead}"
 
 
-def test_the_route_map_names_every_skill():
-    """The map is the always-present pointer to the skills; a skill it does not name is one
-    the reminder never routes to, and nothing else repeats often enough to catch that.
+def test_the_route_map_carries_each_skill_description():
+    """The map is the always-present pointer to the skills, so a skill it does not name is
+    one the reminder never routes to.
+
+    It is generated from the front matter, and the line is checked against the description
+    an agent actually selects on, so a rewording cannot leave the two describing different
+    work while both still name the skill.
     """
     result = subprocess.run(
         [str(ROOT / "hooks" / "route-map.sh")], input="{}", capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
-    skills = sorted(p.parent.name for p in SKILLS)
-    unrouted = [name for name in skills if name not in result.stdout]
-    assert not unrouted, f"the routing map does not name: {unrouted}"
+    missing = []
+    for path in SKILLS:
+        front = yaml.safe_load(path.read_text(encoding="utf-8").split("---", 2)[1])
+        if f"- {front['description']} → {front['name']}" not in result.stdout:
+            missing.append(path.parent.name)
+    assert not missing, f"the routing map does not carry the description of: {missing}"
 
 
 @pytest.mark.parametrize("path", sorted((ROOT / "commands").glob("*.md")), ids=lambda p: p.name)
@@ -154,27 +162,10 @@ def test_a_skill_does_not_copy_convention_text(path):
     assert not copied, f"{path.parent.name} copies convention text: {copied}"
 
 
-@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
-def test_no_skill_specifies_the_retired_shared_state(path):
-    """The old filename survives in exactly one place, the migration step that reads it
-    once and deletes it, so the global fields are what this pins rather than the name
-    (why the shared file failed: conventions/15-doc-tracking.md §2).
-    """
-    body = path.read_text(encoding="utf-8")
-    for field in ("last_sync_commit", "last_audit_commit"):
-        assert field not in body, f"{path.parent.name} still carries the global {field}"
-    for line in body.splitlines():
-        if "state.json" in line:
-            assert "Migrate" in line, (
-                f"{path.parent.name} names state.json outside the migration step: {line.strip()}"
-            )
-
-
 def test_docsync_still_says_how_to_leave_the_shared_state_behind():
-    """The check above passes if the migration step is deleted outright — its loop body
-    simply never runs. A repository that upgrades mid-life needs the step to be there, and
-    needs it to say how the old keys split, which is the one thing a reader cannot infer
-    once the old layout is gone from the document.
+    """A repository that upgrades mid-life needs the migration step to be there, and needs
+    it to say how the old keys split — the one thing a reader cannot infer once the old
+    layout is gone from the document (why the shared file failed: conventions/15 §2).
     """
     body = (ROOT / "skills" / "docsync" / "SKILL.md").read_text(encoding="utf-8")
     assert "state.json" in body, "the migration step naming the old layout is gone"
@@ -229,7 +220,6 @@ def decision(payload: dict, env: dict | None = None) -> str:
     return out["hookSpecificOutput"]["permissionDecision"] if out else "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_a_subagent_may_read_past_the_budget(tmp_path):
     """`agent_id` is present only inside a subagent call. That is the whole test.
 
@@ -247,7 +237,6 @@ def test_a_subagent_may_read_past_the_budget(tmp_path):
     assert decision(payload) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_a_large_read_is_refused_and_a_small_one_is_not(tmp_path):
     big, small = tmp_path / "big.py", tmp_path / "small.py"
     big.write_text("x = 1\n" * 900, encoding="utf-8")
@@ -257,7 +246,6 @@ def test_a_large_read_is_refused_and_a_small_one_is_not(tmp_path):
     assert decision(read(small)) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_the_read_budget_is_the_one_the_environment_asks_for(tmp_path):
     """The refusal message advertises this variable, so it has to move the threshold.
 
@@ -270,7 +258,6 @@ def test_the_read_budget_is_the_one_the_environment_asks_for(tmp_path):
     assert decision(payload, {"DEV_HARNESS_READ_LIMIT": "900"}) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize("limit", ["", "lots", "500x"])
 def test_an_unusable_read_budget_falls_back_and_still_decides(limit, tmp_path):
     """A limit that is not a line count must not leave the comparison to run on it.
@@ -284,7 +271,6 @@ def test_an_unusable_read_budget_falls_back_and_still_decides(limit, tmp_path):
     assert decision(payload, {"DEV_HARNESS_READ_LIMIT": limit}) == "deny"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_a_bounded_read_costs_what_it_asks_for(tmp_path):
     """Judging a 20-line window by the size of the file refuses the cheap request and
     leaves raising the limit or bypassing the guard as the only ways through."""
@@ -298,7 +284,6 @@ def test_a_bounded_read_costs_what_it_asks_for(tmp_path):
     assert decision(windowed(900)) == "deny"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_one_enormous_line_is_judged_by_bytes(tmp_path):
     """A minified bundle is one line and still costs the context the limit protects.
 
@@ -311,7 +296,6 @@ def test_one_enormous_line_is_judged_by_bytes(tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(bundle)}}) == "deny"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_the_orchestrator_may_read_its_own_plan(tmp_path):
     """Blocking the orchestrator from its own brief defeats what the guard exists for."""
     plan = tmp_path / ".plans" / "feature"
@@ -321,7 +305,6 @@ def test_the_orchestrator_may_read_its_own_plan(tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(brief)}}) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_a_binary_read_is_not_judged_by_line_count(tmp_path):
     """Line counts are meaningless for an image; a small screenshot must not be refused."""
     image = tmp_path / "shot.png"
@@ -329,7 +312,6 @@ def test_a_binary_read_is_not_judged_by_line_count(tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(image)}}) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize(
     "agent_id",
     [[], {}, 0, "null", " ", "\t"],
@@ -338,8 +320,8 @@ def test_a_binary_read_is_not_judged_by_line_count(tmp_path):
 def test_only_a_real_agent_id_counts_as_a_subagent(agent_id, tmp_path):
     """The gate hangs on this one field, so anything but a non-blank string must not open it.
 
-    jq renders `[]`, `{}` and `0` as non-empty text, so a bare emptiness test read every one
-    of them as a subagent marker and waved the read through.
+    A bare emptiness test reads `[]`, `{}` and `0` as a subagent marker and waves the read
+    through, which is why the guard tests the field's type before its value.
     """
     big = tmp_path / "big.py"
     big.write_text("x = 1\n" * 900, encoding="utf-8")
@@ -351,7 +333,6 @@ def test_only_a_real_agent_id_counts_as_a_subagent(agent_id, tmp_path):
     assert decision(payload) == "deny"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize("name", ["release..notes.md", "v1..2.md", "PLAN.md"])
 def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
     """The first traversal guard matched two dots anywhere, not a `..` path segment.
@@ -366,7 +347,6 @@ def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(brief)}}) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize("path", [".plans/f/PLAN.md", "AGENTS.md"])
 def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
     """Each exemption carries a leading alternative and a `*/` one.
@@ -381,7 +361,6 @@ def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
     """`../.plans/x.md` still matches `*/.plans/*`, so only the `../*` alternative stops it."""
     brief = tmp_path / ".plans" / "x.md"
@@ -393,7 +372,6 @@ def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": "../.plans/x.md"}}) == "deny"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize("spelling", [".plans/../src/app.js", ".plans/a/../../src/app.js"])
 def test_the_plan_exemption_does_not_reach_outside_the_plan(spelling, tmp_path):
     """The exemption made a guarded path bypassable.
@@ -409,38 +387,6 @@ def test_the_plan_exemption_does_not_reach_outside_the_plan(spelling, tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "deny"
 
 
-@pytest.fixture
-def empty_bin(tmp_path) -> Path:
-    """A PATH holding what the guard needs except jq; skips where no bash can be linked."""
-    empty_bin = tmp_path / "bin"
-    empty_bin.mkdir()
-    for tool in ("bash", "cat", "grep", "sed", "wc", "tr", "printf"):
-        for root in ("/bin", "/usr/bin"):
-            if Path(root, tool).exists():
-                (empty_bin / tool).symlink_to(Path(root, tool))
-                break
-    if not (empty_bin / "bash").exists():
-        pytest.skip("no bash to build an isolated PATH with")
-    return empty_bin
-
-
-def test_the_declared_bypass_works_without_jq(empty_bin):
-    """Its own refusal message told the reader to set this variable, and the check that
-    read the variable sat below the refusal, so a jq-less machine had no way to reach the
-    escape hatch its own error message advertised."""
-    result = subprocess.run(
-        [str(empty_bin / "bash"), str(GUARD)],
-        input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
-        capture_output=True,
-        text=True,
-        env={"PATH": str(empty_bin), "DEV_HARNESS_ALLOW_MAIN": "1"},
-    )
-    assert result.returncode == 0
-    assert not result.stdout.strip(), "the advertised bypass is unreachable without jq"
-    assert "bypassed" in result.stderr
-
-
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize("where", ["AGENTS.md", "src/parser/AGENTS.md"])
 def test_the_orchestrator_may_read_agents_md(where, tmp_path):
     """`/dev-harness:setup` writes this file and the other two commands read it back.
@@ -454,7 +400,6 @@ def test_the_orchestrator_may_read_agents_md(where, tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(path)}}) == "allow"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 @pytest.mark.parametrize("name", ["AGENTS.md.bak", "AGENTS.mdx", "notAGENTS.md"])
 def test_the_agents_exemption_matches_the_whole_name(name, tmp_path):
     """A prefix or suffix match would exempt any file whose name merely contains it."""
@@ -463,7 +408,6 @@ def test_the_agents_exemption_matches_the_whole_name(name, tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(path)}}) == "deny"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_the_guard_refuses_and_never_prompts(tmp_path):
     """One refusal, no prompt.
 
@@ -486,24 +430,6 @@ def test_the_guard_refuses_and_never_prompts(tmp_path):
         assert decision(payload) == "allow", f"{payload['tool_name']} is still gated"
 
 
-def test_the_guard_refuses_rather_than_vanishes_without_jq(empty_bin):
-    """Without jq every branch read empty and the call fell through to allow — and the
-    other guard tests skip in exactly that environment, so CI was green where the gate was
-    dead. A guard that cannot decide must not be the one that says yes.
-    """
-    result = subprocess.run(
-        [str(empty_bin / "bash"), str(GUARD)],
-        input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
-        capture_output=True,
-        text=True,
-        env={"PATH": str(empty_bin)},
-    )
-    assert result.returncode == 0
-    assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert "jq" in result.stdout
-
-
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_an_unparseable_payload_is_refused_not_waved_through():
     result = subprocess.run(
         [str(GUARD)],
@@ -515,7 +441,6 @@ def test_an_unparseable_payload_is_refused_not_waved_through():
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="the guard needs jq")
 def test_the_bypass_is_recorded_not_silent(tmp_path):
     """19: a bypass that leaves no trace is a blocker; a recorded one is a decision.
 

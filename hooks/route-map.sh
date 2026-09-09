@@ -2,21 +2,28 @@
 # Injects the convention routing map once per user prompt. A pointer, not a gate: it judges
 # nothing, so the per-edit judgement cost 21 §3 rejects does not arise here, and it carries
 # no rule text — the rules stay in conventions/ behind the named skill (→ 15-doc-tracking.md).
+#
+# Every line is read out of the skill's own frontmatter, so the map and the description an
+# agent selects on cannot say different things. The plugin root is derived from this script's
+# own path, which a hook always has, rather than from an environment variable it may not.
 set -euo pipefail
 
 cat >/dev/null
 
+root=$(cd "$(dirname "$0")/.." && pwd)
+
+echo "<convention-routing>"
+echo "Before starting work, load the dev-harness skill that governs it:"
+for skill in "$root"/skills/*/SKILL.md; do
+  awk '
+    NR == 1 && $0 != "---" { exit }
+    NR > 1 && $0 == "---" { exit }
+    /^name: / { name = substr($0, 7) }
+    /^description: / { description = substr($0, 14) }
+    END { if (name != "" && description != "") printf "- %s → %s\n", description, name }
+  ' "$skill"
+done
 cat <<'MAP'
-<convention-routing>
-Before starting work, load the dev-harness skill that governs it:
-- planning, splitting work, delegating, defining "done" → plan-and-delegate
-- creating/moving/renaming files, config values, dependencies, secrets → code-and-config
-- preprocessing/training/evaluation pipelines on weights you run → ml-pipeline
-- third-party LLM APIs, upstream docs, factual-spec research → external-sources
-- writing or running tests, reviewing a diff, claiming completion → verify-and-review
-- writing a report, guide, or HTML artifact for a human reader → explainer-docs
-- about to `git commit` → commit
-- code changed and docs may be stale → docsync
 A trivial single edit may proceed without one; anything larger reads the routed Core Rules first.
 </convention-routing>
 MAP
