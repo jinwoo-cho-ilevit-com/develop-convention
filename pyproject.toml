@@ -27,6 +27,9 @@ target-version = "py313"
 # deliberately for reading. Formatting them rewrites prose-adjacent examples for
 # no gain and makes `format --check` fail on hand-written docs.
 extend-exclude = ["*.md"]
+# The guard is python behind a `.sh` name the hook config and its tests point at, so ruff
+# has to be told about it by path — no extension puts it in scope.
+extend-include = ["hooks/delegate-guard.sh"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
