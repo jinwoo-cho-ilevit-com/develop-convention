@@ -158,6 +158,7 @@ function dedupe(findings) {
   return findings.filter((f) => (seen.has(keyOf(f)) ? false : (seen.add(keyOf(f)), true)))
 }
 
+const isPlainObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
 // A lane name keys a brief path and a branch, so it may not carry a separator or traverse.
 const LANE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const isText = (v) => typeof v === 'string' && v !== ''
@@ -193,7 +194,7 @@ const BOUNDARY_FIELDS = [
 // Returns the sentence naming what is wrong, or null. `where` is what the caller has to look
 // at, so it carries the index of the element rather than just the field.
 function checkShape(value, where, fields, required = []) {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isPlainObject(value)) {
     return `${where} is ${JSON.stringify(value) ?? String(value)}, not an object`
   }
   const known = fields.map(([k]) => k)
@@ -241,9 +242,8 @@ const lanes = input?.lanes ?? []
 const boundaries = input?.boundaries ?? []
 
 // Nothing can be read off a value that is not an object, so the frozen check below would
-// refuse in the name of a freeze that may well have happened. An array is not one either:
-// `typeof [] === 'object'` alone would send a mangled payload off to fix its freeze instead.
-if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
+// refuse in the name of a freeze that may well have happened.
+if (input !== undefined && !isPlainObject(input)) {
   log('args did not arrive as an object. Nothing can be read from it.')
   return {
     lanes: [],
@@ -256,12 +256,9 @@ if (input !== undefined && (typeof input !== 'object' || input === null || Array
   }
 }
 
-// Parsing recovers only the top level, so a field that arrived as text of its own is still
-// text. Reading it as a list later throws, where every other unusable input here returns a
-// note naming what to fix.
 // One pass, before anything reads a field into a prompt, a path or a git command. Parsing
-// recovers only the top level, so every level below it is checked here rather than where it
-// is used, which is where an unvalidated field became a stack trace with no cause named.
+// recovers only the top level, so a field that arrived as text of its own is still text and
+// every level below the top is checked here rather than where it is used.
 const complaint =
   // An argument-less call has no shape to be wrong. It belongs to the freeze gate below,
   // whose note is the one that names the command to run instead.
@@ -457,6 +454,8 @@ function clean(lane, dev, ctx, round, carried) {
 
 // Review, fix, recheck — for one lane, independent of every other lane.
 async function reviewLoop(dev, lane) {
+  // Every exit the loop takes with a blocker standing names the same four fields.
+  const halt = (outcome, round, extra) => ({ lane: lane.name, outcome, rounds: round, branch: dev.branch, ...extra })
   if (!dev) return { lane: lane.name, outcome: 'develop-failed' }
 
   // A lane whose own criteria failed is not a lane to review and merge; the brief says
@@ -500,39 +499,24 @@ async function reviewLoop(dev, lane) {
     // ran nothing is a reading (→ 20 Core Rules). Both are detected here and both stop
     // the loop — detecting them and passing anyway is how a short review gets merged.
     if (reviews.length < lenses.length) {
-      return {
-        lane: lane.name,
-        outcome: 'review-incomplete',
-        rounds: round,
-        branch: ctx.branch,
+      return halt('review-incomplete', round, {
         criteria: dev.criteria,
         note: `${lenses.length - reviews.length} of ${lenses.length} review lanes returned nothing. Re-run them rather than merging a short review.`,
-      }
+      })
     }
     // Any lens, not all of them. Requiring every lens to be silent meant two that ran
     // could carry a third that did not into a clean pass, and the lens that read nothing
     // is exactly the one whose "no findings" means nothing.
     const readings = reviews.filter((r) => !r.commandsRun)
     if (readings.length) {
-      return {
-        lane: lane.name,
-        outcome: 'review-unexecuted',
-        rounds: round,
-        branch: ctx.branch,
+      return halt('review-unexecuted', round, {
         criteria: dev.criteria,
         note: `${readings.length} of ${reviews.length} review lenses ran zero commands. Those verdicts are readings, not reviews.`,
-      }
+      })
     }
 
-    // Dedupe across lenses: the same defect seen twice is one defect.
-    const seen = new Set()
-    const findings = reviews
-      .flatMap((r) => r.findings ?? [])
-      .filter((f) => {
-        if (seen.has(keyOf(f))) return false
-        seen.add(keyOf(f))
-        return true
-      })
+    // The same defect seen by two lenses is one defect.
+    const findings = dedupe(reviews.flatMap((r) => r.findings ?? []))
 
     const rawBlockers = findings.filter((f) => f.severity === 'blocker')
     // Non-blockers are carried out of every round, not only the last. 20 §3: the merge may
@@ -562,11 +546,7 @@ async function reviewLoop(dev, lane) {
     const duplicated = submitted.filter((k) => (byKey.get(k) ?? []).length > 1)
     const unknown = [...byKey.keys()].filter((k) => !submitted.includes(k))
     if (!verdicts || missing.length || duplicated.length || unknown.length) {
-      return {
-        lane: lane.name,
-        outcome: 'verification-incomplete',
-        rounds: round,
-        branch: ctx.branch,
+      return halt('verification-incomplete', round, {
         criteria: dev.criteria,
         blockers: rawBlockers,
         carried: dedupe(carried),
@@ -574,7 +554,7 @@ async function reviewLoop(dev, lane) {
         note: !verdicts
           ? 'The verifier returned nothing.'
           : `Verification did not cover the blockers one to one: ${missing.length} missing, ${duplicated.length} duplicated, ${unknown.length} unknown keys.`,
-      }
+      })
     }
     const refuted = rawBlockers.filter((f) => byKey.get(keyOf(f))[0].confirmed === false)
     const blockers = rawBlockers.filter((f) => byKey.get(keyOf(f))[0].confirmed !== false)
@@ -585,23 +565,9 @@ async function reviewLoop(dev, lane) {
 
     if (!blockers.length) return clean(lane, dev, ctx, round, carried)
 
-    // Two signals that another round will not converge, and the script computes one of
-    // them itself. `causedByPreviousFix` is a reviewer's judgment, so a loop that trusts
-    // it alone can only detect what a reviewer thought to mark — and a test that sets the
-    // flag proves the branch fires, never that the flag is reachable. Repetition is a fact
-    // about the findings, so it is derived here from identity across rounds (→ 20 §3).
-    // Blockers only, on both sides of the ratio. Counting every finding let two majors
-    // that are carried round after round — by design, since only blockers get fixed —
-    // form the majority and halt a lane whose actual blocker had changed and was fixable.
-    // The loop this exit governs is the blocker loop; its denominator has to be the same.
-    // The causation claim is checked, not taken. Confirming a blocker establishes that the
-    // defect is real; it says nothing about who introduced it, and those are different
-    // claims. A real pre-existing blocker in untouched code, mislabelled as fix-induced,
-    // would halt the loop by itself and never be fixed. A fix that never touched the file
-    // cannot have caused a defect in it, so the flag only counts where the previous fix
-    // actually reached. Where it reached comes from a separate agent that read git in the
-    // lane's worktree — the fixer is not asked about its own diff, since an actor grading
-    // itself can hide a regression by omission or halt a fixable lane by overclaiming.
+    // Two signals that another round will not converge (→ 20 §3). Repetition is derived
+    // from finding identity across rounds, blockers only on both sides of the ratio. The
+    // reviewer's `causedByPreviousFix` counts only in files the measured fix reached.
     const repeated = blockers.filter((f) => previousKeys.has(keyOf(f)))
     const touched = new Set([...lastFixTouched].map((p) => repoPath(p, ctx.worktree)))
     const claimsFix = (f) => f.causedByPreviousFix && touched.has(repoPath(f.file, ctx.worktree))
@@ -614,30 +580,22 @@ async function reviewLoop(dev, lane) {
     }
     const stuckKeys = new Set([...repeated, ...fromFix].map(keyOf))
     if (round > 1 && stuckKeys.size * 2 > blockers.length) {
-      return {
-        lane: lane.name,
-        outcome: 'regression-halt',
-        rounds: round,
-        branch: ctx.branch,
+      return halt('regression-halt', round, {
         blockers,
         carried: dedupe(carried),
         escalation: 'human',
         note: `${stuckKeys.size} of ${blockers.length} confirmed blockers are unchanged from the previous round (${repeated.length}) or introduced by its fix (${fromFix.length}). Change the approach rather than running another round.`,
-      }
+      })
     }
     previousKeys = new Set(blockers.map(keyOf))
 
     if (round === ROUND_CAP) {
-      return {
-        lane: lane.name,
-        outcome: 'round-cap',
-        rounds: round,
-        branch: ctx.branch,
+      return halt('round-cap', round, {
         blockers,
         carried: dedupe(carried),
         escalation: 'human',
         note: 'Round cap reached; a person decides what happens next. This is not a completion.',
-      }
+      })
     }
 
     // No `isolation` here on purpose: a fresh worktree is the opposite of what the prompt
@@ -649,7 +607,7 @@ async function reviewLoop(dev, lane) {
       phase: 'Review',
       schema: FIX_SCHEMA,
     })
-    if (!fix) return { lane: lane.name, outcome: 'fix-failed', rounds: round, branch: ctx.branch, blockers }
+    if (!fix) return halt('fix-failed', round, { blockers })
     fixSummary = fix.summary
 
     // Measured by an agent that did no work in this lane, without `isolation` for the same
