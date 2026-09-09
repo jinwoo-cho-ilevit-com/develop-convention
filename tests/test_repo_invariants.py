@@ -101,6 +101,22 @@ def test_links_inside_a_convention_resolve(doc):
     assert not broken, f"{doc.name} links to files that do not exist: {broken}"
 
 
+def test_every_convention_is_sourced_from_the_rule_summary():
+    """The "Full Rule Summary" is a paraphrased copy of every Core Rules section, and 15
+    requires a copy to name its source. Paraphrase defeats the copied-line check, so what is
+    pinned here is the pointer: each convention is linked from a summary heading. Two
+    conventions (22, 23) were missing from it for a release with nothing to say so.
+    """
+    body = read("README.md")
+    summary = body[body.index("## Full Rule Summary") :]
+    headings = re.findall(r"^### .*$", summary, flags=re.M)
+    sourced = set(re.findall(r"conventions/(\d\d-[a-z-]+\.md)", "\n".join(headings)))
+    missing = sorted({d.name for d in CONVENTIONS} - sourced)
+    assert not missing, f"no summary heading names these as its source: {missing}"
+    unsourced = [h for h in headings if "conventions/" not in h]
+    assert not unsourced, f"summary sections without a source link: {unsourced}"
+
+
 # --- the published site ----------------------------------------------------------------
 
 
