@@ -20,15 +20,6 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-# --- the retired toolkit left nothing behind ------------------------------------------------
-
-
-def test_the_contract_toolkit_is_gone():
-    """The contract runner was retired. A half-deleted toolkit is worse than either state."""
-    left = [p for p in ("scripts", "contract.md", "skills/conv-init") if (TEMPLATES / p).exists()]
-    assert not left, f"templates/ still ships retired contract-toolkit paths: {left}"
-
-
 # --- the template's own instruction about ruff ----------------------------------------------
 
 

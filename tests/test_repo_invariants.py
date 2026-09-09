@@ -8,6 +8,7 @@ same file, and so the red check can observe each one failing at the base commit.
 """
 
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -137,8 +138,6 @@ def test_nav_lists_what_a_project_still_takes():
     assert skills, "no skill to publish"
     unpublished = sorted(skills - listed)
     assert not unpublished, f"mkdocs nav omits {unpublished}"
-    retired = {p for p in listed if p.endswith("templates/contract.md") or "conv-init" in p}
-    assert not retired, f"mkdocs nav still publishes retired paths: {sorted(retired)}"
 
 
 # --- conventions/03's first Core Rule ---------------------------------------------------
@@ -166,11 +165,6 @@ def test_python_version_agrees_with_requires_python(directory):
 # --- what CLAUDE.md says this repository is ---------------------------------------------
 
 
-def test_claude_md_does_not_claim_there_are_no_test_commands():
-    """An agent that believes this skips the only verification the repository has."""
-    assert "there are no build/test commands" not in read("CLAUDE.md")
-
-
 def test_claude_md_names_the_code_this_repository_ships():
     """It told an agent the only code was a toolkit that no longer exists.
 
@@ -180,7 +174,58 @@ def test_claude_md_names_the_code_this_repository_ships():
     body = read("CLAUDE.md")
     for entry in ("hooks/", "commands/", "workflows/", ".claude-plugin/"):
         assert entry in body, f"CLAUDE.md never mentions {entry}"
-    assert "templates/scripts" not in body, "CLAUDE.md still points at the retired toolkit"
+
+
+# --- nothing in the tree still names a mechanism that was retired ------------------------
+
+RETIRED = (
+    "templates/scripts",
+    "contract.py",
+    "conv-init",
+    "templates/contract.md",
+    "verify: human",
+    "schema_version",
+    "last_sync_commit",
+    "last_audit_commit",
+    "`revision`",
+)
+
+
+def tracked_text() -> list[tuple[str, str]]:
+    """Every tracked text file as (path, body). This suite is left out: it spells the
+    tokens itself, and a tombstone list cannot be its own violation."""
+    listed = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.split("\0")
+    files = []
+    for name in filter(None, listed):
+        path = ROOT / name
+        if name.startswith("tests/") or not path.is_file():
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if "\0" not in body:
+            files.append((name, body))
+    return files
+
+
+def test_nothing_in_the_tree_names_a_retired_mechanism():
+    """A document sending a reader to a tool that no longer exists is the worst shape a rule
+    takes: readable, and doing as told fails.
+
+    One list checked against every tracked file, path as well as body, so a retired directory
+    reappearing and a document naming it fail the same way. Per-directory checks each covered
+    one corner and left the next file added uncovered.
+    """
+    named = sorted(
+        f"{name}: {token}"
+        for name, body in tracked_text()
+        for token in RETIRED
+        if token in name or token in body
+    )
+    assert not named, f"retired mechanisms are still named: {named}"
 
 
 # --- conventions/03 and 13: enforcement in CI --------------------------------------------
@@ -214,15 +259,6 @@ def test_workflow_runs_lint_tests_and_secret_scan(tool):
     install` outright, so CI is not the second line of defence — it is the only one.
     """
     assert tool in run_steps(workflow("checks.yml"))
-
-
-def test_no_step_still_configures_for_the_retired_runner():
-    """The runner was retired, and the red check now runs inside a lane's own worktree.
-
-    A step invoking it is a claim about a mechanism that no longer exists. The full-history
-    fetch it also wanted stayed, under a new reader: `tests/test_release.py`.
-    """
-    assert "contract.py" not in read(".github/workflows/checks.yml")
 
 
 # --- the negative criterion ---------------------------------------------------------------

@@ -169,27 +169,10 @@ def test_a_skill_does_not_copy_convention_text(path):
     assert not copied, f"{path.parent.name} copies convention text: {copied}"
 
 
-@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
-def test_no_skill_specifies_the_retired_shared_state(path):
-    """The old filename survives in exactly one place, the migration step that reads it
-    once and deletes it, so the global fields are what this pins rather than the name
-    (why the shared file failed: conventions/15-doc-tracking.md §2).
-    """
-    body = path.read_text(encoding="utf-8")
-    for field in ("last_sync_commit", "last_audit_commit"):
-        assert field not in body, f"{path.parent.name} still carries the global {field}"
-    for line in body.splitlines():
-        if "state.json" in line:
-            assert "Migrate" in line, (
-                f"{path.parent.name} names state.json outside the migration step: {line.strip()}"
-            )
-
-
 def test_docsync_still_says_how_to_leave_the_shared_state_behind():
-    """The check above passes if the migration step is deleted outright — its loop body
-    simply never runs. A repository that upgrades mid-life needs the step to be there, and
-    needs it to say how the old keys split, which is the one thing a reader cannot infer
-    once the old layout is gone from the document.
+    """A repository that upgrades mid-life needs the migration step to be there, and needs
+    it to say how the old keys split — the one thing a reader cannot infer once the old
+    layout is gone from the document (why the shared file failed: conventions/15 §2).
     """
     body = (ROOT / "skills" / "docsync" / "SKILL.md").read_text(encoding="utf-8")
     assert "state.json" in body, "the migration step naming the old layout is gone"

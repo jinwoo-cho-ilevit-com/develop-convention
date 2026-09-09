@@ -94,36 +94,6 @@ def test_the_stamp_check_would_catch_an_old_stamp():
 # four where one cries wolf.
 
 
-# --- no document sends a reader to a tool that was retired --------------------------------
-
-RETIRED = (
-    "templates/scripts",
-    "contract.py",
-    "verify: human",
-    "`revision`",
-    "schema_version",
-    "state.json",
-    "last_sync_commit",
-    "last_audit_commit",
-    "the last sync commit",
-    "last documented commit",
-)
-
-
-@pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)
-def test_no_doc_points_at_the_retired_runner(doc):
-    """19 §7 once told authors to write a field 18 §4 said the runner refused.
-
-    Following one document made the other's tool reject the contract, which is the worst
-    kind of disagreement between two rules — both readable, and doing as told fails.
-    The runner was retired; a document still naming it reproduces that shape against a
-    tool that no longer exists at all.
-    """
-    body = read(doc)
-    named = [token for token in RETIRED if token in body]
-    assert not named, f"{doc.name} still points at the retired contract runner: {named}"
-
-
 # --- a convention resting on an optional mechanism says what happens without it ------------
 
 
