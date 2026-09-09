@@ -39,6 +39,7 @@ When starting work related to a provider, fetch the URL in the corresponding row
 **Anthropic** — https://platform.claude.com/docs/en/
 - build-with-claude/structured-outputs · build-with-claude/effort · build-with-claude/thinking · build-with-claude/prompt-caching · build-with-claude/batch-processing · build-with-claude/streaming
 - api/rate-limits · about-claude/models/model-ids-and-versions
+- agents-and-tools/tool-use/tool-search-tool · build-with-claude/prompt-engineering/prompting-claude-<model> (per-model prompting guides) (as of: 2026-09)
 
 **Google Gemini** — https://ai.google.dev/gemini-api/docs/
 - structured-output · thinking · models · troubleshooting
@@ -51,18 +52,18 @@ When starting work related to a provider, fetch the URL in the corresponding row
 
 For the ML/training stack (torch, TRL, vLLM, etc.), the source links in [08-llm-development.md](08-llm-development.md) are the seed. When a new library is adopted, leaving its official docs URL as a source in the corresponding convention document is itself the registry entry.
 
-### 2.1 Provider Official Skills (as of: 2026-08)
+### 2.1 Provider Official Skills (as of: 2026-09)
 
 Agent Skills is an open standard — a folder holding a `SKILL.md` (with `name` and `description`) plus optional scripts and references — originally developed by Anthropic and then released as an open standard. Claude Code, Codex, Cursor, and Gemini CLI all read it, as do a long tail of other agents. If a provider offers an official skill, install and use it instead of fetching docs every time, and prioritize it over ctx7 when checking SDK usage.
 
 | Provider | Official skill | Install |
 |---|---|---|
 | Google | `gemini-api-dev` (general development), `gemini-live-api-dev` (real-time), `gemini-interactions-api`, `gemini-omni-flash-api` | `npx skills add google-gemini/gemini-skills --skill <name> --global` or ctx7 |
-| Anthropic | anthropics/skills marketplace (`document-skills`, `example-skills`). A dedicated Claude API development skill is **not** among them; for the API itself use the Tier 1 docs | Claude Code: `/plugin marketplace add anthropics/skills` then `/plugin install` |
+| Anthropic | Claude Code ships a bundled `claude-api` skill. Use `/claude-api prompt-audit` to audit prompts and tool descriptions for patterns written for older models (Claude Code 2.1.221) and `/claude-api cost-optimize` to profile a project's Claude API spend and work through the cost levers (caching, token hygiene, batch, effort, model choice) one measured change at a time (2.1.247). Also see the anthropics/skills marketplace (`document-skills`, `example-skills`) | Built in to Claude Code; marketplace skills: `/plugin marketplace add anthropics/skills` then `/plugin install` |
 | OpenAI | Dedicated API-development skill **(unverified — needs research)**. Codex itself reads the standard from `.agents/skills`, but the `openai/skills` catalog repo is deprecated in favor of `openai/plugins` (author new ones as skill-only plugins) | — Use the Tier 1/2 path, re-check periodically |
 | DeepSeek / OpenRouter | **(unverified — needs research)** | — Use the Tier 1/2 path, re-check periodically |
 
-Sources: [Agent Skills — open standard](https://agentskills.io), [Claude Code — skills](https://code.claude.com/docs/en/skills), [Codex — build skills](https://learn.chatgpt.com/docs/build-skills), [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [google-gemini/gemini-skills](https://github.com/google-gemini/gemini-skills), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecation notice)](https://github.com/openai/skills)
+Sources: [Agent Skills — open standard](https://agentskills.io), [Claude Code — skills](https://code.claude.com/docs/en/skills), [Codex — build skills](https://learn.chatgpt.com/docs/build-skills), [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [google-gemini/gemini-skills](https://github.com/google-gemini/gemini-skills), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecation notice)](https://github.com/openai/skills), [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md)
 
 ### 3. Provider Smoke Tests (Tier 4)
 
