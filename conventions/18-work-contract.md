@@ -20,7 +20,7 @@ A **work contract** fixes three things in the same identifiers before the work s
 - Name cross-cutting files individually, one owner each. A repository has files that belong to no directory — the README, the ignore file, the site config — and a prefix rule cannot assign them, so a decomposition that only knows prefixes silently leaves them to whoever touches them first. Give the integration lane an explicit list and run it last.
 - Slice by file, not by phase, when several kinds of change land in the same documents. Three lanes each doing "their kind of edit" across the same files collide by construction; one lane per file, carrying every kind of edit for that file, does not.
 - Assign lock files, migrations, and generated files to a single owner, never to a lane.
-- Record the model tier per lane (`light`/`mid`/`top`), never a model id, so the routing choice can be audited afterwards.
+- Record the model tier (`light`/`mid`/`top`) and the effort level (`low`/`medium`/`high`/`xhigh`/`max`) per lane, never a model id, so the routing choice can be audited afterwards (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
 
 ## Details
 

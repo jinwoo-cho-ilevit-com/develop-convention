@@ -4,6 +4,7 @@
 
 - Keep CLAUDE.md/AGENTS.md concise. A bloated instruction file causes rules to be ignored. For each line, ask "would removing this cause the agent to make a mistake?" — if not, delete it.
 - Layer module-specific instructions into that directory's AGENTS.md (closest wins). Split out occasionally-needed knowledge into Skills.
+- **Instruction anti-patterns**: keep verification rituals ("double-check your work"), thoroughness boosters ("be maximally thorough"), mandatory procedures or scratchpad scaffolds that duplicate native reasoning, stale examples showing long reasoning chains, contradictory rules, and dated configuration such as manual thinking budgets out of instruction files and prompts — these were written for older models and cost tokens on current ones without adding capability.
 - The main session orchestrates and does not develop. It plans, splits, dispatches and judges; every edit goes to a subagent, and reading a large file there costs the same budget an edit would. The default shape is one worktree-isolated subagent per lane, fanning results back into the session that dispatched them (→ [21-development-loop.md](21-development-loop.md)). A hook can tell the two apart mechanically — a subagent's tool call carries an `agent_id` and the main session's does not — which is enough to meter what the main session reads. Where it writes is convention: gating that costs a prompt on every edit and still cannot be judged exactly (→ [21-development-loop.md](21-development-loop.md) §3).
 - Before running parallel work, build a decomposition table (Task | Owner | Files | Dependencies | Integration point). Tasks with overlapping file ownership run sequentially, never in parallel.
 - For parallelization, prioritize workflows/subagent orchestration first. git worktree is a file isolation mechanism, not a coordination mechanism — it isolates live writes and does not resolve merge conflicts, so it does not make overlapping tasks parallelizable. Agents that write concurrently need one each; agents that only read do not.
@@ -11,7 +12,7 @@
 - Freeze shared interfaces/schemas during parallel execution. Only a single owner modifies lock files and migrations.
 - Merge each work branch only after its tests pass, and run one integration verification pass after merging. Every change then goes through a review its author did not perform (→ [20-review-gate.md](20-review-gate.md)).
 - A merged lane is a closed lane: once the integration pass is green, remove its worktree and delete its branch — `git worktree remove` without `--force` and `git branch -d`, never `-D`, because both refusals are safety signals, not obstacles. A halted lane keeps both; its worktree is where the fix round resumes. A branch that survives its merge reads as unfinished work to the next session.
-- Route models to match task difficulty: mechanical work → lightweight model, standard implementation → mid-tier, architecture/deep debugging → top-tier model.
+- Route on two axes, model tier and effort, not tier alone: a stronger model at lower effort can be both cheaper and better than a weaker model pushed to high effort, so the tier ladder (mechanical → lightweight, standard → mid-tier, architecture/deep debugging → top-tier) does not by itself settle the choice. Choose effort per task alongside tier, and re-choose effort whenever the tier changes rather than carrying the old setting over.
 - Write heavyweight spec documents only when they are an asset shared across multiple PRs/workers. For small-scale or exploratory work, proceed with lightweight iteration.
 
 ## Details
@@ -26,6 +27,7 @@ AGENTS.md is an open standard (a "README for machines") jointly formalized in 20
 - **Conciseness is performance**: Anthropic's official warning — "a bloated CLAUDE.md causes real instructions to be ignored." Start at around 20-30 lines.
 - **Layering**: the root file is the default, and subdirectory files override it (closest wins). Each file covers only the scope of its own directory.
 - **Split into Skills**: knowledge that isn't always needed (e.g., procedures for specific tasks) belongs in an on-demand Skill, not in an always-loaded instruction file.
+- **Instruction anti-patterns to strip out**, each written for a weaker or older model and now spending tokens on capability current models already have natively: verification rituals ("double-check your work") make the model re-narrate work it already checks internally; thoroughness boosters ("be maximally thorough") push toward over-exploration rather than a calibrated stop; mandatory procedures or scratchpad scaffolds duplicate reasoning the model performs natively without being told; stale examples that show long reasoning chains steer imitation of outdated verbosity rather than the current model's own reasoning; contradictory rules force the model to silently pick a winner instead of following the instruction; and dated configuration such as manual thinking budgets is superseded machinery (→ [11-llm-api-providers.md](11-llm-api-providers.md) for the `budget_tokens` deprecation). This is distinct from the fresh-context review lanes of [20-review-gate.md](20-review-gate.md): those are a separate pass by a different agent, the opposite mechanism from an in-prompt "check your own work" instruction, and this rule does not remove them.
 
 **Skill extraction criteria.** Move a passage out of an instruction file and into a skill when all three hold, and leave it in place otherwise:
 
@@ -35,7 +37,7 @@ AGENTS.md is an open standard (a "README for machines") jointly formalized in 20
 
 What remains behind is a pointer of one line, naming the skill and when to reach for it. A skill nothing points at is one nobody invokes.
 
-Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [AGENTS.md standardization (InfoQ)](https://infoq.com/news/2025/08/agents-md/)
+Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices), [AGENTS.md standardization (InfoQ)](https://infoq.com/news/2025/08/agents-md/), [Anthropic — Reducing cost and improving performance with Claude Platform](https://claude.com/blog/reducing-cost-and-improving-performance-with-claude-platform)
 
 ### 2. Parallel Development: Workflows First, Worktree for File Isolation
 
@@ -65,13 +67,17 @@ Sources: [Claude Code — run agents in parallel](https://code.claude.com/docs/e
 
 ### 3. Model Routing
 
-| Task difficulty | Model |
-|---|---|
-| Lookups, simple reads, mechanical edits | Lightweight (haiku-class) |
-| Standard implementation, single-domain refactoring, routine review | Mid-tier (sonnet-class) |
-| Architecture, multi-system reasoning, deep debugging, security | Top-tier (opus-class) |
+| Task difficulty | Model | Default effort |
+|---|---|---|
+| Lookups, simple reads, mechanical edits | Lightweight (haiku-class) | Low |
+| Standard implementation, single-domain refactoring, routine review | Mid-tier (sonnet-class) | Medium |
+| Architecture, multi-system reasoning, deep debugging, security | Top-tier (opus-class) | High (or above) |
 
-Default to the mid-tier model, and escalate only when there's evidence of difficulty.
+These are starting points, not a fixed mapping — effort moves independently of tier on evidence, not in lockstep with it.
+
+Default to the mid-tier model at the default effort level, and escalate — tier, effort, or both — only when there's evidence of difficulty. Step effort back down for routine or latency-sensitive work once evals show quality holds at the lower setting; effort chosen for one model does not transfer to another, so a model change is a reason to re-sweep effort rather than carry the old setting over. Anthropic's effort page describes the `low` level, in its description column, as "Most efficient. Significant token savings with some capability reduction."; its typical-use-case column names "Simpler tasks that need the best speed and lowest costs, such as subagents." For Claude Fable 5, "lower effort settings … still perform well and often exceed `xhigh` performance on prior models"; for Claude Opus 5, "if you carried effort settings over from an earlier model, run a fresh effort sweep on your evals rather than reusing them"; and setting `effort` to `"high"` is equivalent to omitting the parameter entirely.
+
+Sources: [Anthropic — effort](https://platform.claude.com/docs/en/build-with-claude/effort)
 
 ### 4. Spec Gating (Optional)
 
