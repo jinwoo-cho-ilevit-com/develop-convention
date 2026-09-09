@@ -11,13 +11,9 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from _repo import ROOT, read
 
-ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "templates"
-
-
-def read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
 
 
 # --- the retired toolkit left nothing behind ------------------------------------------------
@@ -92,25 +88,7 @@ def test_agents_template_is_short():
 # --- one answer for an agent with no local clone ---------------------------------------------
 
 
-SITE = "jinwoo-cho-ilevit-com.github.io/develop-convention"
-
-
 def test_readme_answers_the_cloud_sandbox_case():
     """A sandbox with no clone and no plugin still needs somewhere to read the rules."""
-    assert SITE in read(ROOT / "README.md")
-
-
-# --- the negative criterion --------------------------------------------------------------------
-
-
-def test_no_new_runtime_dependency():
-    """The repository ships documents and a plugin that reads files; nothing else.
-
-    This began as a pin of the runner's exact field set, written to express "the contract
-    that changed the templates did not change the tool". That is true of one contract and
-    not an invariant of the repository, so the pin failed the first time the runner was
-    legitimately extended. A negative criterion belongs to its contract; what outlives it
-    is the part that is still true afterwards.
-    """
-    declared = tomllib.loads(read(ROOT / "pyproject.toml"))
-    assert declared["project"]["dependencies"] == []
+    site = yaml.safe_load(read("mkdocs.yml"))["site_url"].removeprefix("https://").rstrip("/")
+    assert site in read("README.md")

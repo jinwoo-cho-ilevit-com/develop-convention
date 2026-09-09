@@ -6,13 +6,12 @@ the rule that governs stamps. Each one held a real defect when it was first writ
 """
 
 import datetime as dt
+import functools
 import re
-from pathlib import Path
 
 import pytest
+from _repo import CONVENTIONS, read
 
-ROOT = Path(__file__).resolve().parents[1]
-CONVENTIONS = sorted((ROOT / "conventions").glob("*.md"))
 BY_NAME = {p.name: p for p in CONVENTIONS}
 
 # A stamp records when a fact was last checked. 12's own Core Rule requires re-verifying
@@ -23,10 +22,7 @@ SECTION = re.compile(r"^### (\d+)\.", re.M)
 CROSS_REF = re.compile(r"\[([0-9]{2}-[a-z-]+\.md)\]\([^)]*\)\s*§\s*(\d+)")
 
 
-def read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
-
-
+@functools.cache
 def sections_of(name: str) -> set[int]:
     return {int(n) for n in SECTION.findall(read(BY_NAME[name]))}
 
@@ -48,7 +44,7 @@ def test_section_cross_references_resolve(doc):
 @pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)
 def test_section_numbering_is_contiguous(doc):
     """`15` ran 1,2,3,4,5,7 — a reader looking for §6 finds nothing and cannot tell why."""
-    numbers = sorted(sections_of(doc.name)) if doc.name in BY_NAME else []
+    numbers = sorted(sections_of(doc.name))
     if not numbers:
         pytest.skip("no numbered sections")
     assert numbers == list(range(1, len(numbers) + 1)), f"{doc.name} numbering: {numbers}"

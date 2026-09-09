@@ -1,4 +1,4 @@
-// Drives workflows/build.js against scripted review results so the three ways the
+// Drives workflows/build.js against scripted review results so the ways the
 // review loop can end are each observed, not assumed (→ conventions/20-review-gate.md:
 // a gate that passes is not evidence the gate works).
 import { readFileSync } from 'node:fs'
@@ -65,9 +65,10 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
     if (label.startsWith('develop:')) {
       // eslint-disable-next-line no-throw-literal
       if ('throws' in over) throw over.throws
+      if (over.developDies) return null
       return over.develop ?? { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria: [] }
     }
-    if (label.startsWith('fix:')) return { summary: 'fixed it' }
+    if (label.startsWith('fix:')) return over.fixDies ? null : { summary: 'fixed it' }
     // Stands in for the agent that reads git in the lane's worktree. It answers
     // independently of what the fix stub returned, which is the separation under test.
     if (label.startsWith('touched:')) {
@@ -192,6 +193,24 @@ const cases = [
     name: 'a verifier returning no verdicts leaves the blocker standing',
     rounds: [[finding()]],
     over: { emptyVerdicts: true },
+    expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
+  },
+  {
+    name: 'a develop agent that returns nothing is a failed lane',
+    rounds: [[]],
+    over: { developDies: true },
+    expect: { outcome: 'develop-failed', noLabel: 'review:' },
+  },
+  {
+    name: 'a fix agent that returns nothing halts the lane with its blockers',
+    rounds: [[finding()]],
+    over: { fixDies: true },
+    expect: { outcome: 'fix-failed', rounds: 1, noLabel: 'touched:' },
+  },
+  {
+    name: 'a verifier that returns nothing at all stops the round',
+    rounds: [[finding()]],
+    over: { verifierDies: true },
     expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
   },
   {

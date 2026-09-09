@@ -12,15 +12,16 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from _repo import CONVENTIONS, MARKETPLACE, PLUGIN, ROOT, SKILLS, load, read
 
-ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
-MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 GUARD = ROOT / "hooks" / "delegate-guard.sh"
+SYSTEM_PATH = "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"
 
 
-def load(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+def front_matter(path: Path) -> str:
+    body = read(path)
+    assert body.startswith("---\n"), f"{path} has no front matter"
+    return body.split("---", 2)[1]
 
 
 # --- manifests ------------------------------------------------------------------------------
@@ -92,7 +93,7 @@ def test_the_route_map_names_every_skill():
         [str(ROOT / "hooks" / "route-map.sh")], input="{}", capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
-    skills = sorted(p.parent.name for p in (ROOT / "skills").glob("*/SKILL.md"))
+    skills = sorted(p.parent.name for p in SKILLS)
     unrouted = [name for name in skills if name not in result.stdout]
     assert not unrouted, f"the routing map does not name: {unrouted}"
 
@@ -100,13 +101,7 @@ def test_the_route_map_names_every_skill():
 @pytest.mark.parametrize("path", sorted((ROOT / "commands").glob("*.md")), ids=lambda p: p.name)
 def test_every_command_declares_a_description(path):
     """Without one the command is listed with no way to tell what it does."""
-    body = path.read_text(encoding="utf-8")
-    assert body.startswith("---\n"), f"{path.name} has no front matter"
-    front = body.split("---", 2)[1]
-    assert "description:" in front, f"{path.name} declares no description"
-
-
-SKILLS = sorted((ROOT / "skills").glob("*/SKILL.md"))
+    assert "description:" in front_matter(path), f"{path.name} declares no description"
 
 
 @pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
@@ -116,9 +111,7 @@ def test_every_skill_declares_a_description(path):
     The name has to be the directory name: the two disagreeing installs a skill under
     a name nothing points at.
     """
-    body = path.read_text(encoding="utf-8")
-    assert body.startswith("---\n"), f"{path.parent.name} has no front matter"
-    front = body.split("---", 2)[1]
+    front = front_matter(path)
     assert "description:" in front, f"{path.parent.name} declares no description"
     assert f"name: {path.parent.name}\n" in front, (
         f"{path.parent.name} declares a name that is not its directory"
@@ -142,6 +135,9 @@ def test_every_skill_link_resolves(path):
     assert not broken, f"{path.parent.name} links to files that do not exist: {broken}"
 
 
+CONVENTION_TEXT = " ".join(read(p) for p in CONVENTIONS)
+
+
 @pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
 def test_a_skill_does_not_copy_convention_text(path):
     """A skill routes to or executes a convention; the rule text itself stays there.
@@ -150,13 +146,10 @@ def test_a_skill_does_not_copy_convention_text(path):
     review lens (CLAUDE.md, verification item 6). A guard, so it holds at the base commit
     by design (→ conventions/06-testing-verification.md).
     """
-    conventions = " ".join(
-        p.read_text(encoding="utf-8") for p in (ROOT / "conventions").glob("*.md")
-    )
     copied = [
         line
-        for raw in path.read_text(encoding="utf-8").splitlines()
-        if len(line := raw.strip().lstrip("|-*# ").strip()) >= 40 and line in conventions
+        for raw in read(path).splitlines()
+        if len(line := raw.strip().lstrip("|-*# ").strip()) >= 40 and line in CONVENTION_TEXT
     ]
     assert not copied, f"{path.parent.name} copies convention text: {copied}"
 
@@ -204,7 +197,7 @@ def test_every_convention_is_routed_by_exactly_one_skill():
         for name in re.findall(r"\.\./\.\./conventions/(\d\d-[a-z-]+\.md)", body):
             routed.setdefault(name, set()).add(path.parent.name)
 
-    everything = {p.name for p in (ROOT / "conventions").glob("*.md")} - {"00-principles.md"}
+    everything = {p.name for p in CONVENTIONS} - {"00-principles.md"}
     orphaned = sorted(everything - set(routed))
     assert not orphaned, f"no skill routes to {orphaned}"
 
@@ -225,7 +218,7 @@ def run_guard(payload: dict, env: dict | None = None) -> dict | None:
         input=json.dumps(payload),
         capture_output=True,
         text=True,
-        env={"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin", **(env or {})},
+        env={"PATH": SYSTEM_PATH, **(env or {})},
     )
     assert result.returncode == 0, f"the guard exited {result.returncode}: {result.stderr}"
     return json.loads(result.stdout) if result.stdout.strip() else None
@@ -416,10 +409,9 @@ def test_the_plan_exemption_does_not_reach_outside_the_plan(spelling, tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "deny"
 
 
-def test_the_declared_bypass_works_without_jq(tmp_path):
-    """Its own refusal message told the reader to set this variable, and the check that
-    read the variable sat below the refusal, so a jq-less machine had no way to reach the
-    escape hatch its own error message advertised."""
+@pytest.fixture
+def empty_bin(tmp_path) -> Path:
+    """A PATH holding what the guard needs except jq; skips where no bash can be linked."""
     empty_bin = tmp_path / "bin"
     empty_bin.mkdir()
     for tool in ("bash", "cat", "grep", "sed", "wc", "tr", "printf"):
@@ -429,7 +421,13 @@ def test_the_declared_bypass_works_without_jq(tmp_path):
                 break
     if not (empty_bin / "bash").exists():
         pytest.skip("no bash to build an isolated PATH with")
+    return empty_bin
 
+
+def test_the_declared_bypass_works_without_jq(empty_bin):
+    """Its own refusal message told the reader to set this variable, and the check that
+    read the variable sat below the refusal, so a jq-less machine had no way to reach the
+    escape hatch its own error message advertised."""
     result = subprocess.run(
         [str(empty_bin / "bash"), str(GUARD)],
         input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
@@ -488,21 +486,11 @@ def test_the_guard_refuses_and_never_prompts(tmp_path):
         assert decision(payload) == "allow", f"{payload['tool_name']} is still gated"
 
 
-def test_the_guard_refuses_rather_than_vanishes_without_jq(tmp_path):
+def test_the_guard_refuses_rather_than_vanishes_without_jq(empty_bin):
     """Without jq every branch read empty and the call fell through to allow — and the
     other guard tests skip in exactly that environment, so CI was green where the gate was
     dead. A guard that cannot decide must not be the one that says yes.
     """
-    empty_bin = tmp_path / "bin"
-    empty_bin.mkdir()
-    for tool in ("bash", "cat", "grep", "sed", "wc", "tr", "printf"):
-        for root in ("/bin", "/usr/bin"):
-            if Path(root, tool).exists():
-                (empty_bin / tool).symlink_to(Path(root, tool))
-                break
-    if not (empty_bin / "bash").exists():
-        pytest.skip("no bash to build an isolated PATH with")
-
     result = subprocess.run(
         [str(empty_bin / "bash"), str(GUARD)],
         input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
@@ -522,7 +510,7 @@ def test_an_unparseable_payload_is_refused_not_waved_through():
         input="not json",
         capture_output=True,
         text=True,
-        env={"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"},
+        env={"PATH": SYSTEM_PATH},
     )
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
@@ -545,7 +533,7 @@ def test_the_bypass_is_recorded_not_silent(tmp_path):
         capture_output=True,
         text=True,
         env={
-            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "PATH": SYSTEM_PATH,
             "DEV_HARNESS_ALLOW_MAIN": "1",
         },
     )
@@ -558,11 +546,10 @@ def test_the_bypass_is_recorded_not_silent(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="the harness needs node")
-def test_the_review_loop_ends_three_ways():
-    """Blockers cleared, the fix became the defect source, or the cap called a person.
-
-    Driven by tests/workflow_harness.mjs against scripted review rounds, because the three
-    exits are the part of workflows/build.js that a reader cannot confirm by reading.
+def test_the_review_loop_exits_are_observed():
+    """Every exit commands/build.md lists is driven by tests/workflow_harness.mjs against
+    scripted review rounds, because the exits are the part of workflows/build.js that a
+    reader cannot confirm by reading.
     """
     result = subprocess.run(
         ["node", str(ROOT / "tests" / "workflow_harness.mjs")], capture_output=True, text=True

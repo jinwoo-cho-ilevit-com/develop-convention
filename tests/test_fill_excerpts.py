@@ -87,7 +87,7 @@ def test_markerless_input_aborts(repo):
         fx.render("# a rules file whose markers were lost\n", repo, "t", "s")
 
 
-def test_missing_heading_and_empty_section_abort(repo, tmp_path):
+def test_missing_heading_and_empty_section_abort(repo):
     (repo / "conventions" / "98-empty.md").write_text("# 98\n\n## Core Rules\n\n## Details\n")
     with pytest.raises(fx.FillError, match="no bullets"):
         fx.render(

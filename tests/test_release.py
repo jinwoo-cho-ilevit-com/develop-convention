@@ -7,34 +7,23 @@ the commands and the workflow, and `/plugin update dev-harness` printed nothing 
 indistinguishable from success while the installed copy stayed at the state before them.
 """
 
-import json
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
+from _repo import MARKETPLACE, PLUGIN, ROOT, load, read
 
-ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
-MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 # What `/plugin install` puts on a user's machine. A change under any of these is a change
 # the user can only receive through a new version. `conventions` belongs here for the same
 # reason the rest do, and by the count is the most load-bearing of them: the commands and
 # skills resolve `${CLAUDE_PLUGIN_ROOT}/conventions` seventeen times, against one for
 # `workflows`. Omitted, a conventions-only edit shipped nothing and no check said so.
-SHIPPED = ("hooks", "commands", "workflows", "skills", "conventions", ".claude-plugin")
-
-
-def load(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+# `templates` because `setup` reads its AGENTS.md skeleton from there.
+SHIPPED = ("hooks", "commands", "workflows", "skills", "conventions", "templates", ".claude-plugin")
 
 
 def git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
-
-
-def read(relative: str) -> str:
-    return (ROOT / relative).read_text(encoding="utf-8")
 
 
 # --- the two files a human edits ---------------------------------------------------------
@@ -46,9 +35,9 @@ def test_the_marketplace_entry_agrees_with_the_plugin_manifest():
     The entry may omit `version` — that is the documented way to keep one source of truth.
     Declaring a different one is the failure.
     """
-    declared = load(PLUGIN)["version"]
-    name = load(PLUGIN)["name"]
-    entry = next(e for e in load(MARKETPLACE)["plugins"] if e["name"] == name)
+    plugin = load(PLUGIN)
+    declared = plugin["version"]
+    entry = next(e for e in load(MARKETPLACE)["plugins"] if e["name"] == plugin["name"])
     assert entry.get("version", declared) == declared, (
         f"marketplace entry says {entry.get('version')!r}, plugin.json says {declared!r}"
     )
@@ -107,8 +96,10 @@ def test_the_shipped_components_have_not_moved_since_the_version_did():
         pytest.skip(f"no commit in this clone sets version {version}")
 
     changed = git("diff", "--name-only", bumped_at, "HEAD", "--", *SHIPPED).stdout.split()
+    if not changed:
+        return
     culprits = git("log", "--format=  %h %s", f"{bumped_at}..HEAD", "--", *SHIPPED).stdout
-    assert not changed, (
+    raise AssertionError(
         f"version {version} was last set in {bumped_at[:12]}, and the plugin has shipped "
         f"changes since:\n{culprits}"
         f"files: {changed}\n"

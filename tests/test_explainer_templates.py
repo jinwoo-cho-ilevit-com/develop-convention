@@ -9,17 +9,17 @@ review lanes.
 
 import json
 import re
-from pathlib import Path
+from collections import Counter
 
 import pytest
+from _repo import ROOT as REPO
 
-REPO = Path(__file__).resolve().parent.parent
 SKELETON = REPO / "skills" / "explainer-docs" / "explainer-skeleton.html"
 GALLERY = REPO / "skills" / "explainer-docs" / "explainer-gallery.html"
 TEMPLATES = {"skeleton": SKELETON, "gallery": GALLERY}
 
 
-@pytest.fixture(params=sorted(TEMPLATES))
+@pytest.fixture(params=sorted(TEMPLATES), scope="module")
 def template(request):
     path = TEMPLATES[request.param]
     return request.param, path, path.read_text(encoding="utf-8")
@@ -137,12 +137,13 @@ def _function_body(text, name, path):
 
 
 def test_shared_helpers_are_identical_in_both_files():
-    """Both files claim their renderBarsH and axes copies are identical up to
-    indentation; this makes the claim mechanical."""
-    for fn in ("renderBarsH", "axes"):
-        bodies = {}
-        for name, path in TEMPLATES.items():
-            bodies[name] = _function_body(path.read_text(encoding="utf-8"), fn, path)
+    """Every function the skeleton defines is one the gallery copies; the copies must be
+    identical up to indentation."""
+    texts = {name: path.read_text(encoding="utf-8") for name, path in TEMPLATES.items()}
+    shared = re.findall(r"^\s*function (\w+)\(", texts["skeleton"], re.M)
+    assert shared, "the skeleton defines no functions"
+    for fn in shared:
+        bodies = {name: _function_body(text, fn, TEMPLATES[name]) for name, text in texts.items()}
         assert bodies["skeleton"] == bodies["gallery"], f"{fn} drifted between skeleton and gallery"
 
 
@@ -220,7 +221,7 @@ def test_series_tokens_are_exactly_five(template):
     assert len(blocks) == 3, f"{path.name}: expected 3 :root theme blocks, found {len(blocks)}"
     for body in blocks:
         for token in sorted(expected):
-            count = len(re.findall(rf"{token}:", body))
+            count = body.count(f"{token}:")
             assert count == 1, f"{path.name}: {token} declared {count} times in a theme block"
 
 
@@ -255,7 +256,7 @@ def test_every_figure_declares_its_accessibility_contract(template):
     markup = re.sub(r"<!--.*?-->", "", text, flags=re.S)
     markup = re.sub(r"<(script|style)\b.*?</\1>", "", markup, flags=re.S)
     ids = re.findall(r'\bid="([^"]+)"', markup)
-    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    duplicates = sorted(i for i, n in Counter(ids).items() if n > 1)
     assert not duplicates, (
         f"{path.name}: duplicate ids make aria references ambiguous: {duplicates}"
     )

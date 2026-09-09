@@ -7,24 +7,20 @@ reach. They are tests here so the contract's `verify` commands and the CI job ex
 same file, and so the red check can observe each one failing at the base commit.
 """
 
+import functools
 import re
 import tomllib
-from pathlib import Path
 
 import pytest
 import yaml
+from _repo import CONVENTIONS, ROOT, SKILLS, read
 
-ROOT = Path(__file__).resolve().parents[1]
-CONVENTIONS = sorted((ROOT / "conventions").glob("*.md"))
 # 17 is the declared exception: its commit-body template and examples are Korean on
 # purpose, because the commit policy is an English header over a Korean body.
 RESIDUE = ("</content>", "</invoke>", "</antml")
 
 
-def read(relative: str) -> str:
-    return (ROOT / relative).read_text(encoding="utf-8")
-
-
+@functools.cache
 def mkdocs_config() -> dict:
     return yaml.safe_load(read("mkdocs.yml"))
 
@@ -72,17 +68,10 @@ def test_format_doc_map_links_resolve():
     assert not broken, f"README links to paths that do not exist: {broken}"
 
 
-def test_format_doc_map_lists_every_convention():
-    """A doc absent from the map is a doc nobody is routed to."""
-    listed = set(re.findall(r"conventions/(\d\d-[a-z-]+\.md)", read("README.md")))
-    missing = sorted({d.name for d in CONVENTIONS} - listed)
-    assert not missing, f"README's doc map omits {missing}"
-
-
 def test_every_convention_sits_under_a_doc_map_group():
-    """The check above passes on a doc named anywhere in the README — a prose arrow counts.
+    """A doc named anywhere in the README is not enough — a prose arrow would count.
 
-    The map is grouped now because the numbers are identifiers rather than a reading order,
+    The map is grouped because the numbers are identifiers rather than a reading order,
     so a doc outside every group is unreachable by the only ordering a reader is given.
     """
     body = read("README.md")
@@ -133,7 +122,7 @@ def test_nav_lists_what_a_project_still_takes():
     """
     listed = set(nav_paths(mkdocs_config()["nav"]))
     assert "templates/AGENTS.md" in listed
-    skills = {f"skills/{p.parent.name}/SKILL.md" for p in (ROOT / "skills").glob("*/SKILL.md")}
+    skills = {f"skills/{p.parent.name}/SKILL.md" for p in SKILLS}
     assert skills, "no skill to publish"
     unpublished = sorted(skills - listed)
     assert not unpublished, f"mkdocs nav omits {unpublished}"
@@ -186,6 +175,7 @@ def test_claude_md_names_the_code_this_repository_ships():
 # --- conventions/03 and 13: enforcement in CI --------------------------------------------
 
 
+@functools.cache
 def workflow(name: str) -> dict:
     return yaml.safe_load(read(f".github/workflows/{name}"))
 
