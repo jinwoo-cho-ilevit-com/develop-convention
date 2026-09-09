@@ -10,7 +10,6 @@
     {
       "name": "dev-harness",
       "description": "Skills that load the rules the work at hand needs, interview-driven planning, delegated execution in parallel lanes, and review that starts the moment a lane finishes. The conventions it runs on live in the same repository under conventions/.",
-      "version": "0.28.4",
       "author": {
         "name": "Jinwoo Cho",
         "email": "jinwoo.cho@ilevit.com"
@@ -20,6 +19,5 @@
       "homepage": "https://jinwoo-cho-ilevit-com.github.io/develop-convention/",
       "tags": ["conventions", "planning", "delegation", "review"]
     }
-  ],
-  "version": "0.28.4"
+  ]
 }

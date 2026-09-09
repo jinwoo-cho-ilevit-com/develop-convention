@@ -26,36 +26,19 @@ def git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
 
 
-# --- the two files a human edits ---------------------------------------------------------
+# --- one version literal ------------------------------------------------------------------
 
 
-def test_the_marketplace_entry_agrees_with_the_plugin_manifest():
-    """`plugin.json` always wins and nothing warns, so a stale entry is invisible at runtime.
-
-    The entry may omit `version` — that is the documented way to keep one source of truth.
-    Declaring a different one is the failure.
+def test_the_marketplace_declares_no_version_of_its_own():
+    """`plugin.json` always wins and nothing warns, so a marketplace `version` is at best a
+    copy and at worst a stale one. Omitting it is the documented way to keep one source of
+    truth (→ https://code.claude.com/docs/en/plugin-marketplaces, "Version resolution and
+    release channels"); it was hand-moved at every release from 0.2.4 to 0.28.4 before.
     """
-    plugin = load(PLUGIN)
-    declared = plugin["version"]
-    entry = next(e for e in load(MARKETPLACE)["plugins"] if e["name"] == plugin["name"])
-    assert entry.get("version", declared) == declared, (
-        f"marketplace entry says {entry.get('version')!r}, plugin.json says {declared!r}"
-    )
-
-
-def test_the_marketplace_document_version_agrees_with_the_plugin():
-    """The third copy of the version, and the one the check above does not reach.
-
-    It is a separate literal from the entry, moved by hand at every release since 0.2.4. A
-    release that bumps the other two and forgets this one leaves both suites green while the
-    document advertises a version matching nothing. Omitting it is fine for the same reason
-    it is fine on the entry: one source of truth. Declaring a different one is the failure.
-    """
-    declared = load(PLUGIN)["version"]
-    document = load(MARKETPLACE).get("version", declared)
-    assert document == declared, (
-        f"marketplace document version says {document!r}, plugin.json says {declared!r}"
-    )
+    market = load(MARKETPLACE)
+    entry = next(e for e in market["plugins"] if e["name"] == load(PLUGIN)["name"])
+    assert "version" not in market, "the marketplace document carries a second version literal"
+    assert "version" not in entry, "the marketplace entry carries a second version literal"
 
 
 # --- a release that no longer describes what it ships --------------------------------------
@@ -104,7 +87,7 @@ def test_the_shipped_components_have_not_moved_since_the_version_did():
         f"changes since:\n{culprits}"
         f"files: {changed}\n"
         f"`/plugin update` keys on the version string and exits silently when it has not "
-        f"moved. Bump it in .claude-plugin/plugin.json and the marketplace entry."
+        f"moved. Bump it in .claude-plugin/plugin.json."
     )
 
 

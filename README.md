@@ -109,7 +109,7 @@ Then run `/reload-plugins`, or restart. Skills take effect immediately in a runn
 
 To see which copy is actually running, read `~/.claude/plugins/installed_plugins.json` — it records the active install path, its version and the git commit it was built from, so the live copy is identifiable without inferring it from how a hook behaves.
 
-`/plugin update` keys on the version string in `.claude-plugin/plugin.json` and exits silently when it has not moved, which is indistinguishable from success. Bump it whenever anything under `hooks/`, `commands/`, `workflows/`, `skills/` or `.claude-plugin/` changes; `tests/test_release.py` fails the build if you do not.
+`/plugin update` keys on the version string in `.claude-plugin/plugin.json` and exits silently when it has not moved, which is indistinguishable from success. It is the only version literal (the marketplace entry declares none on purpose). Bump it whenever anything under `hooks/`, `commands/`, `workflows/`, `skills/`, `conventions/`, `templates/` or `.claude-plugin/` changes; `tests/test_release.py` fails the build if you do not.
 
 Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste convention rules into it: an excerpt is a copy, and a copy drifts from its source while being loaded in every session (→ [15-doc-tracking.md](conventions/15-doc-tracking.md), [09-agentic-workflow.md](conventions/09-agentic-workflow.md)).
 
