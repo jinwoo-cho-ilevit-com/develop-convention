@@ -128,12 +128,13 @@ const REVIEW_LENSES = [
   { key: 'absence', input: 'the lane brief and the diff — hunt for what the brief requires and the diff omits' },
 ]
 
-// Added only when the lane touches auth, secrets, or external input (→ 20 Core Rules).
+// Added only for a lane the plan declares `security: true` — one that touches auth, secrets
+// or external input (→ 20 Core Rules). The declaration is the only source; paths are not read
+// for it, because a name that looks like a trust boundary is not one and the reverse is worse.
 const SECURITY_LENS = {
   key: 'security',
   input: 'the diff, its trust boundaries, and every point where it accepts input it did not produce',
 }
-const TRUST_BOUNDARY = /auth|secret|credential|token|login|session|permission|hook|api|webhook|upload/i
 
 // One finding is one defect wherever it was seen, and the same key identifies it across
 // rounds — which is what makes repetition measurable without asking a reviewer.
@@ -263,7 +264,7 @@ const complaint =
   // An argument-less call has no shape to be wrong. It belongs to the freeze gate below,
   // whose note is the one that names the command to run instead.
   (input === undefined ? null : checkShape(input, 'args', ARG_FIELDS, ['lanes'])) ??
-  lanes.map((l, i) => checkShape(l, `args.lanes[${i}]`, LANE_FIELDS, ['name', 'owns'])).find(Boolean) ??
+  lanes.map((l, i) => checkShape(l, `args.lanes[${i}]`, LANE_FIELDS, ['name', 'owns', 'security'])).find(Boolean) ??
   boundaries.map((b, i) => checkShape(b, `args.boundaries[${i}]`, BOUNDARY_FIELDS, ['lanes'])).find(Boolean) ??
   // Two lanes of one name share a brief, a branch and every label, and the second silently
   // becomes indistinguishable from the first in the results.
@@ -312,15 +313,12 @@ if (!lanes.length) {
 }
 
 // Three lanes when the change spans modules or pins an interface, one otherwise, plus a
-// security lens when the lane touches a trust boundary (→ 20 §2).
+// security lens for a lane the plan declared `security: true` (→ 20 §2).
 function lensesFor(lane) {
   const spansModules = (lane.owns ?? []).length > 1
   const pinsInterface = boundaries.some((b) => (b.lanes ?? []).includes(lane.name))
   const base = spansModules || pinsInterface ? REVIEW_LENSES : [REVIEW_LENSES[0]]
-  // The plan says so explicitly, or the paths say so for a plan that forgot to.
-  const touchesTrust =
-    lane.security === true || (lane.owns ?? []).some((p) => TRUST_BOUNDARY.test(p))
-  return touchesTrust ? [...base, SECURITY_LENS] : base
+  return lane.security === true ? [...base, SECURITY_LENS] : base
 }
 
 function developPrompt(lane) {

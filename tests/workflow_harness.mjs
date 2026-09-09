@@ -121,7 +121,7 @@ async function run(rounds, over = {}) {
       : {
           planDir: '.plans',
           base: 'main',
-          lanes: [over.lane ?? { name: 'a', owns: ['src/a/'] }],
+          lanes: [over.lane ?? { name: 'a', owns: ['src/a/'], security: false }],
           boundaries: over.boundaries ?? [],
           // What `/dev-harness:build` declares after writing the contract tests. A case can
           // drop it to reach the refusal.
@@ -143,6 +143,44 @@ function dispatchChecks(expect, out) {
     if (!re.test(out.prompts[label] ?? '')) why.push(`prompt[${label}] does not match ${re}`)
   }
   return why
+}
+
+// One row per refusal `checkShape` can produce: name, the path the note must name, the value
+// landing there, and the words naming the cause. The path also decides what the row overrides
+// and the first half of the expected note, so no row passes on a message about another field.
+const LANE = { name: 'a', owns: ['src/a/'], security: false }
+const BOUNDARY = { name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }
+const SHAPE_ROWS = [
+  ['a misspelled top-level key is refused rather than defaulted', 'args', { lanes: [LANE], conventionDir: '/abs/conventions', boundariesFrozen: true }, /unknown key "conventionDir"/],
+  ['arguments carrying no lanes at all are refused by name', 'args', { boundariesFrozen: true }, /declares no lanes/],
+  ['lanes arriving as text of its own is refused rather than thrown out of', 'args.lanes', { lanes: JSON.stringify([LANE]), boundaries: [], boundariesFrozen: true }, /must be a list of lane objects/],
+  ['boundaries arriving as text of its own is refused rather than thrown out of', 'args.boundaries', { lanes: [LANE], boundaries: JSON.stringify([BOUNDARY]), boundariesFrozen: true }, /must be a list of boundary objects/],
+  ['a base that is not a string is refused', 'args.base', { lanes: [LANE], base: {}, boundariesFrozen: true }, /is \{\}, and must be a non-empty string/],
+  ['a base present but empty is refused', 'args.base', { lanes: [LANE], base: '', boundariesFrozen: true }, /is "", and must be a non-empty string/],
+  ['a lane that is a name rather than an object is refused', 'args.lanes[0]', 'auth', /is "auth", not an object/],
+  ['a lane object with no name is refused', 'args.lanes[0]', { owns: ['src/a/'], security: false }, /declares no name/],
+  ['a lane that owns nothing is refused', 'args.lanes[0]', { name: 'a', security: false }, /declares no owns/],
+  ['a lane that declares no security is refused', 'args.lanes[0]', { name: 'a', owns: ['src/a/'] }, /declares no security/],
+  ['a lane whose security is not a boolean is refused', 'args.lanes[0].security', { name: 'a', owns: ['src/a/'], security: 'true' }, /must be a boolean/],
+  ['a misspelled lane key is refused rather than defaulted', 'args.lanes[0]', { name: 'a', owns: ['src/a/'], security: false, onws: ['src/typo/'] }, /unknown key "onws"/],
+  ['a lane name that traverses out of the plan directory is refused', 'args.lanes[0].name', { name: '../escape', owns: ['src/a/'], security: false }, /must be a name matching/],
+  ['owns arriving as text of its own is refused', 'args.lanes[0].owns', { name: 'a', owns: '["src/a/"]', security: false }, /must be a non-empty list of path strings/],
+  ['an owns entry that is not a path string is refused', 'args.lanes[0].owns', { name: 'a', owns: ['src/a/', 42], security: false }, /must be a non-empty list of path strings/],
+  ['a boundary that is a name rather than an object is refused', 'args.boundaries[0]', 'api', /is "api", not an object/],
+  ['a boundary that pins no lane is refused', 'args.boundaries[0]', { name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }, /declares no lanes/],
+]
+
+const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// A path naming an element overrides just that element; anything above one is the whole
+// argument, and it goes in as text — the form a nested field can be mis-encoded in.
+function shapeCase([name, where, value, cause]) {
+  const over = where.startsWith('args.lanes[')
+    ? { lane: value }
+    : where.startsWith('args.boundaries[')
+      ? { boundaries: [value] }
+      : { rawArgs: JSON.stringify(value) }
+  return { name, rounds: [[]], over, expect: { refused: new RegExp(`${escapeRe(where)} [^]*?${cause.source}`) } }
 }
 
 const cases = [
@@ -316,10 +354,18 @@ const cases = [
     expect: { outcome: 'passed', rounds: 1 },
   },
   {
-    name: 'a lane touching a trust boundary gets a security lens',
+    name: 'a lane the plan declared security gets a security lens',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/auth/'] } },
+    over: { lane: { name: 'a', owns: ['src/a/'], security: true } },
     expect: { outcome: 'passed', hasLabel: 'review:a:security#1' },
+  },
+  {
+    // A path that looks like a trust boundary is not a declaration; only `security: true` is,
+    // and a lens nobody asked for reads as coverage of a boundary nobody assessed.
+    name: 'a lane owning an auth path but declaring security false gets no security lens',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/api/auth/'], security: false } },
+    expect: { outcome: 'passed', noLabel: 'review:a:security' },
   },
   {
     name: 'a lane whose own criteria failed never reaches review',
@@ -344,7 +390,7 @@ const cases = [
     // silent lens is precisely the one whose "no findings" carries no information.
     name: 'one silent lens among three still stops the pass',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/', 'src/b/'] }, commandsRunSeq: [0, 2, 2] },
+    over: { lane: { name: 'a', owns: ['src/a/', 'src/b/'], security: false }, commandsRunSeq: [0, 2, 2] },
     expect: { outcome: 'review-unexecuted', rounds: 1 },
   },
   {
@@ -373,7 +419,7 @@ const cases = [
     // call, and the only fix it leaves them is to hardcode the flag.
     name: 'args arriving as JSON text encoding an object is parsed and runs',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }], boundariesFrozen: true }) },
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }], boundariesFrozen: true }) },
     expect: { outcome: 'passed', rounds: 1 },
   },
   {
@@ -381,7 +427,7 @@ const cases = [
     // declaration, and text that omits it declares nothing.
     name: 'JSON text that omits the freeze is still refused over the freeze',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }] }) },
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }] }) },
     expect: { refused: /boundariesFrozen was not true/ },
   },
   {
@@ -413,7 +459,7 @@ const cases = [
     // a caller whose payload is the wrong shape is sent off to fix their declaration.
     name: 'JSON text encoding an array is refused for its shape, not the freeze',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify([{ name: 'a', owns: ['src/a/'] }]) },
+    over: { rawArgs: JSON.stringify([{ name: 'a', owns: ['src/a/'], security: false }]) },
     expect: { refused: /did not arrive as an object/ },
   },
   {
@@ -424,33 +470,7 @@ const cases = [
     over: { rawArgs: null },
     expect: { refused: /did not arrive as an object/ },
   },
-  {
-    // Parsing recovers the top level only. A nested field still encoded as text used to reach
-    // `pipeline` and throw, which returns no note and names no cause to the caller.
-    name: 'lanes arriving as text of its own is refused rather than thrown out of',
-    rounds: [[]],
-    over: {
-      rawArgs: JSON.stringify({
-        lanes: JSON.stringify([{ name: 'a', owns: ['src/a/'] }]),
-        boundaries: [],
-        boundariesFrozen: true,
-      }),
-    },
-    expect: { refused: /args\.lanes .* must be a list of lane objects/ },
-  },
-  {
-    // The same one level down on the other field, which reached `flatMap` instead.
-    name: 'boundaries arriving as text of its own is refused rather than thrown out of',
-    rounds: [[]],
-    over: {
-      rawArgs: JSON.stringify({
-        lanes: [{ name: 'a', owns: ['src/a/'] }],
-        boundaries: JSON.stringify([{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }]),
-        boundariesFrozen: true,
-      }),
-    },
-    expect: { refused: /args\.boundaries .* must be a list of boundary objects/ },
-  },
+  ...SHAPE_ROWS.map(shapeCase),
   {
     // `rawArgs` replaces the constructed object wholesale, so no text case reached a boundary
     // and the contract-test check was never exercised on this path at all. A later change that
@@ -459,7 +479,7 @@ const cases = [
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
-        lanes: [{ name: 'a', owns: ['src/a/'] }],
+        lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
         boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
         boundariesFrozen: true,
       }),
@@ -473,7 +493,7 @@ const cases = [
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
-        lanes: [{ name: 'a', owns: ['src/a/'] }],
+        lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
         boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
         boundariesFrozen: true,
       }),
@@ -559,21 +579,6 @@ const cases = [
     expect: { outcome: 'passed', rounds: 1, noLabel: 'freeze-check' },
   },
   {
-    // The list check guarantees the container; these are its elements. A lane name where a
-    // lane object belongs is the natural misreading of a field called `lanes`, and it used to
-    // fan out two worktree agents as `develop:undefined` and report the run green.
-    name: 'a lane that is a name rather than an object is refused',
-    rounds: [[]],
-    over: { lane: 'auth' },
-    expect: { refused: /args\.lanes\[0\] is "auth", not an object/ },
-  },
-  {
-    name: 'a lane object with no name is refused',
-    rounds: [[]],
-    over: { lane: { owns: ['src/a/'] } },
-    expect: { refused: /args\.lanes\[0\] declares no name/ },
-  },
-  {
     // The freeze check reads `test`/`sample` off each boundary. A boundary yielding neither
     // emptied `frozenPaths` and skipped the check entirely, while every lane was still told
     // its contract tests exist — the declaration back in charge of itself.
@@ -583,66 +588,17 @@ const cases = [
     expect: { refused: /args\.boundaries\[0\] names neither a test nor a sample path/ },
   },
   {
-    name: 'a boundary that is a name rather than an object is refused',
-    rounds: [[]],
-    over: { boundaries: ['api'] },
-    expect: { refused: /args\.boundaries\[0\] is "api", not an object/ },
-  },
-  {
-    // A key nothing reads is a key the caller believes is doing something. Defaulting it
-    // silently pointed every lane and reviewer at a conventions path that resolves nowhere,
-    // and the lane still reported clean.
-    name: 'a misspelled top-level key is refused rather than defaulted',
-    rounds: [[]],
-    over: {
-      rawArgs: JSON.stringify({
-        lanes: [{ name: 'a', owns: ['src/a/'] }],
-        conventionDir: '/abs/conventions',
-        boundariesFrozen: true,
-      }),
-    },
-    expect: { refused: /unknown key "conventionDir"/ },
-  },
-  {
-    name: 'a misspelled lane key is refused rather than defaulted',
-    rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/'], onws: ['src/typo/'] } },
-    expect: { refused: /args\.lanes\[0\] carries an unknown key "onws"/ },
-  },
-  {
-    // Reached every prompt as `[object Object]`, in a `git reset --hard` the lane then runs.
-    name: 'a base that is not a string is refused',
-    rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }], base: {}, boundariesFrozen: true }) },
-    expect: { refused: /args\.base is \{\}, and must be a non-empty string/ },
-  },
-  {
-    // The same mis-encoding as `lanes`, one level further down: it reached `.join` and threw.
-    name: 'owns arriving as text of its own is refused',
-    rounds: [[]],
-    over: { lane: { name: 'a', owns: '["src/a/"]' } },
-    expect: { refused: /args\.lanes\[0\]\.owns .* must be a non-empty list of path strings/ },
-  },
-  {
     // Both lanes read one brief, take one branch and answer to one label, so the second is
     // indistinguishable from the first in the results.
     name: 'two lanes of the same name are refused',
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
-        lanes: [{ name: 'a', owns: ['src/a/'] }, { name: 'a', owns: ['src/b/'] }],
+        lanes: [{ name: 'a', owns: ['src/a/'], security: false }, { name: 'a', owns: ['src/b/'], security: false }],
         boundariesFrozen: true,
       }),
     },
     expect: { refused: /declares the same name twice/ },
-  },
-  {
-    // The name keys `<planDir>/lane-<name>.md` and a branch, so a separator in it resolves a
-    // brief outside the plan directory.
-    name: 'a lane name that traverses out of the plan directory is refused',
-    rounds: [[]],
-    over: { lane: { name: '../escape', owns: ['src/a/'] } },
-    expect: { refused: /args\.lanes\[0\]\.name is "\.\.\/escape", and must be a name matching/ },
   },
   {
     // An argument-less call and text carrying no argument are the same call. Answering one
@@ -685,45 +641,6 @@ const cases = [
       hasLabel: 'review:a:security#1',
       prompt: { 'develop:a': /Work only inside your owned paths: src\/a\/, src\/shared\/config\.py\./ },
     },
-  },
-  {
-    // `owns` is the isolation directive. Without it the develop prompt goes out reading
-    // "Work only inside your owned paths: ." to an agent that has a worktree to write in.
-    name: 'a lane that owns nothing is refused',
-    rounds: [[]],
-    over: { lane: { name: 'a' } },
-    expect: { refused: /args\.lanes\[0\] declares no owns/ },
-  },
-  {
-    // spec.md pins the boundary table's four keys because build.js reads them, and names this
-    // exact failure: a boundary spelled another way drops that lane from three lenses to one.
-    name: 'a boundary that pins no lane is refused',
-    rounds: [[]],
-    over: { boundaries: [{ name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }] },
-    expect: { refused: /args\.boundaries\[0\] declares no lanes/ },
-  },
-  {
-    // Named rather than left to the empty-lanes note, which reads as "the plan had none" when
-    // the field was in fact never passed.
-    name: 'arguments carrying no lanes at all are refused by name',
-    rounds: [[]],
-    over: { rawArgs: JSON.stringify({ boundariesFrozen: true }) },
-    expect: { refused: /args declares no lanes/ },
-  },
-  {
-    // Present-but-empty is the shape a template leaves behind, and `''` interpolates into a
-    // git command as nothing at all rather than failing.
-    name: 'a field present but empty is refused',
-    rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'] }], base: '', boundariesFrozen: true }) },
-    expect: { refused: /args\.base is "", and must be a non-empty string/ },
-  },
-  {
-    // The list is checked for being a list; this pins that its elements are checked too.
-    name: 'an owns entry that is not a path string is refused',
-    rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/', 42] } },
-    expect: { refused: /args\.lanes\[0\]\.owns .* must be a non-empty list of path strings/ },
   },
 ]
 
