@@ -8,20 +8,7 @@ The harness carries the conventions, the hooks and the skills. The only thing it
 
 Read the project first — `pyproject.toml`, `package.json`, `Makefile`, the CI workflow, the test directory — and propose the commands rather than asking for them. Ask only for what you could not find.
 
-```markdown
-# AGENTS.md
-
-## Project
-
-Catalogue product-name matching pipeline.
-
-## Commands
-
-- Run: `uv run python -m app`
-- Test: `uv run pytest`
-- Lint: `uv run ruff check && uv run ruff format --check`
-- Smoke: `uv run python -m app --limit 10 device=cpu`
-```
+Start from `${CLAUDE_PLUGIN_ROOT}/templates/AGENTS.md` and fill its placeholders; the shape is the template's, not this command's.
 
 Rules:
 
