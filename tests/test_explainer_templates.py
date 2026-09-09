@@ -1,12 +1,14 @@
 """Invariants for the shipped explainer HTML templates.
 
 These lock in the checks the review lanes ran by hand: self-containment,
-snippet-marker pairing, the static-number-vs-embedded-data contract, and the
-figure accessibility contract. They read the files; they do not execute JS,
+snippet-marker pairing, the static-number-vs-embedded-data contract, the
+figure accessibility contract, and the shared CSS/JS being generated from
+`shared/` rather than copied. They read the files; they do not execute JS,
 so anything requiring a browser (tooltip behavior, contrast) stays with the
 review lanes.
 """
 
+import importlib.util
 import json
 import re
 from pathlib import Path
@@ -17,6 +19,12 @@ REPO = Path(__file__).resolve().parent.parent
 SKELETON = REPO / "skills" / "explainer-docs" / "explainer-skeleton.html"
 GALLERY = REPO / "skills" / "explainer-docs" / "explainer-gallery.html"
 TEMPLATES = {"skeleton": SKELETON, "gallery": GALLERY}
+
+spec = importlib.util.spec_from_file_location(
+    "render_explainer", REPO / "scripts" / "render-explainer.py"
+)
+rx = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rx)
 
 
 @pytest.fixture(params=sorted(TEMPLATES))
@@ -117,33 +125,45 @@ def test_every_static_number_matches_its_source_field(template):
         )
 
 
-def _function_body(text, name, path):
-    start = text.index(f"function {name}(")
-    depth = 0
-    for i in range(start, len(text)):
-        if text[i] == "{":
-            depth += 1
-        elif text[i] == "}":
-            depth -= 1
-            if depth == 0:
-                # The first line starts at the sliced "function" keyword, so
-                # only continuation lines carry the file's block indentation.
-                head, *rest = text[start : i + 1].splitlines()
-                indented = [line for line in rest if line.strip()]
-                indent = min(len(line) - len(line.lstrip()) for line in indented) if indented else 0
-                dedented = [line[indent:] if line.strip() else line for line in rest]
-                return "\n".join([head] + dedented)
-    raise AssertionError(f"{path.name}: could not extract {name}")
+def test_the_shared_blocks_are_what_shared_renders():
+    """The shared stylesheet and helper script are generated, not copied: each
+    template must be byte-identical to what scripts/render-explainer.py writes
+    from skills/explainer-docs/shared/."""
+    fragments = rx.load_fragments(REPO)
+    for path in TEMPLATES.values():
+        current = path.read_text(encoding="utf-8")
+        assert rx.render(current, fragments, path.name) == current, (
+            f"{path.name}: stale against shared/ — run scripts/render-explainer.py"
+        )
 
 
-def test_shared_helpers_are_identical_in_both_files():
-    """Both files claim their renderBarsH and axes copies are identical up to
-    indentation; this makes the claim mechanical."""
-    for fn in ("renderBarsH", "axes"):
-        bodies = {}
-        for name, path in TEMPLATES.items():
-            bodies[name] = _function_body(path.read_text(encoding="utf-8"), fn, path)
-        assert bodies["skeleton"] == bodies["gallery"], f"{fn} drifted between skeleton and gallery"
+def test_rendering_replaces_a_stale_block_and_settles():
+    """A second pass must replace the whole block the first pass wrote — the
+    provenance line included — not stack another copy on top of it."""
+    fragments = {"css": ("shared/x.css", "body{}\n")}
+    once = rx.render("/* shared:start:css */\nOLD\n/* shared:end:css */\n", fragments, "t")
+    assert "OLD" not in once
+    assert rx.render(once, fragments, "t") == once
+
+
+BROKEN = {
+    "missing end marker": "/* shared:start:css */\n",
+    "end without start": "/* shared:end:css */\n",
+    "duplicate start": (
+        "/* shared:start:css */\n/* shared:end:css */\n"
+        "/* shared:start:css */\n/* shared:end:css */\n"
+    ),
+    "unknown block": "/* shared:start:nope */\n/* shared:end:nope */\n",
+    "unplaced fragment": "body{}\n",
+}
+
+
+@pytest.mark.parametrize("case", sorted(BROKEN))
+def test_a_broken_marker_set_aborts(case):
+    """A marker lost in an edit must fail loudly, not ship a template whose
+    shared half silently went missing."""
+    with pytest.raises(rx.RenderError):
+        rx.render(BROKEN[case], {"css": ("shared/x.css", "body{}\n")}, case)
 
 
 def test_snippet_markers_pair_up_and_match_their_code_blocks():
@@ -188,24 +208,6 @@ def test_main_is_a_single_column(template):
                 )
 
 
-def test_shared_stylesheet_is_identical_in_both_files():
-    """The gallery's style block is the skeleton's followed by gallery-only
-    rules after a marker comment; the shared prefix must not drift (the
-    only allowed difference is each file naming the other in its
-    accessibility-contract heading)."""
-    marker = "/* 아래부터는 갤러리 전용 규칙이다"
-    skeleton = _style_block(SKELETON.read_text(encoding="utf-8"), SKELETON)
-    gallery = _style_block(GALLERY.read_text(encoding="utf-8"), GALLERY)
-    assert marker in gallery, f"{GALLERY.name}: gallery-only marker comment missing"
-    shared = gallery[: gallery.index(marker)]
-    normalise = lambda s: s.replace("explainer-gallery.html", "X").replace(  # noqa: E731
-        "explainer-skeleton.html", "X"
-    )
-    assert normalise(skeleton.strip()) == normalise(shared.strip()), (
-        "shared stylesheet drifted between skeleton and gallery"
-    )
-
-
 def test_series_tokens_are_exactly_five(template):
     """The Core Rule contract: the categorical series token set is --c1..--c5,
     each defined in both the light and dark theme blocks."""
@@ -222,24 +224,6 @@ def test_series_tokens_are_exactly_five(template):
         for token in sorted(expected):
             count = len(re.findall(rf"{token}:", body))
             assert count == 1, f"{path.name}: {token} declared {count} times in a theme block"
-
-
-def test_series_tokens_are_identical_across_files():
-    """The categorical and two-series palette tokens must be the same
-    color set, in the same order, in both templates."""
-
-    def tokens(path):
-        style = _style_block(path.read_text(encoding="utf-8"), path)
-        return [
-            (name, value.strip())
-            for name, value in re.findall(r"(--c\d+|--series-[ab]):\s*([^;]+);", style)
-        ]
-
-    skeleton_tokens = tokens(SKELETON)
-    gallery_tokens = tokens(GALLERY)
-    assert skeleton_tokens == gallery_tokens, (
-        f"series tokens differ: skeleton={skeleton_tokens} gallery={gallery_tokens}"
-    )
 
 
 def test_every_figure_declares_its_accessibility_contract(template):
