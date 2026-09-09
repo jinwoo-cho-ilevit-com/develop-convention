@@ -52,10 +52,7 @@ def load_fragments(repo: Path) -> dict[str, tuple[str, str]]:
 
 def block(source: str, text: str, indent: str) -> list[str]:
     # The provenance line travels with the copy, as 15 requires of any copy.
-    header = (
-        f"/* 생성된 사본이다 — 원본은 {source} 이고,"
-        " 고친 뒤 scripts/render-explainer.py 를 실행한다. */"
-    )
+    header = f"/* shared block, generated from {source}; edit the source, not this copy */"
     return [indent + line if line.strip() else "" for line in [header] + text.splitlines()]
 
 

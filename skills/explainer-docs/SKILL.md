@@ -31,7 +31,7 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 An HTML explainer is copied from `${CLAUDE_PLUGIN_ROOT}/skills/explainer-docs/explainer-skeleton.html`; the recipe gallery beside it is `explainer-gallery.html`. What the files carry, and when the gallery is opened, is documented inside them and in 24 — this file only points.
 
-The styling and the JS helpers both files carry are generated, not copied: their source is `shared/explainer.css` and `shared/explainer-helpers.js` beside them, and changing either means editing `shared/` and running `scripts/render-explainer.py` (`--check` to verify without writing).
+The styling and the JS helpers both files carry are generated, not copied: their source is `shared/explainer.css` and `shared/explainer-helpers.js` beside them, and in this repository a change to either is made in `shared/` and rendered into both files by `scripts/render-explainer.py` (`--check` verifies without writing). A project that copied a template edits its copy directly.
 
 ## Boundaries with other skills
 

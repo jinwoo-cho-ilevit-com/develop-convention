@@ -62,7 +62,16 @@ Write the boundary table with these exact keys, because `build.js` reads them an
 | parser-validator | lane-a, lane-b | tests/contract/test_parser_validator.py | tests/fixtures/parser_out.sample.json |
 ```
 
-Every lane row carries `security`, `true` or `false` — `build.js` refuses a plan whose lane omits it, the same way it refuses one missing `name` or `owns`. Declare `true` when the lane touches auth, secrets, or input the project did not produce; that adds a security review lens, and nothing else does (→ `${CLAUDE_PLUGIN_ROOT}/conventions/20-review-gate.md`).
+The lane table uses these keys, all three required — `build.js` refuses a plan whose lane omits one:
+
+```markdown
+| name | owns | security |
+|---|---|---|
+| lane-a | src/parser/, tests/parser/ | false |
+| lane-b | src/auth/ | true |
+```
+
+`security` is `true` or `false`, never inferred from the paths. Declare `true` when the lane touches auth, secrets, or input the project did not produce; that adds a security review lens, and nothing else does (→ `${CLAUDE_PLUGIN_ROOT}/conventions/20-review-gate.md`).
 
 Write each completion criterion as a sentence paired with the command that checks it:
 
