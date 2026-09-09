@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
@@ -84,17 +85,24 @@ def test_every_hook_is_executable():
     assert not dead, f"hook scripts are not executable: {dead}"
 
 
-def test_the_route_map_names_every_skill():
-    """The map is the always-present pointer to the skills; a skill it does not name is one
-    the reminder never routes to, and nothing else repeats often enough to catch that.
+def test_the_route_map_carries_each_skill_description():
+    """The map is the always-present pointer to the skills, so a skill it does not name is
+    one the reminder never routes to.
+
+    It is generated from the front matter, and the line is checked against the description
+    an agent actually selects on, so a rewording cannot leave the two describing different
+    work while both still name the skill.
     """
     result = subprocess.run(
         [str(ROOT / "hooks" / "route-map.sh")], input="{}", capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
-    skills = sorted(p.parent.name for p in (ROOT / "skills").glob("*/SKILL.md"))
-    unrouted = [name for name in skills if name not in result.stdout]
-    assert not unrouted, f"the routing map does not name: {unrouted}"
+    missing = []
+    for path in SKILLS:
+        front = yaml.safe_load(path.read_text(encoding="utf-8").split("---", 2)[1])
+        if f"- {front['description']} → {front['name']}" not in result.stdout:
+            missing.append(path.parent.name)
+    assert not missing, f"the routing map does not carry the description of: {missing}"
 
 
 @pytest.mark.parametrize("path", sorted((ROOT / "commands").glob("*.md")), ids=lambda p: p.name)
