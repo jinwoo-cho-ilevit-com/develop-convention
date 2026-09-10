@@ -21,7 +21,7 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 
 ## Verification
 
-- Cross-check before completion: (1) every conventions doc has `## Core Rules` as its first body heading, (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) no tool-call residue and every doc-map link resolves, (6) no skill restates a rule it should be routing to, (7) every section of the README rule summary links its source convention, (8) `scripts/render-explainer.py --check` passes after any edit to the explainer templates.
+- Cross-check before completion: (1) every conventions doc has `## Core Rules` as its first body heading, (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (5) no tool-call residue and every doc-map link resolves, (6) no skill or command restates a rule it should be routing to, (7) every section of the README rule summary links its source convention, (8) `scripts/render-explainer.py --check` passes after any edit to the explainer templates.
 - A claim that two rules conflict, or that a rule lives somewhere, quotes the actual file. The same holds for refuting one: name the tool version you tested with, and make it the version this repo pins.
 - Sizable changes go through fresh-context review lanes (→ `conventions/20-review-gate.md`), which this repo applies to itself.
 

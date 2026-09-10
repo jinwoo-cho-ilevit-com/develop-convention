@@ -46,14 +46,14 @@ def test_the_cli_accepts_the_manifests():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_declared_component_paths_exist():
+def test_default_component_directories_exist():
     """The four default component directories (commands, hooks, workflows, skills) exist.
 
     `plugin.json` declares no paths of its own, so these default locations are the contract.
     """
-    declared = ("commands", "hooks", "workflows", "skills")
-    missing = [name for name in declared if not (ROOT / name).is_dir()]
-    assert not missing, f"the plugin declares components that do not exist: {missing}"
+    expected = ("commands", "hooks", "workflows", "skills")
+    missing = [name for name in expected if not (ROOT / name).is_dir()]
+    assert not missing, f"default component directories are missing: {missing}"
 
 
 def test_the_hook_only_intercepts_reads():
@@ -164,7 +164,7 @@ CONVENTION_TEXT = " ".join(read(p) for p in CONVENTIONS)
 @pytest.mark.parametrize(
     "path", SKILLS + COMMANDS, ids=lambda p: p.parent.name if p.name == "SKILL.md" else p.name
 )
-def test_a_skill_does_not_copy_convention_text(path):
+def test_a_skill_or_command_does_not_copy_convention_text(path):
     """A skill or command routes to a convention the same way; the rule text itself stays there.
 
     This catches copied sentences, not paraphrase — a short restatement still needs the
@@ -177,7 +177,8 @@ def test_a_skill_does_not_copy_convention_text(path):
         for raw in read(path).splitlines()
         if len(line := raw.strip().lstrip("|-*# ").strip()) >= 40 and line in CONVENTION_TEXT
     ]
-    assert not copied, f"{path.name} copies convention text: {copied}"
+    where = path.parent.name if path.name == "SKILL.md" else path.name
+    assert not copied, f"{where} copies convention text: {copied}"
 
 
 def test_every_convention_is_routed_by_exactly_one_skill():
