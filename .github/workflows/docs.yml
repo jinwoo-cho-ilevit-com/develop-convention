@@ -36,7 +36,7 @@ jobs:
           enable-cache: true
 
       - name: Build site
-        run: uvx --with mkdocs-material mkdocs build --strict
+        run: uv run --group docs mkdocs build --strict
 
       - uses: actions/upload-pages-artifact@v5
         with:

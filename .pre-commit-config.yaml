@@ -1,4 +1,4 @@
-# Local hooks can be skipped, so CI runs the same checks (→ conventions/03, 13).
+# CI runs every hook here with `pre-commit run --all-files` (→ conventions/03, 13).
 repos:
   # ruff runs from the dev dependency group, so pyproject.toml holds the only pin in this
   # repository. A `rev` here would be a second version, and two of them format differently.

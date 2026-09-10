@@ -3,7 +3,7 @@ site_url: https://jinwoo-cho-ilevit-com.github.io/develop-convention/
 repo_url: https://github.com/jinwoo-cho-ilevit-com/develop-convention
 
 # docs/ is assembled at build time (README.md → docs/index.md; conventions/ and templates/ copied in).
-# Local preview: run the assemble step from .github/workflows/docs.yml, then `uvx --with mkdocs-material mkdocs serve`
+# Local preview: run the assemble step from .github/workflows/docs.yml, then `uv run --group docs mkdocs serve`
 docs_dir: docs
 
 # MkDocs 1.6 excludes /templates/ at the docs root by default; re-include via negation pattern

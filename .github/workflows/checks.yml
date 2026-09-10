@@ -27,17 +27,26 @@ jobs:
           uv run --group dev ruff check .
           uv run --group dev ruff format --check .
 
+      # tests/test_plugin.py::test_the_cli_accepts_the_manifests skips without this binary,
+      # pinned to the version the test was verified against
+      # (https://code.claude.com/docs/en/setup.md).
+      - name: Install the Claude Code CLI
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash -s 2.1.267
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       # The repository invariants under tests/ stand in for the checklist in CLAUDE.md,
       # and drive the plugin's guard and workflow rather than reading them.
       - name: Test
         run: uv run --group dev pytest
 
-      # The gitleaks hook is built from Go source into ~/.cache/pre-commit; setup-uv's cache
-      # does not cover that directory, so without this it is rebuilt on every run.
+      # pre-commit installs its remote hooks into ~/.cache/pre-commit, building gitleaks from
+      # Go source. setup-uv's cache does not cover that directory, so without this it is
+      # rebuilt on every run.
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
-      - name: Secret scan
-        run: uvx pre-commit run gitleaks --all-files
+      - name: Pre-commit hooks
+        run: uvx pre-commit run --all-files

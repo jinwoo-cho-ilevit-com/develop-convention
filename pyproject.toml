@@ -16,6 +16,11 @@ dev = [
   # hook and the local check are one binary rather than two versions that format differently.
   "ruff==0.14.5",
 ]
+# The site build ran from an unpinned `uvx --with mkdocs-material`, so the published docs
+# tracked whatever release happened to be current. Pinned here, `uv.lock` fixes the build.
+docs = [
+  "mkdocs-material==9.7.7",
+]
 
 # Kept in step with templates/pyproject.toml so a project bootstrapped from it lints
 # under the same rules this repository proves.
