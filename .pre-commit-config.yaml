@@ -8,13 +8,12 @@ repos:
         name: ruff check
         entry: uv run --group dev ruff check --force-exclude --fix
         language: system
-        # The guard is python under a `.sh` name, which `types_or: [python]` would skip.
-        files: \.pyi?$|^hooks/delegate-guard\.sh$
+        files: \.pyi?$
       - id: ruff-format
         name: ruff format
         entry: uv run --group dev ruff format --force-exclude
         language: system
-        files: \.pyi?$|^hooks/delegate-guard\.sh$
+        files: \.pyi?$
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1

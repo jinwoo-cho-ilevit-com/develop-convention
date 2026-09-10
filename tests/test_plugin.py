@@ -15,7 +15,7 @@ import pytest
 import yaml
 from _repo import CONVENTIONS, MARKETPLACE, PLUGIN, ROOT, SKILLS, load, read
 
-GUARD = ROOT / "hooks" / "delegate-guard.sh"
+GUARD = ROOT / "hooks" / "delegate-guard.py"
 SYSTEM_PATH = "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"
 
 
@@ -443,15 +443,30 @@ def test_the_guard_refuses_and_never_prompts(tmp_path):
         assert decision(payload) == "allow", f"{payload['tool_name']} is still gated"
 
 
-def test_an_unparseable_payload_is_refused_not_waved_through():
+@pytest.mark.parametrize(
+    "payload",
+    ["not json", "null", "[]", "0", '"x"'],
+    ids=["not json", "null", "[]", "0", '"x"'],
+)
+def test_an_unparseable_payload_is_refused_not_waved_through(payload):
+    """Valid JSON that is not an object (`null`, an array, a number, a string) must be refused
+    the same way malformed JSON is — the guard cannot read fields off any of them either."""
     result = subprocess.run(
         [str(GUARD)],
-        input="not json",
+        input=payload,
         capture_output=True,
         text=True,
         env={"PATH": SYSTEM_PATH},
     )
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_file_of_only_newlines_is_not_metered(tmp_path):
+    """Standing invariant, pinned as-is: a large file with nothing but blank lines has nothing
+    to meter, so it is allowed regardless of size. Green at base and here alike."""
+    blank = tmp_path / "blank.txt"
+    blank.write_text("\n" * 5000, encoding="utf-8")
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(blank)}}) == "allow"
 
 
 def test_a_refusal_survives_a_non_utf8_stdout():
