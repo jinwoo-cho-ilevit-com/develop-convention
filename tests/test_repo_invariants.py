@@ -7,6 +7,7 @@ reach. They are tests here so the contract's `verify` commands and the CI job ex
 same file, and so the red check can observe each one failing at the base commit.
 """
 
+import copy
 import functools
 import re
 import subprocess
@@ -266,6 +267,23 @@ def run_steps(config: dict) -> str:
     )
 
 
+@functools.cache
+def precommit_config() -> dict:
+    return yaml.safe_load(read(".pre-commit-config.yaml"))
+
+
+def ci_tools(workflow: dict, precommit: dict) -> str:
+    """What CI actually runs: the run-step text, plus the pre-commit hook ids when a step
+    runs the whole hook set. A tool reached only through pre-commit is enforced as much as
+    one the workflow names itself, so moving one there must not read as dropping it.
+    """
+    text = run_steps(workflow)
+    if "pre-commit run --all-files" in text:
+        ids = [hook["id"] for repo in precommit["repos"] for hook in repo["hooks"]]
+        text = "\n".join([text, *ids])
+    return text
+
+
 def test_workflow_runs_on_pull_requests():
     """`main`-only means the branch a change lives on is never checked."""
     assert "pull_request" in triggers(workflow("checks.yml"))
@@ -274,10 +292,32 @@ def test_workflow_runs_on_pull_requests():
 @pytest.mark.parametrize("tool", ["ruff check", "ruff format", "pytest", "gitleaks"])
 def test_workflow_runs_lint_tests_and_secret_scan(tool):
     """03:20 enforces lint in CI because local hooks can be skipped; 13:12 the same for
-    secret scanning. On this machine the global `core.hooksPath` blocks `pre-commit
-    install` outright, so CI is not the second line of defence — it is the only one.
+    secret scanning. Some of these the workflow names itself and some it reaches by running
+    the whole pre-commit set, which is why the assertion is against `ci_tools` rather than
+    the run steps alone.
     """
-    assert tool in run_steps(workflow("checks.yml"))
+    assert tool in ci_tools(workflow("checks.yml"), precommit_config())
+
+
+def test_secret_scan_survives_only_while_the_hook_exists():
+    """The check above passes on a hook id, so deleting the hook has to remove the tool.
+
+    A run step that names a tool without running it, or a helper that reports one whatever
+    the config says, satisfies that check just as well — the workflow this replaced named
+    `gitleaks` in its own text. Removing the hook has to remove the tool, or the green above
+    is coming from somewhere other than a hook that runs.
+    """
+    stripped = copy.deepcopy(precommit_config())
+    for repo in stripped["repos"]:
+        repo["hooks"] = [hook for hook in repo["hooks"] if hook["id"] != "gitleaks"]
+    assert "gitleaks" not in ci_tools(workflow("checks.yml"), stripped)
+
+
+def test_workflow_installs_the_cli_the_manifest_test_needs():
+    """`tests/test_plugin.py::test_the_cli_accepts_the_manifests` skips when `claude` is
+    absent, so CI reported green over a manifest that nothing had validated.
+    """
+    assert "claude.ai/install.sh" in run_steps(workflow("checks.yml"))
 
 
 # --- the negative criterion ---------------------------------------------------------------
