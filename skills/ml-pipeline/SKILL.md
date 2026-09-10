@@ -18,6 +18,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | A write that must not leave a half-file behind | 04 |
 | It is too slow — and is the bottleneck CPU or IO | 05 |
 | What to measure, and what to log while it runs | 05 |
+| Whether a slow stage should move to a compiled language | 05 |
 | Seeds, and why one helper rather than several | 07 |
 | Which run produced this number, at which config and which commit | 07 |
 | Checkpoints: what to keep, and surviving a pod that disappears | 07 |

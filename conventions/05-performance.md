@@ -7,6 +7,7 @@
 - Log GPU utilization, VRAM, RAM, CPU usage, and throughput at every pipeline stage.
 - Structure logs as JSON. Include stage name / items processed / elapsed time / samples-per-sec / peak memory as required fields.
 - Always compare before/after optimization with empirical measurement. Optimization claims without measurement are forbidden.
+- Choose the implementation language from the measured bottleneck, never from expected speed. Port a stage or hot loop to a compiled language (Rust via PyO3/maturin, or a standalone binary) only when profiling shows it CPU-bound in pure computation (not I/O, GPU, serialization or call overhead — §5), its inputs and outputs are files only so no Python object crosses the boundary, and the Python-side options (vectorization, multiprocessing, an existing compiled library) were measured and fail the throughput criterion the module's contract carries (→ [18-work-contract.md](18-work-contract.md)). A module whose contract carries no such criterion is not a candidate, and the port must build and run unmodified on both hosts [03-environment.md](03-environment.md) names. A port is a rewrite: the characterization test, the boundary contract test and the before/after evidence it needs are set by [00-principles.md](00-principles.md), [06-testing-verification.md](06-testing-verification.md) §1 and [19-evidence.md](19-evidence.md).
 
 ## Details
 
@@ -48,3 +49,9 @@ Sources: [nvitop](https://github.com/XuehaiPan/nvitop), [Trackio — logging sys
 - Progress display for humans is tqdm/rich; the machine-readable record is JSON logs — separate the roles, but keep both.
 
 Sources: [structlog](https://pypi.org/project/structlog/)
+
+### 5. Language choice
+
+- A language port changes nothing when the bottleneck is elsewhere: a stage waiting on disk, the network, the GPU, or serialization runs at the same speed in any language, and a stage dominated by per-call overhead into a compiled library is fixed by batching the calls, not by rewriting the caller. The profile decides, which is why the Core Rule requires it before anything else.
+- A PyO3/maturin extension or a standalone binary sits naturally at a stage boundary: the port replaces the inside of one stage, and that stage's existing debugging surface (→ [04-pipeline.md](04-pipeline.md)) becomes the characterization surface for the port.
+- The throughput criterion lives in the module's work contract because one repository-wide number fits no module — a tokenizer and an image decoder do not share a floor — and because of when [18-work-contract.md](18-work-contract.md) fixes a contract, the criterion cannot be written after the measurement to justify a port already wanted.
