@@ -5,7 +5,7 @@ description: Incrementally syncs code changes into docs. Updates the managed sec
 
 # docsync — Incremental Doc-Code Synchronization
 
-Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc-tracking.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
+Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc-tracking.md) (→ [15-doc-tracking.md](../../conventions/15-doc-tracking.md) §2).
 
 ## Scope of Responsibility
 
@@ -51,7 +51,7 @@ One file per documented directory (why a shared file fails: → [15-doc-tracking
 
 **There is no global commit pointer.** A module skipped this round keeps its own older commit and stays in scope, instead of being marked synced by a pointer that moved without it.
 
-**Never hand-merge a state file.** Two people syncing the same document produce different hashes for the same section, and a merged result records hashes matching neither tree. Resolve by deleting the file and re-running sync for that module — the state is derived, so recomputing it is cheaper than reasoning about it.
+**Never hand-merge a state file.** (→ [15-doc-tracking.md](../../conventions/15-doc-tracking.md) §2) Resolve by deleting the file and re-running sync for that module — the state is derived, so recomputing it is cheaper than reasoning about it.
 
 ```jsonl
 // .docsync/corrections.jsonl — append-only
@@ -117,7 +117,7 @@ If contradictory reason codes accumulate on the same section (e.g. once "too lon
 
 ### 2. Scope Calculation
 
-- A document with a state file: `git diff --name-only <its verified_commit>..HEAD -- <its directory>`. Non-empty puts that module in scope. Each document is judged against its own commit, so one that was skipped stays in scope until it is actually synced.
+- A document with a state file: `git diff --name-only <its verified_commit>..HEAD -- <its directory>`. Non-empty puts that module in scope.
 - A directory with no state file has never been synced, so it is in scope. No state files at all is the first run: every module.
 - A document at the repository root, such as `ARCHITECTURE.md`, has the root as its directory, which changes on nearly every commit. Judge it by step 4's triggers instead — a changed dependency graph or entry-point flow — rather than by that diff being non-empty.
 - A module unit is "a directory with cohesive responsibility" — don't over-split (roughly 2+ Python files per directory, or an entry point).
@@ -130,7 +130,7 @@ For each module (independent, so can run in parallel; delegate to a subagent if 
 1. Read the module's code + existing AGENTS.md + recent corrections for that module.
 2. Regenerate only the managed block. **Never edit outside the block.**
 3. Authoring rules:
-   - Every factual claim must be citable to a code location (file:symbol). If it can't be cited, don't write it.
+   - Citability rule: → [15-doc-tracking.md](../../conventions/15-doc-tracking.md) Core Rules.
    - If the meaning is unchanged from the existing text, don't reword it (minimize diff).
    - Reflect corrections' reason codes as negative examples (e.g. avoid the same mistake if there's a `granularity` history).
    - Update the verification stamp (`> Verified: <sha> (<date>)`).
@@ -157,7 +157,7 @@ Then report: list of updated files / RMA handling record / unresolved flags.
 
 ### 1. Dead-Man Check
 
-Run sync step 0's housekeeping first, so an orphaned state file cannot pin the answer. Then: if the oldest `verified_commit` across the state files is further behind HEAD than the threshold in commits, or the oldest `verified_at` is further back than the threshold in days (recommended defaults: 30 commits, 14 days), **warn about that fact before inspecting the docs.** A dead sync looks identical to a healthy one. The oldest rather than the newest, because one actively edited module keeps a newest-commit reading fresh while everything around it rots.
+Run sync step 0's housekeeping first, so an orphaned state file cannot pin the answer. Then: if the oldest `verified_commit` across the state files is further behind HEAD than the threshold in commits, or the oldest `verified_at` is further back than the threshold in days (recommended defaults: 30 commits, 14 days), **warn about that fact before inspecting the docs.** (why oldest, and why first: → [15-doc-tracking.md](../../conventions/15-doc-tracking.md) Core Rules, §3)
 
 ### 2. Target Selection
 
