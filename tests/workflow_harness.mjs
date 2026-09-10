@@ -394,6 +394,20 @@ const cases = [
     expect: { outcome: 'review-unexecuted', rounds: 1 },
   },
   {
+    // A single owned path means spansModules is false, so pinsInterface alone has to be
+    // what still puts the lane through all three lenses (→ 20 §2).
+    name: 'a lane pinned by a boundary gets three lenses even with one owned path',
+    rounds: [[]],
+    over: {
+      lane: { name: 'a', owns: ['src/a/'], security: false },
+      boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+    },
+    expect: {
+      outcome: 'passed',
+      hasLabel: ['review:a:module#1', 'review:a:project#1', 'review:a:absence#1'],
+    },
+  },
+  {
     name: 'a lane awaiting a human verdict is held out of passed',
     rounds: [[]],
     over: { develop: { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria: [{ criterion: 'the warning reads well', command: '', passed: false }] } },
@@ -716,7 +730,10 @@ for (const c of cases) {
   } else {
     check((out.escalations ?? []).length === 0, `escalations fired on a clean lane`)
   }
-  if (c.expect.hasLabel) check(out.labels.includes(c.expect.hasLabel), `labels=${JSON.stringify(out.labels)}`)
+  if (c.expect.hasLabel) {
+    const wanted = [].concat(c.expect.hasLabel)
+    check(wanted.every((l) => out.labels.includes(l)), `labels=${JSON.stringify(out.labels)}`)
+  }
   if (c.expect.noLabel) {
     check(!out.labels.some((l) => l.startsWith(c.expect.noLabel)), `labels=${JSON.stringify(out.labels)}`)
   }

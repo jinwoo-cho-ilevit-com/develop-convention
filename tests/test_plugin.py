@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from _repo import CONVENTIONS, MARKETPLACE, PLUGIN, ROOT, SKILLS, load, read
+from _repo import COMMANDS, CONVENTIONS, MARKETPLACE, PLUGIN, ROOT, SKILLS, load, read
 
 GUARD = ROOT / "hooks" / "delegate-guard.py"
 SYSTEM_PATH = "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"
@@ -47,7 +47,10 @@ def test_the_cli_accepts_the_manifests():
 
 
 def test_declared_component_paths_exist():
-    """A manifest naming a directory that is not there installs a plugin with nothing in it."""
+    """The four default component directories (commands, hooks, workflows, skills) exist.
+
+    `plugin.json` declares no paths of its own, so these default locations are the contract.
+    """
     declared = ("commands", "hooks", "workflows", "skills")
     missing = [name for name in declared if not (ROOT / name).is_dir()]
     assert not missing, f"the plugin declares components that do not exist: {missing}"
@@ -118,7 +121,7 @@ def test_the_readme_skill_table_names_every_skill():
     assert not unlisted, f"README's skill table omits {unlisted}"
 
 
-@pytest.mark.parametrize("path", sorted((ROOT / "commands").glob("*.md")), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", COMMANDS, ids=lambda p: p.name)
 def test_every_command_declares_a_description(path):
     """Without one the command is listed with no way to tell what it does."""
     assert "description:" in front_matter(path), f"{path.name} declares no description"
@@ -158,33 +161,23 @@ def test_every_skill_link_resolves(path):
 CONVENTION_TEXT = " ".join(read(p) for p in CONVENTIONS)
 
 
-@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
+@pytest.mark.parametrize(
+    "path", SKILLS + COMMANDS, ids=lambda p: p.parent.name if p.name == "SKILL.md" else p.name
+)
 def test_a_skill_does_not_copy_convention_text(path):
-    """A skill routes to or executes a convention; the rule text itself stays there.
+    """A skill or command routes to a convention the same way; the rule text itself stays there.
 
     This catches copied sentences, not paraphrase — a short restatement still needs the
     review lens (CLAUDE.md, verification item 6). A guard, so it holds at the base commit
-    by design (→ conventions/06-testing-verification.md).
+    by design (→ conventions/06-testing-verification.md), and a standing invariant kept
+    green by the absence of copied text rather than by an exemption.
     """
     copied = [
         line
         for raw in read(path).splitlines()
         if len(line := raw.strip().lstrip("|-*# ").strip()) >= 40 and line in CONVENTION_TEXT
     ]
-    assert not copied, f"{path.parent.name} copies convention text: {copied}"
-
-
-def test_docsync_still_says_how_to_leave_the_shared_state_behind():
-    """A repository that upgrades mid-life needs the migration step to be there, and needs
-    it to say how the old keys split — the one thing a reader cannot infer once the old
-    layout is gone from the document (why the shared file failed: conventions/15 §2).
-    """
-    body = (ROOT / "skills" / "docsync" / "SKILL.md").read_text(encoding="utf-8")
-    assert "state.json" in body, "the migration step naming the old layout is gone"
-    assert "<doc-path>#<section-id>" in body, "migration does not say how the old keys split"
-    assert "// .docsync/src__parser__AGENTS.md.json" in body, (
-        "the state file example is not flat under .docsync/, which a bare `docs/` ignore eats"
-    )
+    assert not copied, f"{path.name} copies convention text: {copied}"
 
 
 def test_every_convention_is_routed_by_exactly_one_skill():

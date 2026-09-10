@@ -117,6 +117,19 @@ def test_every_convention_is_sourced_from_the_rule_summary():
     assert not unsourced, f"summary sections without a source link: {unsourced}"
 
 
+def test_docsync_still_says_how_to_leave_the_shared_state_behind():
+    """A repository that upgrades mid-life needs the migration step to be there, and needs
+    it to say how the old keys split — the one thing a reader cannot infer once the old
+    layout is gone from the document (why the shared file failed: conventions/15 §2).
+    """
+    body = (ROOT / "skills" / "docsync" / "SKILL.md").read_text(encoding="utf-8")
+    assert "state.json" in body, "the migration step naming the old layout is gone"
+    assert "<doc-path>#<section-id>" in body, "migration does not say how the old keys split"
+    assert "// .docsync/src__parser__AGENTS.md.json" in body, (
+        "the state file example is not flat under .docsync/, which a bare `docs/` ignore eats"
+    )
+
+
 # --- the published site ----------------------------------------------------------------
 
 
