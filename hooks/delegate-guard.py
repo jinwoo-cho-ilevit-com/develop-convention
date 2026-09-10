@@ -26,7 +26,7 @@ CHUNK = 1 << 20
 PLAN_DIR_NAME = ".plans"
 AGENTS_FILE_NAME = "AGENTS.md"
 UNPARSEABLE = (
-    "dev-harness cannot run: the hook payload did not parse as JSON. Refusing rather than "
+    "dev-harness cannot run: the hook payload is not a JSON object. Refusing rather than "
     "allowing — an unreadable payload is not evidence that the call is safe."
 )
 # A runtime that stringifies a missing id sends one of these; no agent is named them.
