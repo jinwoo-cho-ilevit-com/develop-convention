@@ -57,7 +57,7 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 | Doc | Contents |
 |---|---|
 | [04-pipeline.md](conventions/04-pipeline.md) | Small-sample debugging, atomic save + resume, streaming, progress monitoring |
-| [05-performance.md](conventions/05-performance.md) | Async/parallel selection, DataLoader tuning, GPU/RAM profiling, structured logging |
+| [05-performance.md](conventions/05-performance.md) | Async/parallel selection, DataLoader tuning, GPU/RAM profiling, structured logging, language choice |
 | [07-ml-development.md](conventions/07-ml-development.md) | Seed/reproducibility, train-serve skew prevention, experiment tracking, checkpoints/spot pods |
 | [08-llm-development.md](conventions/08-llm-development.md) | Training framework routing, FSDP2/bf16, chat template consistency, evaluation reproducibility, LLM-as-judge, data |
 | [22-framework-wrapping.md](conventions/22-framework-wrapping.md) | Wrapping a third-party training framework: a test layer that imports the real package, config-only tiny-model fixtures, image supplies the dependency and the working tree supplies your code, one gate function, the layer's range |
@@ -240,11 +240,13 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Every stage supports a `--limit N` small-sample run + input/output dump. Do a small-sample dry-run before the full run.
 - Save intermediate results per chunk + resume (skip completed portions). Save atomically via temp→`os.replace`. Stream large volumes — no loading everything into memory.
 - Long-running tasks show tqdm/rich progress + log processing throughput.
+- A bottleneck stage may be ported to a compiled language under 05's conditions; the stage rules apply unchanged, so the stage boundary is the language boundary.
 
 ### Performance ([05](conventions/05-performance.md))
 
 - CPU-bound → multiprocessing, IO-bound → asyncio. Identify bottlenecks with profiling first.
 - Log per-stage GPU utilization/VRAM/RAM/CPU + throughput as structured (JSON) logs.
+- Language follows the measured bottleneck: port a stage to a compiled language (Rust/PyO3, or a standalone binary) only when it profiles CPU-bound in pure computation, its inputs and outputs are files only, and the Python-side options were measured and fail the throughput criterion the module contract carries (a contract without one makes the module no candidate); the port must build and run unmodified on both hosts 03 names. A port is a rewrite (→ 00, 06, 19).
 
 ### Testing & Verification ([06](conventions/06-testing-verification.md))
 

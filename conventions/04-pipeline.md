@@ -8,6 +8,7 @@
 - Save files atomically: write to a temp file, then swap it in with `os.replace`.
 - Process large data via streaming. Loading everything into memory or saving it all at once at the end is forbidden.
 - Attach progress display (tqdm/rich) to every long-running task, including training/evaluation/preprocessing.
+- A stage measured as the bottleneck may be ported to a compiled language under the conditions [05-performance.md](05-performance.md) sets; the rules above apply to it unchanged, so the stage boundary stays the language boundary.
 
 ## Details
 
