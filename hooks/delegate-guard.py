@@ -73,11 +73,8 @@ def main():
         payload = json.loads(sys.stdin.buffer.read())
     except (ValueError, OSError):
         deny(UNPARSEABLE)
-    if payload is None or payload is False:
-        deny(UNPARSEABLE)
     if not isinstance(payload, dict):
-        # A parseable non-object leaves every field absent rather than refusing the call.
-        payload = {}
+        deny(UNPARSEABLE)
 
     # `agent_id` is present only inside a subagent call, and only a non-blank string counts.
     # Without the type test any JSON value except null/false/"" reads as truthy and opens the
@@ -122,8 +119,7 @@ def main():
     # A bounded read costs what it asks for, not what the file holds. Judging a 20-line window
     # by the size of a 5000-line file refuses the cheap request and leaves raising the limit or
     # bypassing the guard as the only ways through, both worse than the read.
-    requested = tool_input.get("limit")
-    requested = "" if requested is None or requested is False else str(requested)
+    requested = str(tool_input.get("limit"))
     if counts(requested):
         if int(requested) <= limit:
             allow()
