@@ -62,13 +62,13 @@ Write the boundary table with these exact keys, because `build.js` reads them an
 | parser-validator | lane-a, lane-b | .plans/ingest/contracts/parser-validator.md | .plans/ingest/contracts/parser_out.schema.json | lane-a | tests/fixtures/parser_out.sample.json |
 ```
 
-The lane table uses these keys, all three required — `build.js` refuses a plan whose lane omits one:
+The lane table uses these keys — `name`, `owns` and `security` are required and `build.js` refuses a plan whose lane omits one; `tier` (`light`/`mid`/`top`) and `effort` record the routing choice per lane (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`):
 
 ```markdown
-| name | owns | security |
-|---|---|---|
-| lane-a | src/parser/, tests/parser/ | false |
-| lane-b | src/auth/ | true |
+| name | owns | security | tier | effort |
+|---|---|---|---|---|
+| lane-a | src/parser/, tests/parser/ | false | mid | medium |
+| lane-b | src/auth/ | true | top | high |
 ```
 
 `security` is `true` or `false`, never inferred from the paths. Declare `true` when the lane touches auth, secrets, or input the project did not produce; that adds a security review lens, and nothing else does (→ `${CLAUDE_PLUGIN_ROOT}/conventions/20-review-gate.md`).

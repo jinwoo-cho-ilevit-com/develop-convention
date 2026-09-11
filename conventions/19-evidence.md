@@ -22,14 +22,16 @@ Evidence is produced by execution, not by writing. A file the model composed to 
 The lane brief carries one row per criterion and nothing else:
 
 ```
-| id   | status        | verify                                                                    | note |
-|------|---------------|---------------------------------------------------------------------------|------|
-| C-01 | PASS          | uv run pytest tests/test_sample_run_loader.py::test_c01_drops_nan_rows    |      |
-| C-03 | FAIL          | scripts/checks/no_new_deps.sh                                             | pyproject.toml +1 |
-| C-04 | PENDING-HUMAN | [human]                                                                   | figures/dist.svg |
+| id   | status        | verify                                                                    | red      | note |
+|------|---------------|---------------------------------------------------------------------------|----------|------|
+| C-01 | PASS          | uv run pytest tests/test_sample_run_loader.py::test_c01_drops_nan_rows    | observed |      |
+| C-03 | FAIL          | scripts/checks/no_new_deps.sh                                             | guard    | pyproject.toml +1 |
+| C-04 | PENDING-HUMAN | [human]                                                                   | —        | figures/dist.svg |
 ```
 
 A human reading this looks at the non-`PASS` rows and stops. That is the entire intended cost of verification for the reader.
+
+The `red` column records how the check was seen failing — `observed` at the base commit, `sabotage` after the change, `guard` for a standing invariant — and is empty for a `[human]` row; its output is kept beside the row's command output (→ [06-testing-verification.md](06-testing-verification.md) §3). A check that could not run at the base commit has no red yet, not a red.
 
 The whole-project claim is the union of the lane tables, each re-run on the merged head, plus the end-to-end condition from the plan (→ [21-development-loop.md](21-development-loop.md)). Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
 

@@ -20,7 +20,7 @@ Every change goes through a review that its author did not perform. This documen
 - Start a lane's review the moment that lane finishes, not when every lane has. Reviewing on each finish overlaps the review with the lanes still working and the wait never forms; collecting all lanes first creates the pause and then raises the question of what to do during it (→ [14-context-management.md](14-context-management.md) §1).
 - A review terminates on evidence, not on output: confirmed blocker-severity findings are fixed and re-reviewed by the lane that raised them, and the remainder is reported with the completion evidence. Producing a findings list is not completing a review.
 - Send a lane review's findings back to the agent that wrote the code, in the tree it already has, and end the fix-and-recheck loop — the merged-whole round included — three ways: no blocker remains, or most of this round's findings are defects the previous round's fix introduced — stop and change the approach — or the round cap is reached, which calls a person rather than declaring the lane done. Ask each reviewer to mark whether a finding came from the previous fix; that mark is what makes the second exit measurable. The three exits and why round count is not one of them are in §3.
-- Run at least one lane on a different vendor's model family. Where only one family is reachable, record that in the review report rather than dropping the lane.
+- Vendor diversity is required at the plan and merged-whole points (below). A unit's own review lanes may run on one model family; record which family ran them in its review points row.
 - At the plan and merged-whole points, at the depth [18-work-contract.md](18-work-contract.md) §3 sets, run a Claude Code reviewer lane and Path A (Codex plugin) in parallel rather than choosing one by cadence — running the same input past two vendors is what §2's diversity rule asks for, and these two points are where that cost is worth paying. Substitute Path B (Cursor CLI) for the point only on an enumerated Path A failure — login failure or rate limit, not disagreement with its verdict — and pick its family different from the Claude Code lane's, since Path A did not run to be the reference. Record which tool(s) answered as a combined value in that point's review-points row (e.g. "Claude + Codex", or "Claude + Cursor" on substitution), in the review report. While the plan is being written, ask the user which cursor-agent tier to use if Path B ends up substituting at either point — regardless of whether it does — and record the answer in the plan.
 
 ## Details
@@ -50,7 +50,7 @@ A lane is defined by its **input**, not by its attitude. Telling three reviewers
 
 - **The absence lane's job is what is missing.** Scope it away from re-reading the changed lines, or it degrades into a second module lane. It needs a stated requirement to measure absence against; when the work carried no written plan, write the task statement down before dispatching.
 - **Lanes stay independent.** No lane receives another lane's output, and none receives the author's reasoning.
-- **Diversify the vendor, not the persona.** Personas layered on one model share that model's blind spots. Give the different-vendor lane the module role by default — its input is just the diff, which carries across tools cleanly. At the plan and merged-whole points (§4), the diversity requirement is met directly by running Path A alongside the Claude Code lane instead.
+- **Diversify the vendor, not the persona.** Personas layered on one model share that model's blind spots. The plan and merged-whole points (§4) are where the diversity is paid for, by running Path A alongside the Claude Code lane; a unit's own lanes may share one family, and when a different-vendor lane is added there it takes the module role, whose input — just the diff — carries across tools cleanly.
 - **The fresh-reader lane judges the document, not the work.** Handing it the code or the author's notes defeats it: the lane would fill comprehension gaps from material the real reader will not have, and the verdict stops measuring the document.
 
 ### 3. Fan-in
@@ -58,7 +58,7 @@ A lane is defined by its **input**, not by its attitude. Telling three reviewers
 Fan-out without fan-in is not a review, and the orchestrator that dispatched the lanes owns the merge:
 
 0. Confirm every dispatched lane actually answered. Zero findings is a valid result; a lane that died is not, so re-run it rather than merging a short review.
-1. Dedupe by `file:line`.
+1. Dedupe by `file:line`, keeping the highest severity any lane gave that location.
 2. Resolve contradictory advice into one recommendation, weighting the lane whose input covers the disputed ground — structure and duplication belong to the project lane, edge cases to the module lane.
 3. **Check each finding against the actual code**, and mark it in one of three states: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran. A document lane's finding is checked the same way against the cited passage of the document.
 4. Rank by severity.

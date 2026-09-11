@@ -31,46 +31,42 @@ function finding(over = {}) {
 }
 
 // `rounds` supplies the findings each review round returns, in order. `over` replaces what
-// develop returns or makes the reviewers misbehave, so the paths that end the loop without
-// a verdict are reachable too.
-const keyOf = (f) => `${f.file}:${f.line ?? ''}:${f.summary}`
+// develop returns or makes an agent misbehave, so the paths that end the loop without a
+// verdict are reachable too.
+const keyOf = (f) => (f.line != null ? `${f.file}:${f.line}` : `${f.file}:${f.summary}`)
 
-function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompts: {}, schemas: {} }) {
-  // The round advances on the verify call, which happens once after a round's lenses have
-  // all answered. Counting review calls instead would hand each lens of one round a
-  // different entry from `rounds`, so a multi-lens case would stop modelling a round.
+// The criterion every lane reports unless a case says otherwise: a command with its red.
+const CRIT = { criterion: 'C-01', command: 'uv run pytest tests/a', passed: true, red: 'observed', redOutput: '1 failed' }
+const devWith = (criteria) => ({ worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria })
+
+function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompts: {}, schemas: {}, opts: {} }) {
+  // The round advances on the first verify call of a round, once all its lenses have answered;
+  // counting review calls would hand each lens of one round a different entry from `rounds`.
   let round = 0
   let lensInRound = 0
-  // The measurement is one call per fix, so its own counter is what indexes a per-round
-  // file set. `round` cannot: it advances on verify, before the fix this measures.
-  let touchedCalls = 0
+  let measureCalls = 0
+  // What each lane's develop reported, so the recheck stub answers about the same criteria.
+  const devs = {}
   const findingsNow = () => rounds[Math.min(round, rounds.length - 1)] ?? []
 
   return async (prompt, opts = {}) => {
     const label = opts.label ?? ''
     seen.labels.push(label)
-    // Where a call runs and what it was told are as much of the dispatch as the label is, and
-    // an outcome assertion cannot see either: a check reading the wrong tree still answers.
+    // Where a call runs, what it was told, and on which model are dispatch an outcome cannot see.
     seen.isolation[label] = opts.isolation
     seen.prompts[label] = prompt
-    // The JSON schema passed to `agent()` is itself part of the dispatch — a required field
-    // dropped there is never asked for, no matter what the prompt text says.
     seen.schemas[label] = opts.schema
-    // Stands in for the agent that stats the contract file paths. `missingFrozen` is what it
-    // reports absent; `freezeCheckDies` makes it answer nothing, which must not read as "none".
+    seen.opts[label] = opts
+    const laneOf = label.split(':')[1]?.split('#')[0]
     if (label === 'freeze-check') {
-      // Answering nothing and dying are different events with the same evidentiary value, and
-      // this call is the one outside the pipeline, so only it can take a throw out of the run.
       if (over.freezeCheckThrows) throw new Error('freeze agent died hard')
       if (over.freezeCheckDies) return null
-      // Defaults model a healthy tool and one passing row per boundary that declares a
-      // schema, derived from the same boundaries the workflow itself was given.
+      // Defaults model a healthy tool and one passing row per boundary that declares a schema.
       const schemaBoundaries = (over.boundaries ?? []).filter((b) => b.schema)
       return {
         missing: over.missingFrozen ?? [],
         head: over.frozenHead ?? 'f00dbabe',
-        // `omitFreezeTool` models an agent answer missing the field outright — schema-invalid
-        // in production, but a case must still show build.js does not read it as passing.
+        // An answer missing the field outright — schema-invalid, and it must not read as passing.
         ...(over.omitFreezeTool ? {} : { tool: over.freezeTool ?? { exit: 0, output: 'check-jsonschema, version 0.38.0' } }),
         checked: over.freezeChecked ?? schemaBoundaries.map((b) => ({ boundary: b.name, exit: 0, output: 'ok' })),
       }
@@ -79,48 +75,61 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       // eslint-disable-next-line no-throw-literal
       if ('throws' in over) throw over.throws
       if (over.developDies) return null
-      if (over.develop) return over.develop
-      // A lane producing a schema boundary reports a criterion satisfying every condition
-      // by default — `rm -rf`, the pinned tool, a fresh dump — so cases not about producer
-      // enforcement don't have to spell it out. `producerCommand` overrides just the command.
       const laneName = label.slice('develop:'.length)
+      if (over.develop) return (devs[laneName] = over.develop)
+      // A producer lane reports a criterion satisfying every producer condition by default;
+      // `producerCommand` overrides just the command, `omitProducerCriterion` drops it.
       const produced = (over.boundaries ?? []).filter((b) => b.schema && b.producer === laneName)
-      const criteria = over.omitProducerCriterion
-        ? []
-        : produced.map((b) => ({
-            criterion: `schema check for "${b.name}"`,
-            command: over.producerCommand ? over.producerCommand(b) : `rm -rf dump && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
-            passed: true,
-          }))
-      return { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria }
+      const criteria = [
+        CRIT,
+        ...(over.omitProducerCriterion
+          ? []
+          : produced.map((b) => ({
+              criterion: `schema check for "${b.name}"`,
+              command: over.producerCommand ? over.producerCommand(b) : `rm -rf dump && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+              passed: true,
+              red: 'sabotage',
+              redOutput: 'dump/out.json: additional property',
+            }))),
+      ]
+      return (devs[laneName] = devWith(criteria))
     }
     if (label.startsWith('fix:')) return over.fixDies ? null : { summary: 'fixed it' }
-    // Stands in for the agent that reads git in the lane's worktree. It answers
-    // independently of what the fix stub returned, which is the separation under test.
+    // Stands in for the agent that reads git in the lane's worktree, independently of the fix.
+    // `#0` measures develop; the fix measurements are indexed from 0 by `fixTouchedSeq`.
     if (label.startsWith('touched:')) {
-      // `true` kills every measurement; a number kills the call at that index and every one
-      // after, which is how a round that measured is followed by a round that did not.
-      if (over.touchedDies === true || touchedCalls >= over.touchedDies) return null
-      const files = over.fixTouchedSeq
-        ? (over.fixTouchedSeq[touchedCalls] ?? over.fixTouchedSeq[over.fixTouchedSeq.length - 1])
-        : (over.fixTouched ?? ['src/a.py'])
-      touchedCalls++
-      return { files, head: `sha${touchedCalls}` }
+      const n = measureCalls++
+      // `true` kills every measurement; a number kills the call at that index and every one after.
+      if (over.touchedDies === true || n >= over.touchedDies) return null
+      const causation = n === 0
+        ? []
+        : over.fixTouchedSeq
+          ? (over.fixTouchedSeq[n - 1] ?? over.fixTouchedSeq[over.fixTouchedSeq.length - 1])
+          : (over.fixTouched ?? ['src/a.py'])
+      const m = { head: `m${n}`, base: 'b4se', trackedChanges: [], untracked: [], ownershipDiff: [], causationDiff: causation }
+      return over.measure ? over.measure(label, m) : m
     }
-    if (label.startsWith('verify:')) {
+    if (label.startsWith('verify:') || label.startsWith('reverify:')) {
       if (over.verifierDies) return null
-      // Confirms whatever it was handed unless the case says otherwise, so the loop under
-      // test is the review loop and not this stub.
-      const blockers = findingsNow().filter((f) => f.severity === 'blocker')
-      let verdicts = blockers.map((f) => ({ key: keyOf(f), confirmed: !over.refuteBlockers, evidence: 'stub' }))
+      // Keys are read from the prompt, so a re-verification answers for exactly what it was sent.
+      const keys = [...prompt.matchAll(/^- key: (.*)$/gm)].map((m) => m[1])
+      let verdicts = keys.map((key) => ({
+        key,
+        state: over.refuteBlockers ? 'refuted' : 'confirmed',
+        commandsRun: 2,
+        evidence: 'stub',
+        ...(over.verdict ? over.verdict(label, key) : {}),
+      }))
       if (over.emptyVerdicts) verdicts = []
       if (over.dropOneVerdict) verdicts = verdicts.slice(1)
-      // Both a true and a false row for the same key — schema-valid, self-contradicting.
-      if (over.contradictoryVerdicts && blockers.length) {
-        verdicts = [...verdicts, { key: keyOf(blockers[0]), confirmed: false, evidence: 'stub' }]
+      // Both a confirmed and a refuted row for the same key — schema-valid, self-contradicting.
+      if (over.contradictoryVerdicts && keys.length) {
+        verdicts = [...verdicts, { key: keys[0], state: 'refuted', commandsRun: 2, evidence: 'stub' }]
       }
-      round++
-      lensInRound = 0
+      if (label.startsWith('verify:')) {
+        round++
+        lensInRound = 0
+      }
       return { verdicts }
     }
     if (label.startsWith('review:')) {
@@ -130,7 +139,17 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
         ? (over.commandsRunSeq[lensInRound] ?? 0)
         : (over.commandsRun ?? 3)
       lensInRound++
-      return { commandsRun: ran, findings: findingsNow() }
+      return { commandsRun: ran, tool: 'Claude', findings: findingsNow() }
+    }
+    // Re-runs what develop reported and reads the same criteria back as the brief.
+    if (label.startsWith('recheck:')) {
+      if (over.recheckDies) return null
+      const criteria = devs[laneOf]?.criteria ?? []
+      const r = {
+        results: criteria.filter((c) => c.command).map((c) => ({ criterion: c.criterion, exit: 0, output: 'ok' })),
+        brief: criteria.map((c) => ({ id: c.criterion, sentence: `the ${c.criterion} sentence`, command: c.command || '[human]' })),
+      }
+      return over.recheck ? over.recheck(label, r) : r
     }
     return null
   }
@@ -138,7 +157,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
 
 async function run(rounds, over = {}) {
   const wf = loadWorkflow()
-  const seen = { labels: [], isolation: {}, prompts: {}, schemas: {} }
+  const seen = { labels: [], isolation: {}, prompts: {}, schemas: {}, opts: {} }
   // `rawArgs` hands the workflow whatever the case says, object or not — the way arguments
   // reach it when they arrive as text. Everything else builds the normal object.
   const args =
@@ -154,7 +173,7 @@ async function run(rounds, over = {}) {
           ...(over.omitFrozen ? {} : { boundariesFrozen: true }),
         }
   const out = await wf(args, makeAgent(rounds, over, seen), parallel, pipeline, () => {}, () => {})
-  return { ...out, labels: seen.labels, isolation: seen.isolation, prompts: seen.prompts, schemas: seen.schemas }
+  return { ...out, labels: seen.labels, isolation: seen.isolation, prompts: seen.prompts, schemas: seen.schemas, opts: seen.opts }
 }
 
 // How a call was dispatched, checked on both the refusal path and the lane path — a refusal
@@ -173,10 +192,18 @@ function dispatchChecks(expect, out) {
     if (re.test(out.prompts[label] ?? '')) why.push(`prompt[${label}] matches ${re}, and must not`)
   }
   // The schema handed to `agent()` is what forces a field to be reported at all.
-  for (const [label, fields] of Object.entries(expect.schemaRequired ?? {})) {
-    const req = out.schemas?.[label]?.required ?? []
+  // `{ at, fields }` descends through the named array properties to their item schema.
+  for (const [label, want] of Object.entries(expect.schemaRequired ?? {})) {
+    const { at = [], fields } = Array.isArray(want) ? { fields: want } : want
+    const req = at.reduce((sc, k) => sc?.properties?.[k]?.items, out.schemas?.[label])?.required ?? []
     const missing = fields.filter((f) => !req.includes(f))
     if (missing.length) why.push(`schema[${label}].required is missing ${JSON.stringify(missing)}`)
+  }
+  // Dispatch options such as model and effort, key by key; `undefined` pins an absence.
+  for (const [label, want] of Object.entries(expect.opts ?? {})) {
+    for (const [k, v] of Object.entries(want)) {
+      if (out.opts?.[label]?.[k] !== v) why.push(`opts[${label}].${k}=${out.opts?.[label]?.[k]}`)
+    }
   }
   return why
 }
@@ -209,6 +236,11 @@ const SHAPE_ROWS = [
   // rather than silently accepted as a boundary with no contract path.
   ['a boundary using a `test` key is refused as an unknown key', 'args.boundaries[0]', { name: 'api', lanes: ['a'], test: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /unknown key "test"/],
   ['a boundary with a contract but no sample is refused', 'args.boundaries[0]', { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md' }, /declares no sample/],
+  // Sabotage: drop 'name' from the boundary required list.
+  ['a boundary with no name is refused', 'args.boundaries[0]', { lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /declares no name/],
+  // Sabotage: accept any string as a tier.
+  ['a lane tier outside light, mid, top is refused', 'args.lanes[0].tier', { name: 'a', owns: ['src/a/'], security: false, tier: 'opus' }, /must be one of light, mid, top/],
+  ['a lane effort outside the effort values is refused', 'args.lanes[0].effort', { name: 'a', owns: ['src/a/'], security: false, effort: 'extreme' }, /must be one of low, medium/],
 ]
 
 const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -264,11 +296,8 @@ const cases = [
     expect: { outcome: 'passed', rounds: 1, noLabel: 'fix:' },
   },
   {
-    // A verifier that answers with nothing is not a verifier that cleared anything. Keying
-    // off `confirmed` made an empty list read as refuting every blocker, so one real
-    // blocker reached `passed` with no fix and no escalation.
-    // It goes to the fix agent and then halts on repetition, which is the designed path.
-    // What matters is that it is not `passed`: an unanswered verdict used to clear it.
+    // A verifier that answers with nothing cleared nothing: an empty verdict list must not read
+    // as refuting every blocker.
     name: 'a verifier returning no verdicts leaves the blocker standing',
     rounds: [[finding()]],
     over: { emptyVerdicts: true },
@@ -284,7 +313,7 @@ const cases = [
     name: 'a fix agent that returns nothing halts the lane with its blockers',
     rounds: [[finding()]],
     over: { fixDies: true },
-    expect: { outcome: 'fix-failed', rounds: 1, noLabel: 'touched:' },
+    expect: { outcome: 'fix-failed', rounds: 1, noLabel: 'touched:a#1' },
   },
   {
     name: 'a verifier that returns nothing at all stops the round',
@@ -354,18 +383,12 @@ const cases = [
     expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human', hasLabel: 'touched:a#1' },
   },
   {
-    // Round 1 measures, round 2's measurement dies. The next round's causation claim then
-    // has nothing to match against and must not halt: an empty set is the fail-safe side,
-    // and carrying round 1's list forward would blame a fix nobody measured.
-    name: 'a failed measurement disables causation without ending the loop',
-    rounds: [
-      [finding({ file: 'src/a.py', summary: 'A' })],
-      [finding({ file: 'src/b.py', summary: 'B' })],
-      [finding({ file: 'src/a.py', summary: 'C', causedByPreviousFix: true })],
-      [],
-    ],
+    // Every later step reads the measurement, so a fix nobody measured halts the lane — sabotage:
+    // let `measure` return `{ m }` when the agent answered nothing.
+    name: 'a measurement that returns nothing after a fix halts the lane',
+    rounds: [[finding()], []],
     over: { touchedDies: 1 },
-    expect: { outcome: 'passed', rounds: 4, notOutcome: 'regression-halt' },
+    expect: { outcome: 'measurement-failed', rounds: 1, noLabel: 'review:a:module#2' },
   },
   {
     // Each measurement diffs from the head the previous one reported, so a round sees its
@@ -732,10 +755,8 @@ const cases = [
     expect: { refused: /args\.boundaries\[0\]\.lanes\[0\] is "nonexistent", which no lane declares/ },
   },
   {
-    // The arguments are validated against an accept-list, so a key dropping out of one does not
-    // weaken a check — it refuses every real plan that carries the key. Every other case here
-    // pins what the pass rejects; this is the one that pins what it must accept. It carries
-    // every key `commands/build.md` and `commands/spec.md` mandate, and it has to build.
+    // The accept-list's positive case: every key `commands/build.md` and `commands/spec.md`
+    // mandate, which has to build — a key dropped from the list refuses every real plan.
     name: 'the payload the docs mandate is accepted and fans out',
     rounds: [[]],
     over: {
@@ -743,7 +764,7 @@ const cases = [
         planDir: '.plans',
         base: 'main',
         conventionsDir: '/abs/plugin/conventions',
-        lanes: [{ name: 'a', owns: ['src/a/', 'src/shared/config.py'], security: true }],
+        lanes: [{ name: 'a', owns: ['src/a/', 'src/shared/config.py'], security: true, tier: 'mid', effort: 'medium' }],
         boundaries: [
           { name: 'parser-validator', lanes: ['a'], contract: '.plans/contracts/parser-validator.md', sample: 'tests/fixtures/parser_out.sample.json' },
         ],
@@ -981,10 +1002,8 @@ const cases = [
     },
   },
   {
-    // Sabotage: replace `schemaFindingNotes(lane)` with the old generic sentence — the
-    // producer's name then disappears from the review prompt.
-    // Tightened: requires the "is a finding" wording too, not just the producer's name —
-    // sabotage: drop the trailing clause from `schemaFindingNotes`'s sentence.
+    // Sabotage: drop the producer's name, or the trailing "is a finding" clause, from
+    // `schemaFindingNotes`'s sentence.
     name: "the review prompt names the producer lane in the schema-check finding",
     rounds: [[]],
     over: { boundaries: [SCHEMA_BOUNDARY] },
@@ -1170,6 +1189,309 @@ const cases = [
     },
     expect: { outcome: 'passed' },
   },
+  {
+    // Sabotage: drop `&& v.commandsRun > 0` from `stateOf` — a read-only confirmation then reaches the fix.
+    name: 'a confirmation that ran nothing is unverified, re-verified once, and halts unfixed',
+    rounds: [[finding()]],
+    over: { verdict: () => ({ state: 'confirmed', commandsRun: 0 }) },
+    expect: {
+      outcome: 'unverified-blocker',
+      rounds: 1,
+      escalation: 'human',
+      noLabel: 'fix:',
+      hasLabel: ['reverify:a#1', 'recheck:a#1'],
+      prompt: { 'reverify:a#1': /Reproduce each one/ },
+    },
+  },
+  {
+    // Sabotage: require commands for `confirmed` only — a read-only refutation then clears the blocker.
+    name: 'a refutation that ran nothing does not clear the blocker',
+    rounds: [[finding()]],
+    over: { verdict: () => ({ state: 'refuted', commandsRun: 0 }) },
+    expect: { outcome: 'unverified-blocker', rounds: 1, escalation: 'human', noLabel: 'fix:' },
+  },
+  {
+    // Sabotage: skip merging the re-verification's states — the reproduced blocker then halts unfixed.
+    name: 'a blocker reproduced on re-verification goes to the fix',
+    rounds: [[finding()], []],
+    over: { verdict: (label) => (label.startsWith('verify:') ? { state: 'unverified', commandsRun: 0 } : {}) },
+    expect: { outcome: 'passed', rounds: 2, hasLabel: 'fix:a#1' },
+  },
+  {
+    // Sabotage: take `passed` from develop's report instead of the recheck's exit code.
+    name: 'a criterion the fix broke fails the recheck after the last fix',
+    rounds: [[finding()], []],
+    over: { recheck: (label, r) => (label === 'recheck:a#2' ? { ...r, results: r.results.map((x) => ({ ...x, exit: 1 })) } : r) },
+    expect: { outcome: 'criteria-failed', rounds: 2, hasLabel: 'fix:a#1' },
+  },
+  {
+    // Sabotage: return `clean(...)` directly when round 1 has no blocker, skipping `finish`.
+    name: 'a lane clean in round 1 still has its criteria re-run',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, results: r.results.map((x) => ({ ...x, exit: 1 })) }) },
+    expect: { outcome: 'criteria-failed', rounds: 1, hasLabel: 'recheck:a#1' },
+  },
+  {
+    // Sabotage: re-apply the producer check with the reported criteria instead of the rechecked ones.
+    name: 'a producer check failing on the recheck fails the lane',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      recheck: (label, r) => ({ ...r, results: r.results.map((x) => (x.criterion.startsWith('schema check') ? { ...x, exit: 1 } : x)) }),
+    },
+    expect: { outcome: 'criteria-failed', rounds: 1, note: /producer check for boundary "api"/ },
+  },
+  {
+    // Sabotage: remove the empty-criteria check at the top of `reviewLoop`.
+    name: 'a lane reporting no criteria fails without review',
+    rounds: [[]],
+    over: { develop: devWith([]) },
+    expect: { outcome: 'criteria-failed', noLabel: 'review:' },
+  },
+  {
+    // Sabotage: remove `ownsOverlap(lanes)` from the `complaint` chain.
+    name: 'two lanes whose owns overlap are refused',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a'], security: false }, { name: 'b', owns: ['src/a/b/'], security: false }], boundariesFrozen: true }) },
+    expect: { refused: /args\.lanes\[1\]\.owns entry "src\/a\/b\/" overlaps args\.lanes\[0\]\.owns entry "src\/a"/ },
+  },
+  {
+    // Sabotage: compare owns with a bare `startsWith`, without the `/` — sibling prefixes then overlap.
+    name: 'lanes owning sibling paths that share a prefix are not an overlap',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }, { name: 'b', owns: ['src/ab/'], security: false }], boundariesFrozen: true }) },
+    expect: { outcome: 'passed', passedCount: 2 },
+  },
+  {
+    // Sabotage: remove the frozen-file ownership entry from the `complaint` chain.
+    name: "a lane whose owns covers a boundary's frozen file is refused",
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/', '.plans/contracts/'], security: false }, boundaries: [BOUNDARY] },
+    expect: { refused: /owns entry "\.plans\/contracts\/" covers boundary "api"'s frozen file \.plans\/contracts\/api\.md/ },
+  },
+  {
+    // Sabotage: drop the `outside` check from `measure`.
+    name: 'a develop diff outside owns halts before review',
+    rounds: [[]],
+    over: { measure: (label, m) => ({ ...m, ownershipDiff: ['src/a/x.py', 'src/other.py'] }) },
+    expect: { outcome: 'ownership-violated', rounds: 0, noLabel: 'review:', note: /src\/other\.py/ },
+  },
+  {
+    // Sabotage: drop `trackedChanges` from the dirty list in `measure`.
+    name: 'an uncommitted tracked change halts as a dirty worktree',
+    rounds: [[]],
+    over: { measure: (label, m) => ({ ...m, trackedChanges: [' M src/a/x.py'] }) },
+    expect: { outcome: 'dirty-worktree', rounds: 0, noLabel: 'review:' },
+  },
+  {
+    // Sabotage: drop `untracked` from the dirty list in `measure`.
+    name: 'an untracked file under owns halts as a dirty worktree',
+    rounds: [[]],
+    over: { measure: (label, m) => ({ ...m, untracked: ['src/a/new.py'] }) },
+    expect: { outcome: 'dirty-worktree', rounds: 0 },
+  },
+  {
+    // Sabotage: drop the `owned` filter on `untracked` — the dump then reads as dirty.
+    name: 'an untracked dump outside owns is not dirty',
+    rounds: [[]],
+    over: { measure: (label, m) => ({ ...m, untracked: ['runs/sample/out.json'] }) },
+    expect: { outcome: 'passed', rounds: 1, prompt: { 'touched:a#0': /git ls-files --others --exclude-standard -- src\/a\// } },
+  },
+  {
+    // Sabotage: let `measure` return `{ m }` when the agent answered nothing.
+    name: 'a measurement that returns nothing after develop halts before review',
+    rounds: [[]],
+    over: { touchedDies: true },
+    expect: { outcome: 'measurement-failed', rounds: 0, noLabel: 'review:' },
+  },
+  {
+    // Sabotage: drop the `missing.length` arm of the recheck one-to-one check.
+    name: 'a recheck missing a criterion row is incomplete',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, results: [] }) },
+    expect: { outcome: 'recheck-incomplete', rounds: 1 },
+  },
+  {
+    // Sabotage: drop the `duplicated.length` arm of the recheck one-to-one check.
+    name: 'a recheck answering one criterion twice is incomplete',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, results: [...r.results, { ...r.results[0], exit: 1 }] }) },
+    expect: { outcome: 'recheck-incomplete', rounds: 1 },
+  },
+  {
+    // Sabotage: drop the `!re` arm — a dead recheck then throws or passes.
+    name: 'a recheck that returns nothing is incomplete',
+    rounds: [[]],
+    over: { recheckDies: true },
+    expect: { outcome: 'recheck-incomplete', rounds: 1 },
+  },
+  {
+    // Sabotage: drop the `!re.brief?.length` arm — the drift comparison then passes on nothing.
+    name: 'a recheck that read no brief criteria is incomplete',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, brief: [] }) },
+    expect: { outcome: 'recheck-incomplete', rounds: 1, note: /read no criteria from the lane brief/ },
+  },
+  {
+    // Sabotage: drop the missing-id arm of `criteriaDrift`.
+    name: 'a brief criterion the lane never reported is drift',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, brief: [...r.brief, { id: 'C-02', sentence: 'empties are dropped', command: 'uv run pytest tests/b' }] }) },
+    expect: { outcome: 'criteria-drift', rounds: 1, note: /C-02 is missing/ },
+  },
+  {
+    // Sabotage: drop the command comparison from `criteriaDrift`.
+    name: 'a criterion whose command was weakened from the brief is drift',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, brief: r.brief.map((b) => ({ ...b, command: 'uv run pytest tests/a tests/a_edge' })) }) },
+    expect: { outcome: 'criteria-drift', rounds: 1 },
+  },
+  {
+    // Sabotage: drop the kind arm of `criteriaDrift`.
+    name: 'a [human] criterion turned into a command is drift',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, brief: r.brief.map((b) => ({ ...b, command: '[human]' })) }) },
+    expect: { outcome: 'criteria-drift', rounds: 1, note: /is a command criterion, and the brief makes it a human one/ },
+  },
+  {
+    // Sabotage: drop `normalId` from `criteriaDrift` — the brief's `[human]` marker then reads as a different id.
+    name: 'a [human] marker on the brief id alone is not drift',
+    rounds: [[]],
+    over: {
+      develop: devWith([CRIT, { criterion: 'the warning reads well', command: '', passed: false }]),
+      recheck: (label, r) => ({ ...r, brief: r.brief.map((b) => (b.command === '[human]' ? { ...b, id: '[human] the warning reads well' } : b)) }),
+    },
+    expect: { outcome: 'pending-human', rounds: 1, escalation: 'human' },
+  },
+  {
+    // Sabotage: compare commands without `normalCommand`.
+    name: 'a command differing from the brief only in whitespace is not drift',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, brief: r.brief.map((b) => ({ ...b, command: ` uv run   pytest\ttests/a ` })) }) },
+    expect: { outcome: 'passed', rounds: 1 },
+  },
+  {
+    // Sabotage: pass `{ red: false }` to the develop-time `withInjected`.
+    name: 'a command criterion reported without red fails',
+    rounds: [[]],
+    over: { develop: devWith([{ criterion: 'C-01', command: 'uv run pytest tests/a', passed: true }]) },
+    expect: { outcome: 'criteria-failed', noLabel: 'review:', note: /red for "C-01" was not recorded/ },
+  },
+  {
+    // Sabotage: accept any non-empty `red` instead of `RED_KINDS` — a no-baseline record then passes.
+    name: 'a no-baseline record is not a red',
+    rounds: [[]],
+    over: { develop: devWith([{ ...CRIT, red: 'no-baseline', redOutput: 'command not found at base' }]) },
+    expect: { outcome: 'criteria-failed', noLabel: 'review:' },
+  },
+  {
+    // Sabotage: drop `isText(c.redOutput)` from the red check.
+    name: 'a red with no failing output fails',
+    rounds: [[]],
+    over: { develop: devWith([{ ...CRIT, redOutput: '' }]) },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: drop the no-baseline instruction from `developPrompt`.
+    name: 'the develop prompt says a check with no baseline needs a sabotage red',
+    rounds: [[]],
+    expect: { outcome: 'passed', prompt: { 'develop:a': /no baseline, which is not a red: after implementing,\nsabotage the code it checks/ } },
+  },
+  {
+    // Sabotage: drop the red list from the module lens prompt.
+    name: 'the module lens is handed each criterion red to check',
+    rounds: [[]],
+    expect: { outcome: 'passed', prompt: { 'review:a:module#1': /- C-01 \(observed\): `uv run pytest tests\/a` — recorded: 1 failed/ } },
+  },
+  {
+    // Sabotage: drop `carried` from the base fields of `result` — halts then lose earlier majors.
+    name: 'a fix that dies still carries the non-blockers already found',
+    rounds: [[finding(), finding({ severity: 'major', summary: 'keep me' })]],
+    over: { fixDies: true },
+    expect: { outcome: 'fix-failed', rounds: 1, carried: ['keep me'] },
+  },
+  {
+    // Same sabotage, on a halt raised by the measurement rather than the loop.
+    name: 'a dirty worktree after a fix still carries the non-blockers already found',
+    rounds: [[finding(), finding({ severity: 'major', summary: 'keep me' })]],
+    over: { measure: (label, m) => (label === 'touched:a#1' ? { ...m, trackedChanges: [' M src/a/x.py'] } : m) },
+    expect: { outcome: 'dirty-worktree', rounds: 1, carried: ['keep me'] },
+  },
+  {
+    // Sabotage: keep the first finding per key in `dedupe` — the minor then hides the blocker.
+    // Sabotage: key on `f.line ?` truthiness — line 0 then keys by summary and the key changes.
+    name: 'a minor and a blocker on one line merge to the blocker with both summaries',
+    rounds: [[finding({ line: 0, severity: 'minor', summary: 'x' }), finding({ line: 0, summary: 'y' })], []],
+    expect: { outcome: 'passed', rounds: 2, hasLabel: 'fix:a#1', prompt: { 'verify:a#1': /- key: src\/a\.py:0\n  claim: x \| y/ } },
+  },
+  {
+    // Sabotage: build `lastFixTouched` from `ownershipDiff` — the cumulative diff then blames the fix.
+    name: 'causation reads the diff since the previous head, not the diff since base',
+    rounds: [
+      [finding({ file: 'src/a/x.py', summary: 'A' })],
+      [finding({ file: 'src/a/x.py', summary: 'B', causedByPreviousFix: true })],
+      [],
+    ],
+    over: { measure: (label, m) => (label === 'touched:a#0' ? m : { ...m, ownershipDiff: ['src/a/x.py'], causationDiff: ['src/a/y.py'] }) },
+    expect: { outcome: 'passed', rounds: 3, notOutcome: 'regression-halt', prompt: { 'touched:a#1': /diff --name-only m0\.\.HEAD/ } },
+  },
+  {
+    // Sabotage: drop `isolation: 'worktree'` from the review, verify or recheck dispatch.
+    name: 'review, verify and recheck run isolated and reset to the measured head',
+    rounds: [[finding()], []],
+    expect: {
+      outcome: 'passed',
+      rounds: 2,
+      isolation: { 'review:a:module#1': 'worktree', 'verify:a#1': 'worktree', 'recheck:a#2': 'worktree', 'fix:a#1': undefined },
+      prompt: {
+        'review:a:module#1': /git reset --hard m0`[^]*git diff b4se\.\.m0/,
+        'verify:a#1': /git reset --hard m0`/,
+        'review:a:module#2': /git reset --hard m1`[^]*git diff b4se\.\.m1/,
+        'recheck:a#2': /git reset --hard m1`/,
+      },
+      promptExcludes: { 'review:a:module#1': /cd into/ },
+    },
+  },
+  {
+    // Sabotage: drop `...tierOpts(lane)` from the fix dispatch.
+    name: "a lane's tier and effort set its develop and fix model, and the review keeps the session's",
+    rounds: [[finding()], []],
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, tier: 'top', effort: 'high' } },
+    expect: {
+      outcome: 'passed',
+      opts: {
+        'develop:a': { model: 'opus', effort: 'high' },
+        'fix:a#1': { model: 'opus', effort: 'high' },
+        'review:a:module#1': { model: undefined, effort: undefined },
+      },
+    },
+  },
+  {
+    // Sabotage: drop `head`, `tool` or the `commandsRun` sum from `result`.
+    name: 'the lane result names its lenses, their commands, the model family and the measured head',
+    rounds: [[finding()], []],
+    expect: { outcome: 'passed', rounds: 2, result: { lenses: ['module'], commandsRun: { module: 6 }, tool: 'Claude', head: 'm1' } },
+  },
+  {
+    // Sabotage: drop `brief` from `RECHECK_SCHEMA.required`.
+    name: 'the recheck schema requires both results and the brief it read',
+    rounds: [[]],
+    expect: { outcome: 'passed', schemaRequired: { 'recheck:a#1': ['results', 'brief'] } },
+  },
+  {
+    // Sabotage: drop a field from the `required` list of the named schema.
+    name: 'the verdict, measurement, recheck and findings schemas require their new fields',
+    rounds: [[finding()], []],
+    expect: {
+      outcome: 'passed',
+      schemaRequired: {
+        'verify:a#1': { at: ['verdicts'], fields: ['key', 'state', 'commandsRun', 'evidence'] },
+        'touched:a#1': ['head', 'base', 'trackedChanges', 'untracked', 'ownershipDiff', 'causationDiff'],
+        'recheck:a#2': { at: ['brief'], fields: ['id', 'sentence', 'command'] },
+        'review:a:module#1': ['findings', 'commandsRun', 'tool'],
+      },
+    },
+  },
 ]
 
 let failed = 0
@@ -1197,9 +1519,9 @@ for (const c of cases) {
   if (c.expect.refused) {
     const why = []
     if (out.passed !== undefined) why.push('the workflow ran the lanes')
-    // A refusal dispatched no lane. `freeze-check` is a refusal deciding whether to refuse,
-    // so it is allowed; these four prefixes are every label lane work produces.
-    const laneWork = out.labels.filter((l) => /^(develop|review|fix|touched):/.test(l))
+    // A refusal dispatched no lane. `freeze-check` decides whether to refuse, so it is allowed;
+    // these prefixes are every label lane work produces.
+    const laneWork = out.labels.filter((l) => /^(develop|touched|review|verify|reverify|fix|recheck):/.test(l))
     if (laneWork.length) why.push(`lane agents were dispatched: ${JSON.stringify(laneWork)}`)
     // Each case pins the words naming its own cause: a refusal for the wrong reason sends the
     // caller to fix the wrong thing, and one shared pattern could not tell them apart.
@@ -1251,6 +1573,11 @@ for (const c of cases) {
   if (c.expect.noLabel) {
     check(!out.labels.some((l) => l.startsWith(c.expect.noLabel)), `labels=${JSON.stringify(out.labels)}`)
   }
+  // Fields of the lane result itself, compared as JSON.
+  for (const [k, v] of Object.entries(c.expect.result ?? {})) {
+    check(JSON.stringify(got[k]) === JSON.stringify(v), `${k}=${JSON.stringify(got[k])}`)
+  }
+  if (c.expect.note) check(c.expect.note.test(got.note ?? ''), `note=${got.note}`)
   // `got` reads only one lane; a multi-lane case pins the others by count.
   if (c.expect.passedCount !== undefined) check(out.passed.length === c.expect.passedCount, `passed.length=${out.passed.length}`)
   why.push(...dispatchChecks(c.expect, out))
