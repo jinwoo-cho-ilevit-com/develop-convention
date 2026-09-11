@@ -6,6 +6,10 @@ repo_url: https://github.com/jinwoo-cho-ilevit-com/develop-convention
 # Local preview: run the assemble step from .github/workflows/docs.yml, then `uv run --group docs mkdocs serve`
 docs_dir: docs
 
+# A link to a heading that does not exist is a warning, so --strict fails on it.
+validation:
+  anchors: warn
+
 # MkDocs 1.6 excludes /templates/ at the docs root by default; re-include via negation pattern
 exclude_docs: |
   !/templates/

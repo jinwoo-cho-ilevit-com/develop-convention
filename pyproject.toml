@@ -16,8 +16,8 @@ dev = [
   # hook and the local check are one binary rather than two versions that format differently.
   "ruff==0.14.5",
 ]
-# The site build in .github/workflows/docs.yml runs from this group, so the published docs
-# come from one pinned release and `uv.lock` fixes the build.
+# The site builds in .github/workflows/docs.yml (deploy) and checks.yml (pull requests) run
+# from this group, so both come from one pinned release and `uv.lock` fixes the build.
 docs = [
   "mkdocs-material==9.7.7",
 ]

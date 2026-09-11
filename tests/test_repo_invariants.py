@@ -320,6 +320,26 @@ def test_workflow_installs_the_cli_the_manifest_test_needs():
     assert "claude.ai/install.sh" in run_steps(workflow("checks.yml"))
 
 
+def docs_assembly(config: dict) -> list[str]:
+    return [
+        step["run"]
+        for job in config["jobs"].values()
+        for step in job.get("steps", [])
+        if step.get("name") == "Assemble docs dir"
+    ]
+
+
+def test_pull_requests_build_the_site_the_deploy_builds():
+    """docs.yml builds the site only after merge; checks.yml repeats its build on the pull
+    request. The two assemble `docs/` from one recipe, or the pull request passes a site
+    that is not the one deployed.
+    """
+    checks = workflow("checks.yml")
+    assert docs_assembly(checks), "checks.yml does not assemble docs/"
+    assert docs_assembly(checks) == docs_assembly(workflow("docs.yml"))
+    assert "mkdocs build --strict" in run_steps(checks)
+
+
 # --- the negative criterion ---------------------------------------------------------------
 
 
