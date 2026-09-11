@@ -19,6 +19,7 @@
 - Cover every completion criterion with an executable check or a recorded `[human]` verdict, most of them by the sample run: one test function or parametrize case per criterion inside the entry point's file, sharing one run, so each criterion can be observed red on its own. A bug-fix criterion is decided by its reproduction command and output, not by a new test function. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
 - Observe every new test failing before it passes: run it at the base commit and keep the output. A test that was never seen red is indistinguishable from one that asserts nothing.
 - A test written for code that already works has no red to observe at the base commit, and neither does an assertion whose shared run fails there before any assertion executes — verify it by sabotage instead: break the behaviour it claims to pin, watch the test fail, and revert. A characterization test never seen failing is ceremony, not verification.
+- Check every diff that turns a failing test green for the shortcuts that pass a test without meeting its specification — an edited, deleted or skipped test or a loosened CI threshold, an overloaded comparison operator, state recorded across calls, a special case for the test's inputs — each by the check that exposes it (§3). Any one of them is a review finding.
 - Distinguish "the check could not run" from "the check ran and failed". A missing test file, an uncollectable suite, or an external tool that is not installed is a missing baseline, not a red result.
 - Exempt standing invariants from the red check explicitly. A regression guard holding at the base commit is the correct outcome, not a defect.
 - A bug fix needs no dedicated regression test: it is decided by reproducing the defect before and after the fix, with the command and the decisive output lines kept in the fix commit's `## Result` (§4, → [17-commit-protocol.md](17-commit-protocol.md), [19-evidence.md](19-evidence.md)).
@@ -92,6 +93,19 @@ Standing invariants are the exception. "Every module exports a schema", "no secr
 Two gaps the base-commit check does not close. A test whose expected value was recorded from the implementation goes red at the base commit like any other — the module is missing there — yet asserts nothing about correctness: the author ran the new code, captured its output, and pasted it back as the expectation, so a bug in the implementation is reproduced in the expectation verbatim — the test asserts that the code does what the code does. A sample run makes the capture tempting, since its output is right there. This is the default failure mode when one session writes both the code and its tests, which is why the expected value must come from the specification. And a characterization test written for code that already works is green at the base commit by design, so red-before-green never fires for it — sabotage replaces it: break the behaviour the test claims to pin, watch it fail, revert, and keep that observation as the evidence.
 
 Leads (practitioner blogs, not primary sources): [AI-generated tests that pass but don't assert](https://getautonoma.com/blog/ai-generated-tests-pass-but-dont-assert), [AI-generated tests as ceremony](https://blog.ploeh.dk/2026/01/26/ai-generated-tests-as-ceremony/)
+
+**Passing a test without meeting it.** ImpossibleBench gave coding agents tasks whose tests contradict the specification, so any pass is a shortcut, and named four kinds. The model "directly modifies tests despite being explicitly instructed not to"; "overloads the comparison operators so they always return desired values"; "records extra states in order to obtain different results for the same input"; or "special-cases the test cases to pass them". Making the tests read-only stopped the first and, the paper reports, "does not eliminate other cheating methods such as special-casing or operator overloading" — so each is checked by what exposes it rather than prevented by one permission:
+
+| Shortcut | What exposes it |
+|---|---|
+| a test edited, deleted, skipped or marked expected-to-fail; a CI threshold lowered or a check removed (the paper's first kind, widened to the CI gate) | the diff itself — review reads the test and CI files first |
+| a comparison operator overloaded to always agree | sabotage: break the behaviour, and the test still passes |
+| state recorded across calls | the same input run twice, or in another order |
+| a special case for the test's inputs | an input the test does not carry — a fresh sample row |
+
+The module lane of [20-review-gate.md](20-review-gate.md) §2 is where review looks for these.
+
+Source: [Zhong, Raghunathan, Carlini — ImpossibleBench: Measuring LLMs' Propensity of Exploiting Test Cases](https://arxiv.org/abs/2510.20270) — Abstract (any pass is a shortcut), §4.1 (the four kinds), §5.2 (read-only tests) (checked 2026-09-12)
 
 ### 4. Budget
 
