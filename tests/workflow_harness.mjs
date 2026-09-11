@@ -142,6 +142,10 @@ function dispatchChecks(expect, out) {
   for (const [label, re] of Object.entries(expect.prompt ?? {})) {
     if (!re.test(out.prompts[label] ?? '')) why.push(`prompt[${label}] does not match ${re}`)
   }
+  // A lane on no boundary must be told nothing about one — the absence is the assertion.
+  for (const [label, re] of Object.entries(expect.promptExcludes ?? {})) {
+    if (re.test(out.prompts[label] ?? '')) why.push(`prompt[${label}] matches ${re}, and must not`)
+  }
   return why
 }
 
@@ -168,9 +172,10 @@ const SHAPE_ROWS = [
   ['an owns entry that is not a path string is refused', 'args.lanes[0].owns', { name: 'a', owns: ['src/a/', 42], security: false }, /must be a non-empty list of path strings/],
   ['a boundary that is a name rather than an object is refused', 'args.boundaries[0]', 'api', /is "api", not an object/],
   ['a boundary that pins no lane is refused', 'args.boundaries[0]', { name: 'api', contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /declares no lanes/],
-  // The old `test` key is not `contract` — a stale PLAN.md is refused loudly rather than
-  // silently treated as a boundary with no contract path.
-  ['a boundary still using the old `test` key is refused as an unknown key', 'args.boundaries[0]', { name: 'api', lanes: ['a'], test: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /unknown key "test"/],
+  // `test` is not a known boundary field — a stale PLAN.md carrying it is refused loudly
+  // rather than silently accepted as a boundary with no contract path.
+  ['a boundary using a `test` key is refused as an unknown key', 'args.boundaries[0]', { name: 'api', lanes: ['a'], test: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /unknown key "test"/],
+  ['a boundary with a contract but no sample is refused', 'args.boundaries[0]', { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md' }, /declares no sample/],
 ]
 
 const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -411,6 +416,43 @@ const cases = [
     },
   },
   {
+    // A lane is told its boundary's exact paths, not a directory to go browse for them.
+    name: "a pinned lane's develop and review prompts name its boundary's exact contract and sample paths",
+    rounds: [[]],
+    over: {
+      lane: { name: 'a', owns: ['src/a/'], security: false },
+      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
+    },
+    expect: {
+      outcome: 'passed',
+      prompt: {
+        'develop:a': /- api: contract \.plans\/contracts\/api\.md, sample tests\/fixtures\/api\.sample\.json/,
+        'review:a:module#1': /- api: contract \.plans\/contracts\/api\.md, sample tests\/fixtures\/api\.sample\.json/,
+      },
+    },
+  },
+  {
+    // A lane on no boundary has nothing to be told about one — the block is omitted entirely
+    // rather than rendered empty, and the pinned lane's own prompt still names its path.
+    name: 'a lane on no boundary gets no contract or sample path, unlike a lane pinned by one',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [
+          { name: 'a', owns: ['src/a/'], security: false },
+          { name: 'b', owns: ['src/b/'], security: false },
+        ],
+        boundaries: [{ name: 'api', lanes: ['b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: {
+      outcome: 'passed',
+      promptExcludes: { 'develop:a': /contract \.plans\/contracts\/api\.md/ },
+      prompt: { 'develop:b': /- api: contract \.plans\/contracts\/api\.md, sample tests\/fixtures\/api\.sample\.json/ },
+    },
+  },
+  {
     name: 'a lane awaiting a human verdict is held out of passed',
     rounds: [[]],
     over: { develop: { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria: [{ criterion: 'the warning reads well', command: '', passed: false }] } },
@@ -516,7 +558,7 @@ const cases = [
       }),
       missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract files do not exist: \.plans\/contracts\/api\.md/ },
+    expect: { refused: /declared frozen but these contract or sample files do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
     // Declaring the freeze is not doing it, and the lanes are told the contract files exist on
@@ -527,7 +569,18 @@ const cases = [
       boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
       missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract files do not exist: \.plans\/contracts\/api\.md/ },
+    expect: { refused: /declared frozen but these contract or sample files do not exist: \.plans\/contracts\/api\.md/ },
+  },
+  {
+    // The sample is as much a frozen path as the contract — dropping it from `frozenPaths`
+    // would leave every lane told a sample exists that nothing measured.
+    name: 'a boundary whose sample file does not exist is refused by name',
+    rounds: [[]],
+    over: {
+      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
+      missingFrozen: ['tests/fixtures/api.sample.json'],
+    },
+    expect: { refused: /declared frozen but these contract or sample files do not exist: tests\/fixtures\/api\.sample\.json/ },
   },
   {
     // The same paths, and the sha they were absent at. Without it the refusal names files a
@@ -559,6 +612,18 @@ const cases = [
       rounds: 1,
       isolation: { 'freeze-check': 'worktree' },
       prompt: { 'freeze-check': /git reset --hard main/ },
+    },
+  },
+  {
+    // The stub answers `missingFrozen` whatever it was asked, so only the prompt shows that
+    // both of a boundary's paths are sent to be measured.
+    name: 'the freeze check is asked about both the contract and the sample path',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      prompt: { 'freeze-check': /- \.plans\/contracts\/api\.md\n- tests\/fixtures\/api\.sample\.json/ },
     },
   },
   {
@@ -596,7 +661,7 @@ const cases = [
     expect: { outcome: 'passed', rounds: 1, noLabel: 'freeze-check' },
   },
   {
-    // `contract` and `sample` are both required by the shape check now, so a boundary missing
+    // `contract` and `sample` are both required by the shape check, so a boundary missing
     // either is refused there — before the freeze check could skip it and leave every lane
     // told its contract file exists on the strength of a declaration nothing measured.
     name: 'a boundary missing a contract path is refused as a missing required field',

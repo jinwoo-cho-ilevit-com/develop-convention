@@ -316,29 +316,37 @@ function lensesFor(lane) {
   return lane.security === true ? [...base, SECURITY_LENS] : base
 }
 
-// Every lane-scoped agent needs this, or a lane treats a contract file as something to run,
-// edits it to match its own code, or waits on it the way it would wait on a failing test.
-function contractsAtIntegration(planDir) {
-  return (
-    `Boundary contracts in ${planDir}/contracts/ are files, not tests: build your side to match them, ` +
-    'and never edit them or the frozen samples. They are checked after the merge by the assembled ' +
-    'sample run and the merged-whole review.'
-  )
+// Every lane-scoped agent needs its own boundaries' exact paths, not a directory to go browse —
+// a lane pointed at a directory reads the wrong file, or treats a contract as something to run.
+// Empty for a lane on no boundary, since it has nothing to be told.
+function boundaryContracts(lane) {
+  const mine = boundaries.filter((b) => (b.lanes ?? []).includes(lane.name))
+  if (!mine.length) return ''
+  return [
+    "Your boundaries' contracts are files, not tests — owned by no lane, never edit them or their samples:",
+    ...mine.map((b) => `- ${b.name}: contract ${b.contract}, sample ${b.sample}`),
+    'The consumer side runs its sample run on the sample. Nothing can run the other side here; the whole boundary is exercised after the merge.',
+  ].join('\n')
 }
 
 function developPrompt(lane) {
+  const contracts = boundaryContracts(lane)
   return [
     `Before anything else, run \`git reset --hard ${base}\` in your worktree, then \`git log --oneline -1\``,
     'and confirm you are on that commit.',
     `Your worktree is cut from origin/main, which may be behind ${base} and may carry neither the frozen`,
-    `contracts under ${planDir}/contracts/ nor the lane briefs under ${planDir}.`,
+    `boundary files nor the lane briefs under ${planDir}.`,
     '',
     `You own lane "${lane.name}". Read ${planDir}/lane-${lane.name}.md and ${planDir}/PLAN.md.`,
     '',
     `Work only inside your owned paths: ${(lane.owns ?? []).join(', ')}.`,
     'Every other path belongs to another lane running right now; touching one collides.',
-    'The contract files for your boundaries already exist and no lane owns them.',
-    contractsAtIntegration(planDir),
+    ...(contracts
+      ? [
+          contracts,
+          'Build your side to match the contract file: the names and signatures the caller uses, the value set, the call direction. Emit or accept exactly the value set it names.',
+        ]
+      : []),
     "Your own checks are the brief's completion criteria; where your stage reads a frozen sample, read it and never write it.",
     '',
     'Create a branch for this lane, commit your work to it, and run every command listed under',
@@ -353,6 +361,7 @@ function developPrompt(lane) {
 }
 
 function reviewPrompt(lane, lens, round, fixSummary) {
+  const contracts = boundaryContracts(lane)
   return [
     `Review lane "${lane.name}" through one lens only: ${lens.key}.`,
     `Your input is ${lens.input}.`,
@@ -368,7 +377,12 @@ function reviewPrompt(lane, lens, round, fixSummary) {
     '',
     'Run the code. You have the test command and the tool under review; report how many commands you',
     'actually executed. A verdict from a lane that ran none is a reading, not a review.',
-    contractsAtIntegration(planDir),
+    ...(contracts
+      ? [
+          contracts,
+          "Compare this lane's side against each contract file listed — names, signatures, the values it emits or accepts, call direction. A mismatch is a finding; the other side's absence is not.",
+        ]
+      : []),
     '',
     'Flag correctness and requirement gaps only. Do not manufacture problems in sound code.',
     round > 1
@@ -378,6 +392,7 @@ function reviewPrompt(lane, lens, round, fixSummary) {
 }
 
 function verifyPrompt(lane, blockers) {
+  const contracts = boundaryContracts(lane)
   return [
     `Check each claimed blocker in lane "${lane.name}" against the actual code. You are not`,
     'reviewing the change and you are not looking for new problems — you are deciding whether',
@@ -388,7 +403,7 @@ function verifyPrompt(lane, blockers) {
     '',
     'Reproduce it, or read the code path and show it cannot happen. Return one verdict per key,',
     'with the key copied exactly, and say what you ran or read.',
-    contractsAtIntegration(planDir),
+    ...(contracts ? [contracts] : []),
     '',
     'A finding with no concrete failing scenario is not confirmed. Reviewers asked to find problems',
     'manufacture them in sound code, and an unconfirmed blocker forces a fix that then shows up as',
@@ -397,6 +412,7 @@ function verifyPrompt(lane, blockers) {
 }
 
 function fixPrompt(lane, blockers) {
+  const contracts = boundaryContracts(lane)
   return [
     `You own lane "${lane.name}". Continue in the worktree you already have: ${lane.worktree}.`,
     'Review found these blockers. Fix them and commit to the same lane branch.',
@@ -406,7 +422,7 @@ function fixPrompt(lane, blockers) {
     'Fix only these. Anything else you notice goes in your summary, not in the diff — an unrelated',
     'change here forces the whole lane through another review round.',
     'Re-run the criteria commands from your brief before returning.',
-    contractsAtIntegration(planDir),
+    ...(contracts ? [contracts] : []),
     '',
     'Return a short summary of what you changed.',
   ].join('\n')
@@ -639,9 +655,9 @@ async function reviewLoop(dev, lane) {
   }
 }
 
-// Every lane is told its contract files already exist, on the strength of the declaration
-// alone. Measuring it costs one agent that only stats files, skipped only for a plan that
-// declares no boundaries — which has nothing to freeze.
+// Every lane is told its contract and sample files already exist, on the strength of the
+// declaration alone. Measuring it costs one agent that only stats files, skipped only for a
+// plan that declares no boundaries — which has nothing to freeze.
 const frozenPaths = boundaries.flatMap((b) => [b.contract, b.sample])
 if (frozenPaths.length) {
   // Isolated and reset exactly as a lane is, because the question is what a lane sees. Read
@@ -658,7 +674,7 @@ if (frozenPaths.length) {
       ...frozenPaths.map((p) => `- ${p}`),
       '',
       'Check existence only. Create nothing and judge nothing — not whether a file is the right',
-      'contract, not whether it is empty. Report the paths exactly as they are given here, and report',
+      'contract or sample, not whether it is empty. Report the paths exactly as they are given here, and report',
       'the sha `git rev-parse HEAD` prints after the reset as `head`.',
     ].join('\n'),
     { label: 'freeze-check', phase: 'Develop', schema: FROZEN_SCHEMA, isolation: 'worktree' },
@@ -670,17 +686,17 @@ if (frozenPaths.length) {
     return null
   })
   if (!frozen) {
-    log(`The freeze check ${freezeError ? `died: ${freezeError}` : 'returned nothing'}, so nothing about the contract files was measured.`)
+    log(`The freeze check ${freezeError ? `died: ${freezeError}` : 'returned nothing'}, so nothing about the contract or sample files was measured.`)
     return {
       lanes: [],
-      note: `refused: the freeze check ${freezeError ? `died (${freezeError})` : 'returned nothing'}, so whether the contract files exist is unmeasured, and with them the commit every lane starts on. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.`,
+      note: `refused: the freeze check ${freezeError ? `died (${freezeError})` : 'returned nothing'}, so whether the contract or sample files exist is unmeasured, and with them the commit every lane starts on. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.`,
     }
   }
   if (frozen.missing?.length) {
-    log(`${frozen.missing.length} of ${frozenPaths.length} contract file paths do not exist at ${frozen.head}.`)
+    log(`${frozen.missing.length} of ${frozenPaths.length} contract or sample file paths do not exist at ${frozen.head}.`)
     return {
       lanes: [],
-      note: `refused: the boundaries were declared frozen but these contract files do not exist: ${frozen.missing.join(', ')} — not at ${frozen.head}, the commit the lanes start from. If they were written they are not in that commit, so commit and push the freeze; otherwise every lane starts where nothing holds the interfaces still and writes its own copy.`,
+      note: `refused: the boundaries were declared frozen but these contract or sample files do not exist: ${frozen.missing.join(', ')} — not at ${frozen.head}, the commit the lanes start from. If they were written they are not in that commit, so commit and push the freeze; otherwise every lane starts where nothing holds the interfaces still and writes its own copy.`,
     }
   }
 }

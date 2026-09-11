@@ -79,6 +79,8 @@ Choose by **size × reversibility**:
 
 The upper-right cell is what a size-only rule misses: a one-line change to a published signature is small and nearly impossible to take back.
 
+A plan with lane boundaries is never `auto`: its contracts are files, and the merged-whole review is one of the places they are compared against the code (§5).
+
 Evidence sits outside the dial deliberately. If it were a property of the higher levels, "this is only `auto`" would become the way to skip it.
 
 There is no separate planning-depth setting. How hard a plan is challenged follows the done level, at the two points [20-review-gate.md](20-review-gate.md) §2 fixes by time: `auto` skips both, `reviewed` runs the point once, `proven` runs it twice — a run being the parallel Claude-plus-Path-A pair [20-review-gate.md](20-review-gate.md) §4 dispatches at each point, not a per-tool count. A second dial would only be another thing to under-report.
@@ -110,6 +112,6 @@ A boundary is a place two lanes can hold different beliefs. Data flow finds only
 
 Derive the list from imports and calls in both directions rather than from what crosses as data. A lane that only consumes — a CLI over the other lanes' modules, a reporting layer — passes nothing outward, so it disappears from a payload-derived list while owning more of the call surface than any producer does.
 
-Contracts freezing these boundaries are files, not tests: they belong to no lane, every lane on the boundary builds against them, and none can be checked inside one lane. Give each lane criteria its own worktree can decide, and give the end-to-end condition to the integration step, where the assembled sample run exercises each boundary and the merged-whole review compares the merged code against each contract file. The alternative this forbids is weakening the criterion to fit the lane — mocking a sibling module, importing through a shim — which yields a lane that passes and an assembly that does not (→ [06-testing-verification.md](06-testing-verification.md) §1).
+Contracts freezing these boundaries are files, not tests: they belong to no lane, every lane on the boundary builds against them, and no lane can run the other side. Each lane's reviewers compare that lane's side against the file. Give each lane criteria its own worktree can decide, and give the end-to-end condition to the integration step, where the assembled sample run exercises the boundary and the merged-whole review compares both sides against each contract file. The alternative this forbids is weakening the criterion to fit the lane — mocking a sibling module, importing through a shim — which yields a lane that passes and an assembly that does not (→ [06-testing-verification.md](06-testing-verification.md) §1).
 
 Criteria map to tests and the red check via [06-testing-verification.md](06-testing-verification.md); evidence and human verdicts via [19-evidence.md](19-evidence.md); how the plan and briefs are produced in the first place via [21-development-loop.md](21-development-loop.md); decomposition, isolation, and model routing stay in [09-agentic-workflow.md](09-agentic-workflow.md), review lanes and fan-in in [20-review-gate.md](20-review-gate.md). The contract records decisions, not the rules behind them.
