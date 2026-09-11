@@ -66,7 +66,9 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       return {
         missing: over.missingFrozen ?? [],
         head: over.frozenHead ?? 'f00dbabe',
-        tool: over.freezeTool ?? { exit: 0, output: 'check-jsonschema, version 0.38.0' },
+        // `omitFreezeTool` models an agent answer missing the field outright — schema-invalid
+        // in production, but a case must still show build.js does not read it as passing.
+        ...(over.omitFreezeTool ? {} : { tool: over.freezeTool ?? { exit: 0, output: 'check-jsonschema, version 0.38.0' } }),
         checked: over.freezeChecked ?? schemaBoundaries.map((b) => ({ boundary: b.name, exit: 0, output: 'ok' })),
       }
     }
@@ -74,7 +76,15 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       // eslint-disable-next-line no-throw-literal
       if ('throws' in over) throw over.throws
       if (over.developDies) return null
-      return over.develop ?? { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria: [] }
+      if (over.develop) return over.develop
+      // A lane producing a schema boundary reports a passing --schemafile criterion by
+      // default, so cases not about producer enforcement don't have to spell it out.
+      const laneName = label.slice('develop:'.length)
+      const produced = (over.boundaries ?? []).filter((b) => b.schema && b.producer === laneName)
+      const criteria = over.omitProducerCriterion
+        ? []
+        : produced.map((b) => ({ criterion: `schema check for "${b.name}"`, command: `uvx check-jsonschema@0.38.0 --schemafile ${b.schema} <dump>`, passed: true }))
+      return { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria }
     }
     if (label.startsWith('fix:')) return over.fixDies ? null : { summary: 'fixed it' }
     // Stands in for the agent that reads git in the lane's worktree. It answers
@@ -162,7 +172,7 @@ function dispatchChecks(expect, out) {
 // and the first half of the expected note, so no row passes on a message about another field.
 const LANE = { name: 'a', owns: ['src/a/'], security: false }
 const BOUNDARY = { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }
-const SCHEMA_BOUNDARY = { ...BOUNDARY, schema: '.plans/contracts/api.schema.json' }
+const SCHEMA_BOUNDARY = { ...BOUNDARY, schema: '.plans/contracts/api.schema.json', producer: 'a' }
 const SHAPE_ROWS = [
   ['a misspelled top-level key is refused rather than defaulted', 'args', { lanes: [LANE], conventionDir: '/abs/conventions', boundariesFrozen: true }, /unknown key "conventionDir"/],
   ['arguments carrying no lanes at all are refused by name', 'args', { boundariesFrozen: true }, /declares no lanes/],
@@ -567,7 +577,7 @@ const cases = [
       }),
       missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract or sample files do not exist: \.plans\/contracts\/api\.md/ },
+    expect: { refused: /declared frozen but these contract, schema or sample files do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
     // Declaring the freeze is not doing it, and the lanes are told the contract files exist on
@@ -578,7 +588,7 @@ const cases = [
       boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
       missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract or sample files do not exist: \.plans\/contracts\/api\.md/ },
+    expect: { refused: /declared frozen but these contract, schema or sample files do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
     // The sample is as much a frozen path as the contract — dropping it from `frozenPaths`
@@ -589,7 +599,7 @@ const cases = [
       boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
       missingFrozen: ['tests/fixtures/api.sample.json'],
     },
-    expect: { refused: /declared frozen but these contract or sample files do not exist: tests\/fixtures\/api\.sample\.json/ },
+    expect: { refused: /declared frozen but these contract, schema or sample files do not exist: tests\/fixtures\/api\.sample\.json/ },
   },
   {
     // The same paths, and the sha they were absent at. Without it the refusal names files a
@@ -734,8 +744,8 @@ const cases = [
     },
   },
   {
-    // Sabotage: drop the `frozen.tool?.exit !== 0` refusal and this note never fires, since
-    // the schema-check-failed refusal below it is the one this pins.
+    // Sabotage: remove the `failedChecks.length` refusal block — this then fans out
+    // (or refuses with different wording) instead of naming the failing boundary.
     name: 'a sample that fails its schema check is refused naming the boundary and output',
     rounds: [[]],
     over: {
@@ -794,7 +804,7 @@ const cases = [
     name: 'two schema boundaries with one failing names only the failing one',
     rounds: [[]],
     over: {
-      boundaries: [SCHEMA_BOUNDARY, { name: 'db', lanes: ['a'], contract: '.plans/contracts/db.md', sample: 'tests/fixtures/db.sample.json', schema: 'tests/fixtures/db.schema.json' }],
+      boundaries: [SCHEMA_BOUNDARY, { name: 'db', lanes: ['a'], contract: '.plans/contracts/db.md', sample: 'tests/fixtures/db.sample.json', schema: 'tests/fixtures/db.schema.json', producer: 'a' }],
       freezeChecked: [
         { boundary: 'api', exit: 0, output: 'ok' },
         { boundary: 'db', exit: 1, output: 'boom' },
@@ -812,7 +822,7 @@ const cases = [
       missingFrozen: ['tests/fixtures/api.sample.json'],
       freezeChecked: [{ boundary: 'api', exit: 1, output: 'boom' }],
     },
-    expect: { refused: /declared frozen but these contract or sample files do not exist/ },
+    expect: { refused: /declared frozen but these contract, schema or sample files do not exist/ },
   },
   {
     // Sabotage: always include `--schemafile` regardless of `b.schema` — this then matches
@@ -859,6 +869,174 @@ const cases = [
       ],
     },
     expect: { refused: /args\.boundaries\[1\] repeats the name "api"/ },
+  },
+  {
+    // Sabotage: drop the `schemaBoundaries.length` guard around the tool.exit check — a
+    // plan with no schema boundary then refuses over a tool it never needed.
+    name: 'a plan with no schema boundary fans out even if the schema tool is unavailable',
+    rounds: [[]],
+    over: {
+      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
+      freezeTool: { exit: 127, output: 'uvx: command not found' },
+    },
+    expect: { outcome: 'passed', rounds: 1 },
+  },
+  {
+    // Sabotage: change `frozen.tool?.exit !== 0` to `frozen.tool && frozen.tool.exit !== 0` —
+    // an absent `tool` then reads as nothing to check instead of unmeasured.
+    name: 'a schema boundary whose freeze result carries no tool field is refused',
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY], omitFreezeTool: true },
+    expect: { refused: /schema tool could not run/ },
+  },
+  {
+    // Sabotage: only list the first schema boundary's command in the freeze prompt.
+    name: 'the freeze prompt contains both schema boundaries\' exact --schemafile commands',
+    rounds: [[]],
+    over: {
+      boundaries: [
+        SCHEMA_BOUNDARY,
+        { name: 'db', lanes: ['a'], contract: '.plans/contracts/db.md', sample: 'tests/fixtures/db.sample.json', schema: 'tests/fixtures/db.schema.json', producer: 'a' },
+      ],
+    },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      prompt: {
+        'freeze-check': /(?=[\s\S]*uvx check-jsonschema@0\.38\.0 --schemafile \.plans\/contracts\/api\.schema\.json tests\/fixtures\/api\.sample\.json)(?=[\s\S]*uvx check-jsonschema@0\.38\.0 --schemafile tests\/fixtures\/db\.schema\.json tests\/fixtures\/db\.sample\.json)/,
+      },
+    },
+  },
+  {
+    // Sabotage: revert the note's wording from "contract, schema or sample" back to
+    // "contract or sample" — a missing schema path is still named, but by the old text.
+    name: 'a missing schema file is refused by name, alongside contract and sample',
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY], missingFrozen: ['.plans/contracts/api.schema.json'] },
+    expect: { refused: /contract, schema or sample files do not exist: \.plans\/contracts\/api\.schema\.json/ },
+  },
+  {
+    // Sabotage: drop the `b.producer === lane.name` branch in `boundaryContracts` (always
+    // emit the consumer sentence) — the producer's prompt then loses its own instruction.
+    name: "a producer lane's prompt carries the fresh-dump instruction; a consumer's does not",
+    rounds: [[]],
+    over: {
+      // `rawArgs` is what the workflow reads; `boundaries` here is only so the freeze-check
+      // stub can derive its own default `checked` rows for the same boundary.
+      boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
+      rawArgs: JSON.stringify({
+        lanes: [
+          { name: 'a', owns: ['src/a/'], security: false },
+          { name: 'b', owns: ['src/b/'], security: false },
+        ],
+        boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: {
+      outcome: 'passed',
+      prompt: {
+        'develop:a': /You produce boundary "api"'s payload:.*deletes its dump directory, re-runs/,
+      },
+      promptExcludes: {
+        'develop:b': /deletes its dump directory/,
+      },
+    },
+  },
+  {
+    // Second half of the case above — sabotage: force the producer branch for every
+    // boundary in `boundaryContracts` — the consumer's own sentence then says it produces.
+    name: "a consumer lane's prompt says it consumes the boundary, not that it produces it",
+    rounds: [[]],
+    over: {
+      boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
+      rawArgs: JSON.stringify({
+        lanes: [
+          { name: 'a', owns: ['src/a/'], security: false },
+          { name: 'b', owns: ['src/b/'], security: false },
+        ],
+        boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: {
+      outcome: 'passed',
+      prompt: {
+        'develop:b': /You consume boundary "api"'s payload; its producer \("a"\) carries the schema check/,
+      },
+    },
+  },
+  {
+    // Sabotage: replace `schemaFindingNotes(lane)` with the old generic sentence — the
+    // producer's name then disappears from the review prompt.
+    name: "the review prompt names the producer lane in the schema-check finding",
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY] },
+    expect: {
+      outcome: 'passed',
+      prompt: {
+        'review:a:module#1': /Lane "a" carries the schema check for boundary "api"/,
+      },
+    },
+  },
+  {
+    // Sabotage: remove the `b?.schema && !b?.producer` clause from the `complaint` chain.
+    name: 'a boundary with a schema but no producer is refused',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json' }] },
+    expect: { refused: /args\.boundaries\[0\] has a schema but names no producer/ },
+  },
+  {
+    // Sabotage: remove the `!(b.lanes ?? []).includes(b.producer)` clause.
+    name: "a producer that is not one of the boundary's lanes is refused",
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'ghost' }] },
+    expect: { refused: /args\.boundaries\[0\]\.producer is "ghost", which is not one of this boundary's lanes/ },
+  },
+  {
+    // Sabotage: remove the shared-sample/different-schema clause from the `complaint` chain.
+    name: 'two boundaries sharing a sample but naming different schemas are refused',
+    rounds: [[]],
+    over: {
+      boundaries: [
+        { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/shared.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' },
+        { name: 'api2', lanes: ['a'], contract: '.plans/contracts/api2.md', sample: 'tests/fixtures/shared.sample.json', schema: '.plans/contracts/api2.schema.json', producer: 'a' },
+      ],
+    },
+    expect: { refused: /args\.boundaries\[1\] shares a sample with another boundary but names a different schema/ },
+  },
+  {
+    // Sabotage: remove the producer-criterion injection block at the top of `reviewLoop`.
+    name: 'a producer lane that reports no --schemafile criterion fails like any other missed criterion',
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY], omitProducerCriterion: true },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // The mirror of the case above — sabotage: drop the pass/fail filter and always inject
+    // the synthetic criterion for a produced boundary, regardless of what was reported.
+    name: 'a producer lane that reports a passing --schemafile criterion is not held back by it',
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY] },
+    expect: { outcome: 'passed' },
+  },
+  {
+    // A consumer lane carries no `produced` boundary, so the injection never applies to it —
+    // sabotage: drop the `b.producer === lane.name` filter (match any boundary with a schema).
+    name: 'a consumer lane is not required to report the producer\'s schema-check criterion',
+    rounds: [[]],
+    over: {
+      boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
+      rawArgs: JSON.stringify({
+        lanes: [
+          { name: 'a', owns: ['src/a/'], security: false },
+          { name: 'b', owns: ['src/b/'], security: false },
+        ],
+        boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { outcome: 'passed', passedCount: 2 },
   },
 ]
 
@@ -941,6 +1119,8 @@ for (const c of cases) {
   if (c.expect.noLabel) {
     check(!out.labels.some((l) => l.startsWith(c.expect.noLabel)), `labels=${JSON.stringify(out.labels)}`)
   }
+  // `got` reads only one lane; a multi-lane case pins the others by count.
+  if (c.expect.passedCount !== undefined) check(out.passed.length === c.expect.passedCount, `passed.length=${out.passed.length}`)
   why.push(...dispatchChecks(c.expect, out))
 
   if (why.length) failed++

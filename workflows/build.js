@@ -218,6 +218,7 @@ const BOUNDARY_FIELDS = [
   ['contract', isText, 'a path string'],
   ['sample', isText, 'a path string'],
   ['schema', isText, 'a path string'],
+  ['producer', isText, 'a lane name string'],
   ['lanes', isTextList, 'a non-empty list of lane names'],
 ]
 
@@ -303,6 +304,20 @@ const complaint =
   boundaries
     .map((b, i) => (boundaries.findIndex((x) => x?.name === b?.name) !== i ? `args.boundaries[${i}] repeats the name ${JSON.stringify(b?.name)}` : null))
     .find(Boolean) ??
+  // A schema with no named producer leaves no lane to carry its dump-recheck criterion.
+  boundaries.map((b, i) => (b?.schema && !b?.producer ? `args.boundaries[${i}] has a schema but names no producer` : null)).find(Boolean) ??
+  // The producer must be one of the lanes the boundary pins, or its criterion is checked
+  // against a lane that was never told to report it.
+  boundaries
+    .map((b, i) => (b?.producer && !(b.lanes ?? []).includes(b.producer) ? `args.boundaries[${i}].producer is ${JSON.stringify(b.producer)}, which is not one of this boundary's lanes` : null))
+    .find(Boolean) ??
+  // One shared sample is one payload, and a payload has exactly one schema.
+  boundaries
+    .map((b, i) => {
+      const conflict = boundaries.find((x, j) => j < i && x?.sample === b?.sample && (x?.schema ?? null) !== (b?.schema ?? null))
+      return conflict ? `args.boundaries[${i}] shares a sample with another boundary but names a different schema` : null
+    })
+    .find(Boolean) ??
   // A boundary names the lanes it pins, and a pinned lane is reviewed through three lenses
   // instead of one. A name matching no lane buys the shallower review and says nothing.
   boundaries
@@ -356,21 +371,30 @@ function lensesFor(lane) {
 function boundaryContracts(lane) {
   const mine = boundaries.filter((b) => (b.lanes ?? []).includes(lane.name))
   if (!mine.length) return ''
-  const withSchema = mine.filter((b) => b.schema)
   return [
     "Your boundaries' contracts are files, not tests — owned by no lane, never edit them or their samples:",
     ...mine.map((b) => `- ${b.name}: contract ${b.contract}${b.schema ? `, schema ${b.schema}` : ''}, sample ${b.sample}`),
     "The consumer side runs its sample run on the sample. The producer's own output is checkable",
     "against the schema; only the other side's code is absent, and the whole boundary is exercised",
     'after the merge.',
-    ...(withSchema.length
-      ? [
-          'Where a boundary above has a schema, the lane producing its payload carries a criterion',
-          'that deletes its dump directory, re-runs its sample run, and checks the fresh dump with',
-          `\`${SCHEMA_CHECK} --schemafile <schema> <dump>\`, using that boundary's schema path.`,
-        ]
-      : []),
+    // Each schema boundary names one side the check, so the same lane never reads both halves
+    // of this sentence about itself.
+    ...mine
+      .filter((b) => b.schema)
+      .map((b) =>
+        b.producer === lane.name
+          ? `You produce boundary "${b.name}"'s payload: carry and report a criterion that deletes its dump directory, re-runs your sample run, and checks the fresh dump with \`${SCHEMA_CHECK} --schemafile ${b.schema} <dump>\`.`
+          : `You consume boundary "${b.name}"'s payload; its producer ("${b.producer}") carries the schema check, not you.`,
+      ),
   ].join('\n')
+}
+
+// Names who was responsible for a boundary's schema check, so a reviewer's finding says
+// which brief or report to fault rather than restating the rule in general terms.
+function schemaFindingNotes(lane) {
+  return boundaries
+    .filter((b) => b.schema && (b.lanes ?? []).includes(lane.name))
+    .map((b) => `Lane "${b.producer}" carries the schema check for boundary "${b.name}"; a brief or report missing it is a finding.`)
 }
 
 function developPrompt(lane) {
@@ -430,8 +454,8 @@ function reviewPrompt(lane, lens, round, fixSummary) {
           "Compare this lane's side against each contract file listed — names, signatures, call",
           'direction. Where a boundary has a schema, that schema decides its fields, types and',
           'values; where it does not, compare the value set the contract file names. A mismatch is a',
-          "finding; the other side's absence is not. A producing lane on a boundary with a schema",
-          'whose brief or report lacks the schema check is a finding.',
+          "finding; the other side's absence is not.",
+          ...schemaFindingNotes(lane),
         ]
       : []),
     '',
@@ -533,6 +557,24 @@ async function reviewLoop(dev, lane) {
   // Every exit the loop takes with a blocker standing names the same four fields.
   const halt = (outcome, round, extra) => ({ lane: lane.name, outcome, rounds: round, branch: dev.branch, ...extra })
   if (!dev) return { lane: lane.name, outcome: 'develop-failed' }
+
+  // A schema boundary's producer criterion is reported like any other completion criterion;
+  // missing or failing, it is injected here so it fails through the same `failed` check below
+  // rather than a path of its own (→ conventions/06-testing-verification.md §7).
+  const myProduced = boundaries.filter((b) => b.schema && b.producer === lane.name)
+  const uncheckedProduced = myProduced.filter(
+    (b) => !(dev.criteria ?? []).some((c) => c.command?.includes(`--schemafile ${b.schema}`) && c.passed),
+  )
+  if (uncheckedProduced.length) {
+    dev.criteria = [
+      ...(dev.criteria ?? []),
+      ...uncheckedProduced.map((b) => ({
+        criterion: `producer check for boundary "${b.name}" (--schemafile ${b.schema}) was not reported as passing`,
+        command: `${SCHEMA_CHECK} --schemafile ${b.schema} <dump>`,
+        passed: false,
+      })),
+    ]
+  }
 
   // A lane whose own criteria failed is not a lane to review and merge; the brief says
   // what done means and it is not done (→ conventions/18-work-contract.md).
@@ -706,9 +748,9 @@ async function reviewLoop(dev, lane) {
   }
 }
 
-// Every lane is told its contract and sample files already exist, on the strength of the
-// declaration alone. Measuring it costs one agent that only stats files, skipped only for a
-// plan that declares no boundaries — which has nothing to freeze.
+// Every lane is told its contract, schema and sample files already exist, on the strength
+// of the declaration alone. Measuring it costs one agent that only stats files, skipped
+// only for a plan that declares no boundaries — which has nothing to freeze.
 const schemaBoundaries = boundaries.filter((b) => b.schema)
 const frozenPaths = boundaries.flatMap((b) => [b.contract, b.sample, ...(b.schema ? [b.schema] : [])])
 if (frozenPaths.length) {
@@ -727,15 +769,15 @@ if (frozenPaths.length) {
       'Report which of these paths do not exist as files, as `missing`:',
       ...frozenPaths.map((p) => `- ${p}`),
       '',
-      `Run \`${SCHEMA_CHECK} --version\` and report its exit code and output verbatim as \`tool\`.`,
-      '',
       ...(schemaBoundaries.length
         ? [
+            `Run \`${SCHEMA_CHECK} --version\` and report its exit code and output verbatim as \`tool\`.`,
+            '',
             "For each of these boundaries, run the command shown and report exactly one `checked` row",
             "with that boundary's name, the exit code, and the output verbatim:",
             ...schemaBoundaries.map((b) => `- ${b.name}: \`${SCHEMA_CHECK} --schemafile ${b.schema} ${b.sample}\``),
           ]
-        : ['No boundary declares a schema, so run no schema check and report `checked` as [].']),
+        : ['No boundary declares a schema, so report `tool` as { exit: 0, output: \'\' } and `checked` as [].']),
       '',
       'Check existence and run the commands above only. Create nothing and judge nothing else — not',
       'whether a file is the right contract or sample, not whether a schema check should have passed.',
@@ -758,45 +800,49 @@ if (frozenPaths.length) {
     }
   }
   if (frozen.missing?.length) {
-    log(`${frozen.missing.length} of ${frozenPaths.length} contract or sample file paths do not exist at ${frozen.head}.`)
+    log(`${frozen.missing.length} of ${frozenPaths.length} contract, schema or sample file paths do not exist at ${frozen.head}.`)
     return {
       lanes: [],
-      note: `refused: the boundaries were declared frozen but these contract or sample files do not exist: ${frozen.missing.join(', ')} — not at ${frozen.head}, the commit the lanes start from. If they were written they are not in that commit, so commit and push the freeze; otherwise every lane starts where nothing holds the interfaces still and writes its own copy.`,
+      note: `refused: the boundaries were declared frozen but these contract, schema or sample files do not exist: ${frozen.missing.join(', ')} — not at ${frozen.head}, the commit the lanes start from. If they were written they are not in that commit, so commit and push the freeze; otherwise every lane starts where nothing holds the interfaces still and writes its own copy.`,
     }
   }
 
-  // Existence wins outright — reading a schema result after that refusal would judge output
-  // for a command run against paths the promised commit never held.
-  if (frozen.tool?.exit !== 0) {
-    log(`the schema tool exited ${frozen.tool?.exit} instead of 0, so no schema result can be trusted.`)
-    return {
-      lanes: [],
-      note: `refused: \`${SCHEMA_CHECK} --version\` exited ${frozen.tool?.exit} instead of 0 (${frozen.tool?.output}), so the schema tool could not run and nothing below it was checked.`,
+  // A plan with no schema boundary needs no schema tool, so a missing or broken `uvx` must
+  // not block it — nothing below this point reads `tool` or `checked` for such a plan.
+  if (schemaBoundaries.length) {
+    // Existence wins outright — reading a schema result after that refusal would judge output
+    // for a command run against paths the promised commit never held.
+    if (frozen.tool?.exit !== 0) {
+      log(`the schema tool exited ${frozen.tool?.exit} instead of 0, so no schema result can be trusted.`)
+      return {
+        lanes: [],
+        note: `refused: \`${SCHEMA_CHECK} --version\` exited ${frozen.tool?.exit} instead of 0 (${frozen.tool?.output}), so the schema tool could not run and nothing below it was checked.`,
+      }
     }
-  }
-  // Every schema boundary needs exactly one row — anything else is a check that did not
-  // measure that boundary, not a check that passed it.
-  const checked = frozen.checked ?? []
-  const byBoundary = new Map()
-  checked.forEach((c) => byBoundary.set(c.boundary, (byBoundary.get(c.boundary) ?? []).concat(c)))
-  const schemaNames = schemaBoundaries.map((b) => b.name)
-  const uncheckedNames = schemaNames.filter((n) => !byBoundary.has(n))
-  const duplicatedNames = schemaNames.filter((n) => (byBoundary.get(n) ?? []).length > 1)
-  const unknownNames = [...byBoundary.keys()].filter((n) => !schemaNames.includes(n))
-  if (uncheckedNames.length || duplicatedNames.length || unknownNames.length) {
-    log(`the schema check did not cover the schema boundaries one to one: ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown.`)
-    return {
-      lanes: [],
-      note: `refused: the schema check did not cover the boundaries with a schema one to one — ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown boundary name(s) in \`checked\`. This is unmeasured, not passing.`,
+    // Every schema boundary needs exactly one row — anything else is a check that did not
+    // measure that boundary, not a check that passed it.
+    const checked = frozen.checked ?? []
+    const byBoundary = new Map()
+    checked.forEach((c) => byBoundary.set(c.boundary, (byBoundary.get(c.boundary) ?? []).concat(c)))
+    const schemaNames = schemaBoundaries.map((b) => b.name)
+    const uncheckedNames = schemaNames.filter((n) => !byBoundary.has(n))
+    const duplicatedNames = schemaNames.filter((n) => (byBoundary.get(n) ?? []).length > 1)
+    const unknownNames = [...byBoundary.keys()].filter((n) => !schemaNames.includes(n))
+    if (uncheckedNames.length || duplicatedNames.length || unknownNames.length) {
+      log(`the schema check did not cover the schema boundaries one to one: ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown.`)
+      return {
+        lanes: [],
+        note: `refused: the schema check did not cover the boundaries with a schema one to one — ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown boundary name(s) in \`checked\`. This is unmeasured, not passing.`,
+      }
     }
-  }
-  const failedChecks = schemaBoundaries.filter((b) => byBoundary.get(b.name)[0].exit !== 0)
-  if (failedChecks.length) {
-    const detail = failedChecks.map((b) => `${b.name} (exit ${byBoundary.get(b.name)[0].exit}: ${byBoundary.get(b.name)[0].output})`).join('; ')
-    log(`${failedChecks.length} boundary sample(s) failed their schema check: ${detail}`)
-    return {
-      lanes: [],
-      note: `refused: the sample for ${detail} did not pass its schema check. Fix the sample or the schema before lanes fan out against it.`,
+    const failedChecks = schemaBoundaries.filter((b) => byBoundary.get(b.name)[0].exit !== 0)
+    if (failedChecks.length) {
+      const detail = failedChecks.map((b) => `${b.name} (exit ${byBoundary.get(b.name)[0].exit}: ${byBoundary.get(b.name)[0].output})`).join('; ')
+      log(`${failedChecks.length} boundary sample(s) failed their schema check: ${detail}`)
+      return {
+        lanes: [],
+        note: `refused: the sample for ${detail} did not pass its schema check. Fix the sample or the schema before lanes fan out against it.`,
+      }
     }
   }
 }

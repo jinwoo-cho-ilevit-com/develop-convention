@@ -50,16 +50,16 @@ After `ExitPlanMode` is approved — not before, because plan mode blocks these 
 
 Split as far as file ownership allows. `owns` entries are directory prefixes or individually named files, never globs — a glob is expanded against the files that exist now and misses the ones the work is about to create. Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
 
-List every boundary between lanes with the contract file and sample that will pin it, and — where the payload lands as JSON, YAML or TOML — the schema. The contract file and schema live under `.plans/<feature>/contracts/`, so they share the plan's lifetime; the sample lives under `tests/fixtures/`. Rows sharing a `sample` share a `schema` too. Leave `schema` empty only for a boundary with no file payload (a call surface) or a JSON Lines / Parquet dump. None of these is a test, both belong to no lane, and both are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches a single agent to write them all, so an object reaching two boundaries gets one definition instead of two (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
+List every boundary between lanes with the contract file and sample that will pin it, and — where the payload lands as JSON, YAML or TOML — the schema. The contract file and schema live under `.plans/<feature>/contracts/`, so they share the plan's lifetime; the sample lives under `tests/fixtures/`. Rows sharing a `sample` share a `schema` too, and a row with a `schema` names its `producer` — the lane whose output the schema checks, one of that row's `lanes`. Which boundaries get a schema is set by `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md` §7; for the rest, leave the `schema` and `producer` cells blank and omit both keys from the workflow args, since an empty string is not a path. None of these files is a test, all of them belong to no lane, and all are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches a single agent to write them all, so an object reaching two boundaries gets one definition instead of two (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
 
 Decide here, not at freeze time, which objects cross more than one boundary: give those rows the same `sample` value. One file listed twice is what both contract files point at, and `build.js` checks each row's path and finds it. Two paths for one object is the shape that cannot be fixed later — the freeze cannot merge them without leaving a path the existence check refuses the build over, and if it does not merge them the object has two definitions that nothing compares.
 
 Write the boundary table with these exact keys, because `build.js` reads them and a boundary spelled another way silently drops that lane from three review lenses to one:
 
 ```markdown
-| name | lanes | contract | schema | sample |
-|---|---|---|---|---|
-| parser-validator | lane-a, lane-b | .plans/ingest/contracts/parser-validator.md | .plans/ingest/contracts/parser_out.schema.json | tests/fixtures/parser_out.sample.json |
+| name | lanes | contract | schema | producer | sample |
+|---|---|---|---|---|---|
+| parser-validator | lane-a, lane-b | .plans/ingest/contracts/parser-validator.md | .plans/ingest/contracts/parser_out.schema.json | lane-a | tests/fixtures/parser_out.sample.json |
 ```
 
 The lane table uses these keys, all three required — `build.js` refuses a plan whose lane omits one:
@@ -80,7 +80,7 @@ Write each completion criterion as a sentence paired with the command that check
 
 - Rows with an empty required field SHALL be dropped with a warning
   → uv run pytest tests/parser/test_sample_run.py::test_c01_drops_empty_rows
-- The parser's output at the parser-validator boundary matches its schema
+- The parser's output at the parser-validator boundary matches its schema (lane-a is its producer; command form per 06 §7)
   → rm -rf runs/sample && uv run python -m parser --limit 100 --dump runs/sample && uvx check-jsonschema@0.38.0 --schemafile .plans/ingest/contracts/parser_out.schema.json runs/sample/parser_out.json
 - [human] The warning text is actionable for an operator
   → verdict: ____  by: ____  at: ____

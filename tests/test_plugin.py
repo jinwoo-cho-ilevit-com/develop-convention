@@ -517,3 +517,14 @@ def test_the_review_loop_exits_are_observed():
         ["node", str(ROOT / "tests" / "workflow_harness.mjs")], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_every_documented_schema_check_uses_the_version_the_workflow_pins():
+    # A guard: the pin lives in build.js; a doc quoting another version sends a lane elsewhere.
+    pinned = re.search(r"SCHEMA_CHECK = '([^']+)'", read(ROOT / "workflows" / "build.js")).group(1)
+    for path in (
+        ROOT / "conventions" / "06-testing-verification.md",
+        ROOT / "commands" / "spec.md",
+    ):
+        quoted = set(re.findall(r"uvx check-jsonschema@[\w.]+", read(path)))
+        assert quoted == {pinned}, f"{path.name} quotes {sorted(quoted)}, build.js pins {pinned}"
