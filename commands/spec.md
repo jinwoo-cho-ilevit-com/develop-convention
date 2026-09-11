@@ -44,7 +44,7 @@ Settle the done level in the interview (→ 18 §3); it decides how deep the pla
 
 After `ExitPlanMode` is approved — not before, because plan mode blocks these writes — write `.plans/<feature>/`:
 
-**`PLAN.md`** — the done level, decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, the review points table carried from section 2, and the whole-project completion condition (every lane plus end-to-end).
+**`PLAN.md`** — the done level, decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, the review points table carried from section 2, and the whole-project completion condition (every lane, every boundary contract, plus end-to-end). A lane brief never lists a boundary contract: it runs nowhere inside one lane (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
 
 **`lane-<name>.md`** per lane — scope, owned files, completion criteria, out of scope.
 
@@ -80,8 +80,6 @@ Write each completion criterion as a sentence paired with the command that check
 
 - Rows with an empty required field SHALL be dropped with a warning
   → uv run pytest tests/parser/test_sample_run.py::test_c01_drops_empty_rows
-- The parser→validator boundary holds
-  → uv run pytest tests/contract/test_parser_validator.py
 - [human] The warning text is actionable for an operator
   → verdict: ____  by: ____  at: ____
 

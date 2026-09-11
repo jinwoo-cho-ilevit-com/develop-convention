@@ -31,7 +31,7 @@ The lane brief carries one row per criterion and nothing else:
 
 A human reading this looks at the non-`PASS` rows and stops. That is the entire intended cost of verification for the reader.
 
-The whole-project claim is the union of the lane tables plus the end-to-end condition from the plan (→ [21-development-loop.md](21-development-loop.md)). Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
+The whole-project claim is the union of the lane tables plus the boundary contracts and the end-to-end condition from the plan (→ [21-development-loop.md](21-development-loop.md)). Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
 
 ### 2. Execution output
 
