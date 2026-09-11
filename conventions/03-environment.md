@@ -79,7 +79,7 @@ def get_device() -> torch.device:
 
 - It must be overridable via config (force CPU testing with `device: cpu`).
 - Inline `.cuda()` or `"cuda:0"` strings are forbidden — they are the main culprit that breaks CPU fallback.
-- CI verifies GPU code paths by running the sample run on CPU (→ [06-testing-verification.md](06-testing-verification.md)).
+- How CI exercises GPU code paths without a GPU is [06-testing-verification.md](06-testing-verification.md) §5.
 
 Sources: [PyTorch — accelerator device API](https://docs.pytorch.org/docs/main/accelerator/device.html)
 

@@ -37,7 +37,7 @@ The whole-project claim is the union of the lane tables, each re-run on the merg
 
 ### 2. Execution output
 
-The command and its output travel together. A row saying `PASS` next to a command nobody can see the output of is a claim, not evidence, and the distinction matters most exactly where it is least visible — a test selection that matched nothing exits zero (→ [06-testing-verification.md](06-testing-verification.md) §3).
+The command and its output travel together. A row saying `PASS` next to a command nobody can see the output of is a claim, not evidence, and the distinction matters most exactly where it is least visible — a test selection that matched nothing is not a pass (→ [06-testing-verification.md](06-testing-verification.md) §3).
 
 Masking applies to the command line and the environment, not only to the output. A verify command that passes a token as an argument leaks it into the record otherwise.
 

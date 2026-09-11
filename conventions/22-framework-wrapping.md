@@ -41,11 +41,11 @@ The last one is the sharpest: the fix was applied, the suite stayed green, and n
 
 A config-only model is enough because the defects this layer targets are wiring defects: which module the framework hands you, what its save writes, what its restore reads, which object your encode actually runs through. None of those depend on the weights being good.
 
-### 3. Two rules learned by getting them wrong
+### 3. Two rules on what the layer runs
 
-**The image supplies the dependency; the working tree supplies your code.** A first attempt ran the harness against the copy of the repository installed in the image. It reproduced a failure that had already been fixed — the layer was testing the build, not the change. Mount the repository and put it ahead of the installed package on the interpreter's path.
+**The image supplies the dependency; the working tree supplies your code.** A harness run against the copy of the repository installed in the image tests the build, not the change: it can reproduce a failure the working tree has already fixed. Mount the repository and put it ahead of the installed package on the interpreter's path.
 
-**The gate lives in one place.** The harness produces the same result row the real run produces and hands it to the same judging function. When that function was reverted to the shipped code, the layer failed with the identical message the paid run had failed with, in fourteen seconds. That identity is what makes the layer trustworthy; a re-implemented gate would only have proved the re-implementation.
+**The gate lives in one place.** The harness produces the same result row the real run produces and hands it to the same judging function. Sabotaging that function must fail the layer with the same message the real run fails with; that identity is what makes the layer trustworthy, and a re-implemented gate would only prove the re-implementation.
 
 ### 4. What the layer cannot catch
 

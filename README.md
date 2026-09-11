@@ -2,7 +2,7 @@
 
 A collection of development convention documents. Composed of general-purpose development rules plus AI/ML and LLM-specific rules, consumed by both humans and AI agents.
 
-Each doc starts with `## Core Rules` — imperative rules an agent can act on — followed by human-oriented details and sources. Every factual claim cites a source verified by research as of 2025-2026.
+Each doc starts with `## Core Rules` — imperative rules an agent can act on — followed by human-oriented details and sources. Specific factual claims carry a source fetched in research (2025-2026); a claim no primary source confirmed is marked unverified.
 
 The [`dev-harness` plugin](#how-to-apply-to-a-new-project) in this repository runs these rules rather than copying them: install it once and the conventions, hooks and skills come with it.
 
@@ -67,7 +67,7 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 
 | Doc | Contents |
 |---|---|
-| [12-upstream-docs.md](conventions/12-upstream-docs.md) | Latest-docs reference procedure (4 tiers) + per-provider canonical URL registry + smoke-test confirmation |
+| [12-upstream-docs.md](conventions/12-upstream-docs.md) | Latest-docs reference procedure (5 tiers) + per-provider canonical URL registry + smoke-test confirmation |
 | [11-llm-api-providers.md](conventions/11-llm-api-providers.md) | Provider-specific considerations (OpenAI/Anthropic/Gemini/DeepSeek/OpenRouter) + structured output tiered fallback |
 | [10-llm-api-inference.md](conventions/10-llm-api-inference.md) | LLM API inference module: adapter structure, calls/rate limits, errors/retries, ensembles, caching/resume, cost/evaluation |
 | [16-research-protocol.md](conventions/16-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim requires a source from this research, source tiers (official registry), semantic search (exa) for source discovery, verification of negative/universal claims, coverage·contradiction resolution |
@@ -193,7 +193,7 @@ Rewrite this module. Per the principles in doc 00: don't be bound by the existin
 start from the spec, but lock in existing behavior with a characterization test before rewriting.
 ```
 
-Updating conventions (when a stale fact is found):
+Updating conventions (when a stale fact is found, in this repository — from a consuming project, open an issue here instead, → 12):
 ```
 I checked the official docs and the [X] content in doc 11 has changed. Update the convention and commit it.
 ```
@@ -203,7 +203,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Principles ([00](conventions/00-principles.md))
 
 - New development/refactoring starts from requirements and behavior (the spec), not from existing structure, comments, or memory.
-- Don't judge from prior knowledge. Verify library/API/model facts as of the current time via context7, web search, or HuggingFace before applying them.
+- Don't judge from prior knowledge. Verify library/API/model facts against current primary sources before applying them — 16 defines what counts for factual specs, 12 for provider APIs; search results are leads, not proof.
 - Perform review/rewrites in a fresh context (a separate subagent/session), and claim completion only with execution evidence. Keep the author separate from the verifier.
 - Lock in existing behavior with a characterization test before rewriting. Claim performance/productivity improvements only with empirical measurement.
 
@@ -260,11 +260,11 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Derive expected values from the specification, never by running the code under test and recording what it returns — a recorded output is true by construction, the default failure when one session writes both the implementation and its tests. The one capture allowed is characterization from the base-commit code before a rewrite. Golden values need a source other than the code under test, they update only via an explicit flag, and that diff is reviewed against the specification. Non-deterministic output (LLM text) gets property assertions only; its quality is judged statistically.
 - Cover every completion criterion with an executable check, mostly inside the sample run, or a recorded `[human]` verdict — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
 - Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such. A test for code that already works has no red to observe — verify it by sabotage: break the behaviour it pins, watch it fail, revert.
-- A bug fix needs no dedicated regression test: it is decided by reproducing the defect before and after, with the command and decisive output kept in the fix commit's `## Result`, and the triggering input becomes a sample row where it fits and an assertion covers it. The fix is checked against the defect's siblings on neighbouring paths before it closes. Assert ML metrics with a tolerance band. CI runs the sample run on CPU to check GPU paths. TODOs/stubs/skips are blockers, not completion.
+- A bug fix needs no dedicated regression test: it is decided by reproducing the defect before and after, with the command and decisive output kept in the fix commit's `## Result`, and adding the triggering input as a sample row is recommended where it fits and an assertion covers it. The fix is checked against the defect's siblings on neighbouring paths before it closes. Assert ML metrics with a tolerance band. CI runs the sample run on CPU to check GPU paths. TODOs/stubs/skips are blockers, not completion.
 
 ### AI/ML ([07](conventions/07-ml-development.md))
 
-- Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); verify skew with sample replay.
+- Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); check skew with a train/serve assertion inside the sample run.
 - Every run is logged to an experiment-tracking tool (Trackio by default; MLflow when self-hosting is a strong requirement) along with its config + commit. Save last-N + best + milestone checkpoints to a network volume/HF Hub. Design training to assume interruption (resumable).
 
 ### LLM ([08](conventions/08-llm-development.md))
@@ -287,7 +287,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### LLM API Inference ([10](conventions/10-llm-api-inference.md), [11](conventions/11-llm-api-providers.md), [12](conventions/12-upstream-docs.md))
 
-- Provider abstraction is a thin native SDK adapter + a pure payload builder (testable without network access). "OpenAI-compatible" covers only the wire format — capability/schema/error/token mapping is isolated per provider.
+- Provider abstraction is a thin native SDK adapter + a pure payload builder (checkable at the SDK boundary without network access). "OpenAI-compatible" covers only the wire format — capability/schema/error/token mapping is isolated per provider.
 - Cap concurrency per model + adaptively control it based on rate-limit headers. Classify errors as typed exceptions, keep a single owner for retries, and retry ensembles per member. Log failed tasks as error rows and keep the batch running.
 - Structured output uses a lowest-common-denominator schema + tiered fallback (native schema → json_object+prompt → parsing → validate-and-retry, capped at 2-3 attempts). Classify `finish_reason` before parsing. No sampling parameters on reasoning calls.
 - Response caching is dev/debug-only. Resume must verify a fingerprint (spec+seed+data+prompt). No hardcoding prices/model names — pin dated snapshots, log tokens+cost per row, and cap the budget.
@@ -296,8 +296,8 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Agentic Workflow ([09](conventions/09-agentic-workflow.md))
 
 - Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills. Keep instruction anti-patterns out of them too: verification rituals, thoroughness boosters, redundant procedures/scratchpads, stale long-reasoning examples, contradictory rules, and dated configuration all cost tokens on current models without adding capability.
-- Prefer workflows/subagent orchestration for parallelization. Git worktree is a file-isolation mechanism, so introduce it only when overlapping file edits would conflict. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §4) rather than restarting everything; assign locks/migrations to a single owner. Confirm a subagent answered with content, not merely that it finished.
-- Merge each branch only after its tests pass, then do one integration verification pass. Route models on two axes, tier and effort, not tier alone — a stronger model at lower effort can beat a weaker model pushed to high effort, so choose effort per task and re-choose it whenever the model changes rather than carrying the old setting over.
+- Prefer workflows/subagent orchestration for parallelization. Git worktree isolates concurrent writes to disjoint files; it does not make overlapping tasks parallel — tasks with overlapping file ownership run sequentially. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §4) rather than restarting everything; assign locks/migrations to a single owner. Confirm a subagent answered with content, not merely that it finished.
+- Merge each branch only after its completion criteria and CI-enforced checks such as lint pass (→ 18, 06, 03) and its review has closed with no blocker (→ 20), then do one integration verification pass. Route models on two axes, tier and effort, not tier alone — a stronger model at lower effort can beat a weaker model pushed to high effort, so choose effort per task and re-choose it whenever the model changes rather than carrying the old setting over.
 - A merged lane is a closed lane: remove its worktree and delete its branch (`git worktree remove` without `--force`, `git branch -d` never `-D` — refusals are safety signals). Halted lanes keep theirs; fix rounds resume there.
 - Write heavyweight spec documents only when they are an asset shared across PRs or workers; small or exploratory work uses lightweight iteration.
 
@@ -376,5 +376,5 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Commits ([17](conventions/17-commit-protocol.md))
 
 - Headers use Conventional Commits (English type/scope, ≤72 characters); summaries and bodies are written in Korean — so git log doubles as a Korean research note. `feat`/`fix`/`refactor`/`perf` commits require a `## Why/What/How/Result` body (the commit-msg hook warns otherwise).
-- Never fabricate Result/numbers (write "not measured" instead). Before committing, classify changes by intent so one logical unit = one commit (split hunks with `git add -p`). Link research threads with the `Experiment:` trailer.
+- Never fabricate Result/numbers (write "not measured" instead) — except that a `fix` commit's Result must carry the before/after reproduction 06 requires. Before committing, classify changes by intent so one logical unit = one commit (split hunks with `git add -p`). Link research threads with the `Experiment:` trailer.
 - No emoji in the message (header, body, or trailers) — `git log` is read and grepped as plain text.

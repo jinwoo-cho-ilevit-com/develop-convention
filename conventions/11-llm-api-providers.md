@@ -10,7 +10,7 @@ Rules for handling API differences across providers, and strategies for provider
 - Don't send sampling parameters like temperature/top_p on reasoning/thinking mode calls.
 - Design structured output schemas to the provider lowest common denominator: root is object, `additionalProperties: false`, all keys required, unions use `anyOf`. Treat length/range/pattern constraints as not enforced by the server, and validate them client-side.
 - When structured output isn't supported, follow the tiered fallback: native json_schema → json_object + schema/example prompt injection → robust parsing → validation + bounded retry.
-- Classify `finish_reason` before parsing (truncated/refusal). For reasoning output, strip the thinking text before parsing.
+- Classify `finish_reason` before parsing, as [10-llm-api-inference.md](10-llm-api-inference.md) §7 sets out. For reasoning output, strip the thinking text before parsing.
 - Even when OpenRouter responds with HTTP 200, check the body/stream for errors.
 
 ## Details
@@ -24,7 +24,7 @@ One third-party compatibility sweep reports that of 244 models × 23 providers (
 3. **Error parsing**: error body shapes differ, so generic parsing breaks when switching providers
 4. **Token aggregation**: usage field composition differs (whether cache/thinking tokens are included), which throws off cost calculation
 
-Keep the capability table default-permissive (unknown models are allowed; only explicit False blocks), drop impossible combinations at the config expansion stage, and expose the drop list. Checking against the original provider before rewriting to OpenRouter is what keeps rules like "Anthropic requires max_tokens" alive after routing.
+Keep the capability table default-permissive (unknown models are allowed; only explicit False blocks), drop impossible combinations at the config expansion stage, and expose the drop list. Checking against the original provider before rewriting to OpenRouter is what keeps a provider's own constraints — such as the latest Anthropic models rejecting a non-default temperature (§2) — alive after routing.
 
 Sources: [Requesty — empirical test of structured output compatibility](https://requesty.ai/blog/structured-outputs-across-llm-providers-the-compatibility-mess) (third-party blog — lead only, not citable as proof)
 
@@ -32,7 +32,7 @@ Sources: [Requesty — empirical test of structured output compatibility](https:
 
 | | Structured output | Reasoning control | Seed | Caveats |
 |---|---|---|---|---|
-| OpenAI | `json_schema` strict (Responses: `text.format` / Chat: `response_format`) | `reasoning.effort`, values model-dependent (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`) | (unverified — needs research) | Responses/Chat parameter names differ. All fields `required` + `additionalProperties: false`. Temperature/top_p rejection during reasoning (unverified — needs research) |
+| OpenAI | `json_schema` strict (Responses: `text.format` / Chat: `response_format`) | `reasoning.effort`, values model-dependent (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`) | Best-effort `seed` + `system_fingerprint` on Chat Completions (→ [10](10-llm-api-inference.md) §7) | Responses/Chat parameter names differ. All fields `required` + `additionalProperties: false`. Temperature/top_p rejection during reasoning (unverified — needs research) |
 | Anthropic | `output_config.format` json_schema GA (constrained decoding) | adaptive thinking + `effort`; `thinking.type: "enabled"` + `budget_tokens` deprecated on 4.6, 400 on 4.7+; effort values `low`/`medium`/`high`/`xhigh`/`max`, default `high` (same as omitting), `xhigh` support is model-specific (as of: 2026-09) | **None** | `max_tokens` required (unverified — needs research). Latest models return 400 for non-default temperature/top_p/top_k |
 | Gemini | `response_format` (`type`/`mime_type: "application/json"`/`schema`) | `thinking_level` | (unverified — needs research) | Schema goes in `response_format.schema`; use `description` fields to steer |
 | DeepSeek | **`json_object` only, no schema enforcement** | `thinking: {"type": "enabled"/"disabled"}` parameter, enabled by default | — | The word "json" is required in the prompt + examples recommended. Docs explicitly note empty content may be returned |
@@ -44,8 +44,8 @@ Sources: [OpenAI structured outputs](https://developers.openai.com/api/docs/guid
 
 **OpenAI**
 - Native uses the Responses API; specifying a base_url (compatible API) uses Chat Completions — payload shapes differ, so separate the builders.
-- `reasoning.effort` values are model-dependent and can include `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; defaults differ by model (e.g. `gpt-5.5` defaults to `medium`), so specify it explicitly in config. Whether reasoning models reject temperature/top_p is **(unverified — needs research: not stated on the current structured-outputs or reasoning guides)**.
-- Record `seed` + the response `system_fingerprint` — a fingerprint change signals a backend change (reproducibility invalidated). **(unverified — needs research: neither parameter appears on the current structured-outputs or reasoning guides.)**
+- `reasoning.effort` values are model-dependent and can include `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; defaults differ by model (e.g. `gpt-5.5` defaults to `medium`, as of: 2026-08), so specify it explicitly in config. Whether reasoning models reject temperature/top_p is **(unverified — needs research: not stated on the current structured-outputs or reasoning guides)**.
+- Record `seed` + the response `system_fingerprint` — a fingerprint change signals a backend change (reproducibility invalidated). The Chat Completions reference documents both, `seed` as best-effort only; the quote and source are in [10](10-llm-api-inference.md) §7.
 
 **Anthropic**
 - Structured output is `output_config.format` (GA), based on constrained decoding. The schema is compiled into a grammar and cached for 24 hours — schema changes incur a compilation delay on the first request.
@@ -58,7 +58,7 @@ Sources: [OpenAI structured outputs](https://developers.openai.com/api/docs/guid
 
 **Gemini**
 - Structured output is configured with `response_format` (`type: "text"`, `mime_type: "application/json"`, `schema`) — the older `responseSchema`/`response_json_schema` field names no longer appear in the docs. Steer the model with `description` fields inside the schema. The claim that duplicating the schema in the prompt degrades quality is **(unverified — needs research: no such statement on the current structured-output page)**.
-- Combining thinking with structured output has reported fragility at the wrapper layer **(unverified — needs research: no vendor statement, no identified source)**, so verify with integration tests at the raw SDK level before use.
+- Combining thinking with structured output has reported fragility at the wrapper layer **(unverified — needs research: no vendor statement, no identified source)**, so confirm the combination with a provider smoke test against the raw SDK before use (→ [12-upstream-docs.md](12-upstream-docs.md) §3).
 - Thinking tokens are billed **in addition to** output tokens ("response pricing is the sum of output tokens and thinking tokens") and are reported separately as `total_thought_tokens` — map both fields in token aggregation.
 
 **DeepSeek**
@@ -84,9 +84,9 @@ Descend through the following chain based on provider capability. Each stage onl
 2. **json_object mode + prompt injection** (DeepSeek, etc.): put the schema and a concrete example into the prompt. Including the word "json" is a hard requirement for DeepSeek/Qwen and harmless for other providers, so always include it. Instruct against code fences, but assume fences will show up anyway and strip them defensively.
 3. **Robust parsing** (when no schema mode / on failure): a cascading parser in the order of direct `json.loads` → strip markdown fences → extract the first balanced `{...}`/`[...]` block. For reasoning model output, first strip the thinking text (`reasoning_content`, etc.) before extracting.
 4. **json-repair** (optional): structural repair (fixing quotes/brackets/truncation) is possible, but **it can silently corrupt meaning** — a truncated value gets filled in as null/"", producing "structurally valid but semantically meaningless" output. If you use repair, it must be paired with semantic validation at the value range/distribution level, not just type validation.
-5. **Validation + bounded retry**: on Pydantic validation failure, feed the error message back and retry (the instructor approach). Cap retries at 2-3 (each retry incurs the full call cost), and **track the retry rate as a metric** — a rising retry rate is an early signal of a prompt/model problem. Retry rounds and repair are often quoted with high single-digit-nines validity rates **(unverified — needs research: the "n=1000, ≈99.6% at 3 retries, ≈99.9% hybrid with repair" figures previously cited here trace to no identified source)** — measure the rate on your own model/task rather than assuming a published number.
+5. **Validation + bounded retry**: on Pydantic validation failure, feed the error message back and retry (the instructor approach). Cap retries at 2-3 (each retry incurs the full call cost), and **track the retry rate as a metric** — a rising retry rate is an early signal of a prompt/model problem. Retry rounds and repair are often quoted with high single-digit-nines validity rates **(unverified — needs research: no identified source)** — measure the rate on your own model/task rather than assuming a published number.
 
-Always classify `finish_reason` before parsing: length → TRUNCATED, content filter/safety → REFUSAL — these are a separate outcome bucket, not a parsing failure (→ [10](10-llm-api-inference.md) §7).
+The chain runs only on an output that finished; truncation and refusal are classified from `finish_reason` first (→ [10](10-llm-api-inference.md) §7).
 
 **Distinction from constrained decoding**: grammar-enforced decoding like XGrammar/llguidance can only be used when you directly control serving (vLLM/SGLang self-host). On hosted APIs, the provider's `response_format` support is the ceiling — structured output for self-served models overlaps with the [08-llm-development.md](08-llm-development.md) domain, so prefer constrained decoding on that stack.
 

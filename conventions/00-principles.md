@@ -5,7 +5,7 @@ The foundation for all convention documents. When it conflicts with another docu
 ## Core Rules
 
 - When starting new development, don't rely on the existing project's structure, comments, docs, or memory — start from requirements and behavior (the spec).
-- Don't decide from prior knowledge. Verify library/API/model facts against current-point-in-time sources (context7, web search, HuggingFace, etc.) before applying them.
+- Don't decide from prior knowledge. Verify library/API/model facts against current-point-in-time primary sources before applying them — what counts as one is [16-research-protocol.md](16-research-protocol.md) for factual specs and [12-upstream-docs.md](12-upstream-docs.md) for provider APIs.
 - Perform refactoring, review, and rewrites in a new context (a separate subagent/session) detached from the context that produced the existing code.
 - Only claim completion with executable evidence (test output, run logs, measured values). Separate the author from the verifier.
 - When rewriting, discard the existing structure but preserve existing behavior: pin down existing behavior with characterization tests before the rewrite, then confirm the same tests pass after the rewrite.
@@ -45,7 +45,7 @@ Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs
 
 ### 4. Research-first, fact-based judgment
 
-- Library usage, model specs, versions, APIs — verify against current documentation, not trained memory. Prioritize context7, official docs, web search, and HuggingFace Hub lookups.
+- Library usage, model specs, versions, APIs — verify against current documentation, not trained memory. The source tiers (official docs, provider skills, context7, the locked SDK source, smoke tests) are in [12-upstream-docs.md](12-upstream-docs.md) §1; search results are leads, not proof ([16-research-protocol.md](16-research-protocol.md)).
 - Before choosing a framework/methodology, research its maintenance status and alternatives at that point in time (e.g., a tool that was once standard can become deprecated — torchtune, see [08-llm-development.md](08-llm-development.md)).
 - Don't put facts unverified by research into docs, code, or commits — mark them "unverified" instead.
 

@@ -7,7 +7,7 @@
 - Header (required, imperative, **<=72 characters** — counted in characters, not bytes, so a Korean summary gets the full 72): `<type>(<scope>): <summary>`.
 - **type**: `feat` `fix` `refactor` `perf` `docs` `test` `chore` `build` `ci` `style` `revert` `exp` (experiment). **scope**: module/area, optional. Breaking change: append `!` after type/scope.
 - Body is **required** for `feat`/`fix`/`refactor`/`perf`, recommended otherwise, using the Korean markdown sections `## Why` / `## What` / `## How` / `## Result`. Trivial commits (typo, formatting, one-liner) may use header + a one-line `## Why` only.
-- Never fabricate `## Result` or metrics — write "측정 안 함" (not measured) if unverified.
+- Never fabricate `## Result` or metrics — write "측정 안 함" (not measured) if unverified. A `fix` commit cannot write "측정 안 함": its `## Result` carries the defect's reproduction before and after the fix, command and decisive output ([06-testing-verification.md](06-testing-verification.md) Core Rules), masked first because a commit body is pushed (secrets per [19-evidence.md](19-evidence.md) §2, personal and customer fields per [06-testing-verification.md](06-testing-verification.md) §5).
 - No emoji anywhere in the message — header, body, or trailers. `git log` output is scanned and grepped as plain text (→ [01-structure-naming.md](01-structure-naming.md)).
 - One logical change per commit. Before committing, survey the working tree and group changes by intent; never commit a mixed bag (feature + reformatting + incidental refactor).
 - Machine-parseable trailers when relevant: `Intent:` (classification tag), `Impact:` (one-line effect), `Refs:` (files, #issues, doc paths), `Experiment:` (stable research id, reused across a series of related commits).
@@ -40,6 +40,7 @@ Write it so that **왜·무엇을·어떻게·결과** (why / what / how / resul
 
 ## Result
 - before -> after, 검증 결과(테스트·실측), 영향 범위. 측정 안 했으면 "측정 안 함"
+- fix면 결함 재현 명령과 수정 전/후 결정적 출력 (마스킹 후, "측정 안 함" 불가)
 ```
 
 ### 3. Trailers (machine-parseable footer)
@@ -74,7 +75,9 @@ fix(auth): JWT 공개키를 캐시해 토큰 검증 지연 제거
   지연 갱신 방식을 택했다.
 
 ## Result
-- 로그인 p99 1200ms -> 180ms (로컬 부하 테스트, 200 rps).
+- 재현: `uv run python scripts/bench_login.py --rps 200 --duration 60`
+  - 수정 전: `p99=1203ms jwks_fetches=11874`
+  - 수정 후: `p99=181ms jwks_fetches=3`
 - auth 테스트 전부 통과, 토큰 검증 로직 변경 없음.
 
 Intent: bugfix-hotpath

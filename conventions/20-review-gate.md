@@ -75,7 +75,7 @@ Fix the exit before the first round, because a loop whose condition is "until th
 - Between rounds, count how many of this round's findings are defects the previous round's fix introduced. When that is most of them, the fix rate has become the defect source: stop and change the approach rather than run another round.
 - Narrowing what counts as a blocker mid-gate is legitimate, and it is a decision — write it down, because a rule invented to end a round is invisible to the next one.
 
-Round count is not an exit condition. One loop here ran eleven rounds without converging, and what ended it was noticing the findings had changed in kind — from gates opening wrongly to prose being imprecise — not their number. A round cap is still worth setting as a runaway guard, but reaching it calls a person rather than declaring the lane done.
+Round count is not an exit condition. What ends a loop that is not converging is noticing the findings have changed in kind — from gates opening wrongly to prose being imprecise — not their number. A round cap is still worth setting as a runaway guard, but reaching it calls a person rather than declaring the lane done.
 
 ### 4. Review tools
 

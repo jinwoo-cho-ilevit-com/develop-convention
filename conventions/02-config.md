@@ -10,9 +10,6 @@
 
 ## Details
 
-Name runs identifiably (`{experiment-name}-{key-condition}-{date}`) so a directory listing is readable months later.
-
-
 ### 1. Scope of the no-hardcoding rule
 
 Things that must not be written directly in code: file paths, model names/checkpoint paths, batch size, learning rate, seed, sample count limits, API endpoints, device strings, thresholds. These are all config fields.
@@ -44,6 +41,7 @@ LLM prompts get the same treatment as config: inlining them in code means a one-
 
 ### 5. Config snapshots and reproducibility
 
+- Name runs identifiably (`{experiment-name}-{key-condition}-{date}`) so a directory listing is readable months later.
 - A run's output directory must retain, at minimum: the full resolved config (after overrides applied), the git commit hash, and the run command.
 - Where the config tool writes that snapshot by default, leave the default on; where it does not, the runner writes it. Either way it is not the caller's job to remember.
 - Version-control config files alongside code. "That run's settings at that time" must be recoverable from commit history.

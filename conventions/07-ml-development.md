@@ -4,7 +4,7 @@
 
 - Set all seeds (random/numpy/torch/CUDA/DataLoader worker) at once with a single helper.
 - Training and inference import the same preprocessing code (the same function). Don't duplicate preprocessing logic.
-- Verify train/inference consistency with a sample replay comparison: feed the same input through both paths and compare element-wise.
+- Verify train/inference consistency inside the sample run: feed the same stored input through both paths and assert the outputs match element-wise — an assertion in the run, not a separate script (→ [06-testing-verification.md](06-testing-verification.md) §5).
 - Prioritize performance optimization (speed/memory) over adding features. Apply proven optimizations like bf16 and optimized attention by default.
 - Log every run to an experiment tracking tool along with its config + git commit.
 - Checkpoints preserve last-N + best + milestones, and are stored on a network volume or HF Hub rather than temporary pod disk.
@@ -38,7 +38,7 @@ If preprocessing differs between training and inference, the model silently degr
 
 - **Unify the code path**: define preprocessing/feature transforms in one place and have both training and inference import the same function. "Reimplementing similarly for inference" is the usual culprit behind skew.
 - **Match dtypes**: mismatches like training float32 vs. serving float64 flip results near boundary values.
-- **Replay verification**: keep a script that passes recent inference inputs through the training preprocessing path too, and compares them element-wise. This catches code-path branches that fixed unit tests miss.
+- **Replay verification**: the sample run passes a stored input through both the training and the inference preprocessing path and compares the results element-wise — the train/serve assertion of [06-testing-verification.md](06-testing-verification.md) §5. That input is its own file, separate from the known-answer sample: the assertion compares the two paths to each other, so it needs no known answer, and it can be refreshed from recent inference traffic to reach the branches real inputs take. Replace personal and customer fields before committing it ([06-testing-verification.md](06-testing-verification.md) §5, real-data samples).
 - LLM chat template consistency has its own separate rule (→ [08-llm-development.md](08-llm-development.md)).
 
 Sources: [Confluent — eliminate training-serving skew](https://www.confluent.io/blog/eliminate-training-serving-skew-mlops/), [Hopsworks — training-inference skew](https://www.hopsworks.ai/dictionary/training-inference-skew)

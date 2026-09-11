@@ -40,7 +40,7 @@ Sources: [Axolotl — multi-GPU (FSDP1 deprecation)](https://docs.axolotl.ai/doc
 
 ### 3. Training/Inference Consistency (LLM-Specific)
 
-**Chat template mismatch is the #1 silent bug in LLM development.** Incorrect role tokens/formatting corrupt the training signal without throwing any error.
+**Chat template mismatch fails silently.** Incorrect role tokens/formatting corrupt the training signal without throwing any error.
 
 - Single source for templates: use `tokenizer.apply_chat_template` for training, validation, and inference alike. No manual string assembly.
 - **Golden equality test**: for a handful of sample conversations, assert string equality between the formatted string at training time and the formatted string at inference (serving) time.
@@ -52,7 +52,7 @@ Sources: [Diagnosing Training Inference Mismatch in LLM Reinforcement Learning (
 
 ### 4. Evaluation Reproducibility
 
-Cautionary example: Llama-3.1-8B-Instruct GSM8K scored 84.5 officially versus 76.95 on community re-measurement — a gap of nearly 8 points from prompt/chat template/few-shot configuration differences alone.
+Cautionary example, from a Hub discussion thread (a lead, not a primary measurement — unverified): Llama-3.1-8B-Instruct GSM8K is reported at 84.5 officially versus 76.95 on community re-measurement, a gap attributed to prompt/chat template/few-shot configuration differences.
 
 - Use **lm-evaluation-harness** or **lighteval** as the harness, and pin the harness version (commit/PyPI version). lm-evaluation-harness versions tasks explicitly: its task guide describes marking each task with a `metadata: version` number "that can be bumped whenever a breaking change is made", so record the task version alongside the harness version.
 - Include in every evaluation record: task name + task version, `num_fewshot`, whether `--apply_chat_template` was used, system instruction, backend (hf/vllm), dtype, and generation parameters.

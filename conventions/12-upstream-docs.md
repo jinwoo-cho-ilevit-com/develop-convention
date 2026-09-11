@@ -2,7 +2,7 @@
 
 How to check someone else's official documentation before writing against their SDK or API. Keeping *this* project's own docs in step with its code is [15-doc-tracking.md](15-doc-tracking.md).
 
-Provider API knowledge goes stale on a timescale of months (the silent `output_format`→`output_config.format` migration, DeepSeek model name deprecations, torchtune's development sunset). This document defines not a "structure that trusts memory" but a **"structure that forces verification."** To follow the numbering scheme, the registry and the procedure are consolidated into one document.
+Provider API knowledge goes stale on a timescale of months (the silent `output_format`→`output_config.format` migration, DeepSeek model name deprecations, torchtune's development sunset). This document defines not a "structure that trusts memory" but a **"structure that forces verification."**
 
 ## Core Rules
 
@@ -11,12 +11,12 @@ Provider API knowledge goes stale on a timescale of months (the silent `output_f
 - Check SDK usage and code examples with context7 (`ctx7`). For exception classes, parameter signatures, and default retry counts, the installed (locked) SDK source is the local source of truth.
 - For behavior the official docs are silent on (e.g., feature combinations), don't guess — confirm it empirically with a provider-specific 1-call smoke test.
 - Leave a verification date stamp on provider facts in conventions/code comments. When writing code that depends on a fact whose stamp is more than 3 months old, re-verify against the official docs.
-- If the official docs and the conventions/code comments diverge during development, don't just move on — update the convention to match the official docs and commit it.
+- If the official docs and the conventions/code comments diverge during development, don't just move on. Fix your own code comments to match the official docs. Update the convention at its source repository; a project consuming it through the plugin opens an issue there rather than editing the installed copy, which the next update overwrites.
 - An SDK upgrade is an explicit action accompanied by a changelog review. Pin versions with uv.lock.
 
 ## Details
 
-### 1. Four-Tier Reference System
+### 1. Five-Tier Reference System
 
 | Tier | Source | Purpose |
 |---|---|---|
@@ -54,7 +54,7 @@ For the ML/training stack (torch, TRL, vLLM, etc.), the source links in [08-llm-
 
 ### 2.1 Provider Official Skills (as of: 2026-09)
 
-Agent Skills is an open standard — a folder holding a `SKILL.md` (with `name` and `description`) plus optional scripts and references — originally developed by Anthropic and then released as an open standard. Claude Code, Codex, Cursor, and Gemini CLI all read it, as do a long tail of other agents. If a provider offers an official skill, install and use it instead of fetching docs every time, and prioritize it over ctx7 when checking SDK usage.
+Agent Skills is an open standard — a folder holding a `SKILL.md` (with `name` and `description`) plus optional scripts and references — originally developed by Anthropic and then released as an open standard. Claude Code, Codex, Cursor, and Gemini CLI all read it, as do a long tail of other agents. If a provider offers an official skill, install and use it, and prioritize it over ctx7 when checking SDK usage. It does not replace the Tier 1 fetch the Core Rules require: a fact such as a parameter's existence, a limit, or a model name is still confirmed on the registry page.
 
 | Provider | Official skill | Install |
 |---|---|---|

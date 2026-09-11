@@ -24,7 +24,7 @@
 ### 1. Separation by module/feature
 
 - Modularize the pipeline independently by stage (preprocessing/training/evaluation/inference, etc.). Each stage must be runnable standalone (→ [04-pipeline.md](04-pipeline.md)).
-- Connect dependencies between modules only through explicit interfaces (function signatures, data schemas). Agents tend to silently violate architectural boundaries, so boundaries must be explicit in both code and docs for parallel development to work (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- Connect dependencies between modules only through explicit interfaces (function signatures, data schemas). Agents tend to silently violate architectural boundaries, so boundaries must be explicit in code. Where parallel lanes meet, the boundary is a contract file and sample written before the lanes start ([06-testing-verification.md](06-testing-verification.md), [18-work-contract.md](18-work-contract.md) §5).
 
 ### 2. Integrating new modules: structure follows design
 
@@ -48,7 +48,6 @@ Sources: [PyPA — src layout vs flat layout](https://packaging.python.org/en/la
 
 - Names must describe the role: `raw_train_samples` over `data`, `normalize_audio()` over `process()`.
 - No version suffixes on code. Don't create `parse_header_v2()` — safely replace `parse_header()` via LSP rename. Do renames in small units backed by tests.
-- The rule is about code, not about evaluation inputs. A prompt file or golden set that a recorded result points at is versioned, never overwritten: renaming it in place silently invalidates every result already filed against it. Keep the two apart — code gets renamed, evaluation-pinned artifacts get appended.
 - When refactoring, don't be bound by existing naming. If a name has drifted from its current role, improve it on the spot.
 
 Sources: [PEP 8](https://peps.python.org/pep-0008/)
