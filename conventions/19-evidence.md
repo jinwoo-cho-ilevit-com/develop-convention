@@ -22,11 +22,11 @@ Evidence is produced by execution, not by writing. A file the model composed to 
 The lane brief carries one row per criterion and nothing else:
 
 ```
-| id   | status        | verify                                  | note |
-|------|---------------|-----------------------------------------|------|
-| C-01 | PASS          | uv run pytest tests/test_c01.py -q      |      |
-| C-03 | FAIL          | scripts/checks/no_new_deps.sh           | pyproject.toml +1 |
-| C-04 | PENDING-HUMAN | [human]                                 | figures/dist.svg |
+| id   | status        | verify                                                                    | note |
+|------|---------------|---------------------------------------------------------------------------|------|
+| C-01 | PASS          | uv run pytest tests/test_sample_run_loader.py::test_c01_drops_nan_rows    |      |
+| C-03 | FAIL          | scripts/checks/no_new_deps.sh                                             | pyproject.toml +1 |
+| C-04 | PENDING-HUMAN | [human]                                                                   | figures/dist.svg |
 ```
 
 A human reading this looks at the non-`PASS` rows and stops. That is the entire intended cost of verification for the reader.

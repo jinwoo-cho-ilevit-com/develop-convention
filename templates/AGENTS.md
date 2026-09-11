@@ -11,7 +11,7 @@ Instructions for coding agents working in this repository.
 - Run: `uv run python -m [ENTRY]`
 - Test: `uv run pytest`
 - Lint: `uv run ruff check && uv run ruff format --check`
-- Smoke: `[small-sample run — e.g. uv run python -m ENTRY --limit 10 device=cpu]`
+- Sample run: `[entry point on its stored sample — e.g. uv run python -m ENTRY --limit 10 device=cpu]`
 
 <!--
 Nothing else belongs here. The conventions ship as the dev-harness plugin, which reads them

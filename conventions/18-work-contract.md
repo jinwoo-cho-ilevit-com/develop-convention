@@ -70,7 +70,7 @@ Sources: [EARS, fifteen years on](https://joshmcdonald.medium.com/ears-fifteen-y
 |---|---|---|
 | `auto` | nothing | docs, formatting, behaviour-preserving refactors |
 | `reviewed` | zero confirmed blockers from a review that did not author the change | the default |
-| `proven` | integration smoke + one run on real data | new modules, pipelines, anything with external effect |
+| `proven` | integration run + one run on real data | new modules, pipelines, anything with external effect |
 
 Choose by **size × reversibility**:
 

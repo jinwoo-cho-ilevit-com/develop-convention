@@ -79,7 +79,7 @@ Write each completion criterion as a sentence paired with the command that check
 ## Completion criteria
 
 - Rows with an empty required field SHALL be dropped with a warning
-  → uv run pytest tests/test_sample_run_parser.py::test_c01_drops_empty_rows
+  → uv run pytest tests/parser/test_sample_run.py::test_c01_drops_empty_rows
 - The parser→validator boundary holds
   → uv run pytest tests/contract/test_parser_validator.py
 - [human] The warning text is actionable for an operator

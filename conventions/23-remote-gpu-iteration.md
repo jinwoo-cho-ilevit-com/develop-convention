@@ -41,7 +41,7 @@ Sources: [watchexec](https://github.com/watchexec/watchexec), [SkyPilot — sync
 
 Swap the random tiny model for a small pretrained one and the tier also answers a question randomness cannot: training loss on a handful of samples must fall, and a model that cannot overfit a trivial set points at the labels or the optimizer wiring, not at the data volume.
 
-The `--smoke` mode is also what the CPU smoke runs of [06-testing-verification.md](06-testing-verification.md) §5 invoke in CI — one mechanism serves the development loop and the verification gate, so neither drifts from the other. The tier's range is the test layer's range (→ [22-framework-wrapping.md](22-framework-wrapping.md) §4); write the project's own out-of-range list down and keep those checks on the rented hardware.
+The `--smoke` mode is also what the CPU sample runs of [06-testing-verification.md](06-testing-verification.md) §5 invoke in CI — one mechanism serves the development loop and the verification gate, so neither drifts from the other. The tier's range is the test layer's range (→ [22-framework-wrapping.md](22-framework-wrapping.md) §4); write the project's own out-of-range list down and keep those checks on the rented hardware.
 
 ### 4. Preflight
 
