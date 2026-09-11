@@ -168,6 +168,41 @@ const SECURITY_LENS = {
 // rounds — which is what makes repetition measurable without asking a reviewer.
 const keyOf = (f) => `${f.file}:${f.line ?? ''}:${f.summary}`
 
+// Judges the command's form, not what the shell did: an `&&`-only chain, the pinned tool, and
+// normalized instance paths that are not the frozen sample and sit under a directory `rm -rf`
+// cleared first. Returns null when satisfied, or the failing condition's name.
+function producerCheckIssue(c, b) {
+  const pinned = `${SCHEMA_CHECK} --schemafile ${b.schema}`
+  if (/[;\n\r]|\|\||(^|[^|])\|([^|]|$)/.test(c.command)) return 'chains steps with something other than `&&`, so a failed step does not stop the check'
+  const at = c.command.indexOf(pinned)
+  const instances = c.command.slice(at + pinned.length).split('&&')[0].trim().split(/\s+/).filter(Boolean).map(normalPath)
+  const wiped = [...c.command.slice(0, at).matchAll(/rm -rf\s+(\S+)/g)].map((m) => normalPath(m[1]))
+  if (!instances.length) return 'named no file to check'
+  if (instances.includes(normalPath(b.sample))) return `checked the frozen sample (${b.sample}) instead of a fresh dump`
+  if (!instances.every((p) => wiped.some((d) => p.startsWith(d + '/')))) {
+    return 'did not delete the directory it checks first (`rm -rf <dir>` before the check, with the checked file under <dir>)'
+  }
+  return c.passed ? null : 'was not reported as passing'
+}
+
+function normalPath(p) {
+  const out = []
+  for (const seg of String(p).split('/')) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') out.pop()
+    else out.push(seg)
+  }
+  return (String(p).startsWith('/') ? '/' : '') + out.join('/')
+}
+
+function producerCheckFailure(criteria, b) {
+  const pinned = `${SCHEMA_CHECK} --schemafile ${b.schema}`
+  const candidates = (criteria ?? []).filter((c) => c.command?.includes(pinned))
+  if (!candidates.length) return `no criterion ran \`${pinned}\``
+  const issues = candidates.map((c) => producerCheckIssue(c, b))
+  return issues.includes(null) ? null : issues[0]
+}
+
 // A reviewer writes `./src/a.py` where the fixer writes `src/a.py` or an absolute path
 // inside the worktree, and a plain string compare then finds nothing in common. That fails
 // safe — an unmatched claim never halts — but it disables the causation rule entirely and
@@ -561,15 +596,15 @@ async function reviewLoop(dev, lane) {
   // A schema boundary's producer criterion is reported like any other completion criterion;
   // missing or failing, it is injected here so it fails through the same `failed` check below
   // rather than a path of its own (→ conventions/06-testing-verification.md §7).
-  const myProduced = boundaries.filter((b) => b.schema && b.producer === lane.name)
-  const uncheckedProduced = myProduced.filter(
-    (b) => !(dev.criteria ?? []).some((c) => c.command?.includes(`--schemafile ${b.schema}`) && c.passed),
-  )
-  if (uncheckedProduced.length) {
+  const producerFailures = boundaries
+    .filter((b) => b.schema && b.producer === lane.name)
+    .map((b) => ({ b, issue: producerCheckFailure(dev.criteria, b) }))
+    .filter((x) => x.issue)
+  if (producerFailures.length) {
     dev.criteria = [
       ...(dev.criteria ?? []),
-      ...uncheckedProduced.map((b) => ({
-        criterion: `producer check for boundary "${b.name}" (--schemafile ${b.schema}) was not reported as passing`,
+      ...producerFailures.map(({ b, issue }) => ({
+        criterion: `producer check for boundary "${b.name}" (--schemafile ${b.schema}) failed: ${issue}`,
         command: `${SCHEMA_CHECK} --schemafile ${b.schema} <dump>`,
         passed: false,
       })),

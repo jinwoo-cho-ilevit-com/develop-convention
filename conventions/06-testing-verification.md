@@ -125,6 +125,8 @@ rm -rf runs/sample && uv run python -m parser --limit 100 --dump runs/sample \
   && uvx check-jsonschema@0.38.0 --schemafile .plans/ingest/contracts/parser_out.schema.json runs/sample/parser_out.json
 ```
 
+The workflow accepts a producer's check only in this form — steps chained with `&&` alone, the pinned tool, a checked file under the directory cleared first, never the sample — and it reads the command's form, not what the shell actually did; a lane that reports a passing criterion it did not run is review's to catch, as with any criterion.
+
 At the base commit this fails because the stage does not exist yet — red under §3's rule for an entry point the change creates, which proves only that the run could not happen. Confirm the schema check itself by sabotage once the stage runs: one row with a value outside the `enum` must fail it.
 
 What the check does not reach stays with review: a symbol's name and signature, which side calls which, whether the sample carries every `enum` member, and a schema too loose to fail anything (`{}` passes every instance). The merged-whole review compares each of these against the contract file.

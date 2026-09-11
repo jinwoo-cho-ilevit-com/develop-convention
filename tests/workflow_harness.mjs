@@ -35,7 +35,7 @@ function finding(over = {}) {
 // a verdict are reachable too.
 const keyOf = (f) => `${f.file}:${f.line ?? ''}:${f.summary}`
 
-function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompts: {} }) {
+function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompts: {}, schemas: {} }) {
   // The round advances on the verify call, which happens once after a round's lenses have
   // all answered. Counting review calls instead would hand each lens of one round a
   // different entry from `rounds`, so a multi-lens case would stop modelling a round.
@@ -53,6 +53,9 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
     // an outcome assertion cannot see either: a check reading the wrong tree still answers.
     seen.isolation[label] = opts.isolation
     seen.prompts[label] = prompt
+    // The JSON schema passed to `agent()` is itself part of the dispatch — a required field
+    // dropped there is never asked for, no matter what the prompt text says.
+    seen.schemas[label] = opts.schema
     // Stands in for the agent that stats the contract file paths. `missingFrozen` is what it
     // reports absent; `freezeCheckDies` makes it answer nothing, which must not read as "none".
     if (label === 'freeze-check') {
@@ -77,13 +80,18 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       if ('throws' in over) throw over.throws
       if (over.developDies) return null
       if (over.develop) return over.develop
-      // A lane producing a schema boundary reports a passing --schemafile criterion by
-      // default, so cases not about producer enforcement don't have to spell it out.
+      // A lane producing a schema boundary reports a criterion satisfying every condition
+      // by default — `rm -rf`, the pinned tool, a fresh dump — so cases not about producer
+      // enforcement don't have to spell it out. `producerCommand` overrides just the command.
       const laneName = label.slice('develop:'.length)
       const produced = (over.boundaries ?? []).filter((b) => b.schema && b.producer === laneName)
       const criteria = over.omitProducerCriterion
         ? []
-        : produced.map((b) => ({ criterion: `schema check for "${b.name}"`, command: `uvx check-jsonschema@0.38.0 --schemafile ${b.schema} <dump>`, passed: true }))
+        : produced.map((b) => ({
+            criterion: `schema check for "${b.name}"`,
+            command: over.producerCommand ? over.producerCommand(b) : `rm -rf dump && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+            passed: true,
+          }))
       return { worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria }
     }
     if (label.startsWith('fix:')) return over.fixDies ? null : { summary: 'fixed it' }
@@ -130,7 +138,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
 
 async function run(rounds, over = {}) {
   const wf = loadWorkflow()
-  const seen = { labels: [], isolation: {}, prompts: {} }
+  const seen = { labels: [], isolation: {}, prompts: {}, schemas: {} }
   // `rawArgs` hands the workflow whatever the case says, object or not — the way arguments
   // reach it when they arrive as text. Everything else builds the normal object.
   const args =
@@ -146,7 +154,7 @@ async function run(rounds, over = {}) {
           ...(over.omitFrozen ? {} : { boundariesFrozen: true }),
         }
   const out = await wf(args, makeAgent(rounds, over, seen), parallel, pipeline, () => {}, () => {})
-  return { ...out, labels: seen.labels, isolation: seen.isolation, prompts: seen.prompts }
+  return { ...out, labels: seen.labels, isolation: seen.isolation, prompts: seen.prompts, schemas: seen.schemas }
 }
 
 // How a call was dispatched, checked on both the refusal path and the lane path — a refusal
@@ -163,6 +171,12 @@ function dispatchChecks(expect, out) {
   // A lane on no boundary must be told nothing about one — the absence is the assertion.
   for (const [label, re] of Object.entries(expect.promptExcludes ?? {})) {
     if (re.test(out.prompts[label] ?? '')) why.push(`prompt[${label}] matches ${re}, and must not`)
+  }
+  // The schema handed to `agent()` is what forces a field to be reported at all.
+  for (const [label, fields] of Object.entries(expect.schemaRequired ?? {})) {
+    const req = out.schemas?.[label]?.required ?? []
+    const missing = fields.filter((f) => !req.includes(f))
+    if (missing.length) why.push(`schema[${label}].required is missing ${JSON.stringify(missing)}`)
   }
   return why
 }
@@ -969,13 +983,15 @@ const cases = [
   {
     // Sabotage: replace `schemaFindingNotes(lane)` with the old generic sentence — the
     // producer's name then disappears from the review prompt.
+    // Tightened: requires the "is a finding" wording too, not just the producer's name —
+    // sabotage: drop the trailing clause from `schemaFindingNotes`'s sentence.
     name: "the review prompt names the producer lane in the schema-check finding",
     rounds: [[]],
     over: { boundaries: [SCHEMA_BOUNDARY] },
     expect: {
       outcome: 'passed',
       prompt: {
-        'review:a:module#1': /Lane "a" carries the schema check for boundary "api"/,
+        'review:a:module#1': /Lane "a" carries the schema check for boundary "api"; a brief or report missing it is a finding\./,
       },
     },
   },
@@ -1037,6 +1053,122 @@ const cases = [
       }),
     },
     expect: { outcome: 'passed', passedCount: 2 },
+  },
+  {
+    // Sabotage: drop `...(b.schema ? [b.schema] : [])` from `frozenPaths` — the schema path
+    // would then be absent from the freeze prompt's own missing-paths bullet list.
+    name: "the freeze prompt's missing-paths list includes the schema path",
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY] },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      prompt: { 'freeze-check': /- \.plans\/contracts\/api\.schema\.json/ },
+    },
+  },
+  {
+    // Sabotage: drop `'tool'`/`'checked'` from `FROZEN_SCHEMA.required` — the freeze-check
+    // dispatch would no longer force the agent to report either field.
+    name: 'the freeze-check schema requires both `tool` and `checked`',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      schemaRequired: { 'freeze-check': ['tool', 'checked'] },
+    },
+  },
+  {
+    // Sabotage: drop the wiped-directory condition from `producerCheckIssue`.
+    name: 'a producer criterion missing `rm -rf` does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: match on the bare substring `check-jsonschema` instead of the pinned
+    // `${SCHEMA_CHECK} --schemafile <schema>` prefix in `producerCheckFailure`.
+    name: 'a producer criterion using an unpinned check-jsonschema call does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `rm -rf dump && check-jsonschema --schemafile ${b.schema} dump/out.json`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: drop the `instances.includes(b.sample)` condition from `producerCheckIssue`.
+    name: 'a producer criterion that checks the frozen sample instead of a fresh dump does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `rm -rf dump && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} ${b.sample}`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: accept any `rm -rf` in the command instead of one clearing the checked file's directory.
+    name: 'a producer criterion that wipes some other directory does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `rm -rf /tmp/scratch && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} runs/old/out.json`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: drop the `&&`-only chain condition from `producerCheckIssue`.
+    name: 'a producer criterion chained with `;` does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `false && rm -rf dump ; uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: compare the instance to the sample without `normalPath`.
+    name: 'a producer criterion reaching the sample through `./` does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `rm -rf tests && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} ${b.sample.replace('/', '/./')}`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: drop newlines from the separator check in `producerCheckIssue`.
+    name: 'a producer criterion split across lines does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `false && rm -rf dump\nuvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // Sabotage: let `normalPath` drop the leading slash, equating /tmp/dump with tmp/dump.
+    name: 'a producer criterion wiping an absolute directory but checking a relative one does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `rm -rf /tmp/dump && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} tmp/dump/out.json`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // The correct form, reading the sample as the stage's input — sabotage: reject any command
+    // naming the sample anywhere, as a whole-command substring match would.
+    name: 'a producer criterion with rm -rf, the pinned tool, and a fresh dump satisfies the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `rm -rf dump && uv run python -m stage --input ${b.sample} --dump dump && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+    },
+    expect: { outcome: 'passed' },
   },
 ]
 
