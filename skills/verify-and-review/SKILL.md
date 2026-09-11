@@ -13,7 +13,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 
 | Question | Document |
 |---|---|
-| Which tests this change needs, and which it does not | 06 |
+| What the sample run checks, and when a test beyond it is warranted | 06 |
 | What a contract test pins, and what belongs in one fixture rather than two | 06 |
 | Did I watch it fail before it passed, and what if it could not run at all | 06 |
 | How I report what I ran — the table, the words, the real output | 19 |
@@ -24,7 +24,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 
 ## Order
 
-1. **06 before writing tests.** It sets the budget and the layers. The common failure is not too few tests, it is a suite that grew per-function and now catches nothing.
+1. **06 before writing tests.** It sets the default check and the budget. The common failure is not too few tests, it is a suite that grew per-function and now catches nothing.
 2. **20 before reviewing.** Settling who reviews, and against what input, only once the diff exists means settling it inside the author's context — which is the thing the gate exists to prevent.
 3. **19 when reporting either.** A criteria table with real output, not a narrative. This is also where the vocabulary lives for the case that is neither pass nor fail.
 

@@ -46,8 +46,8 @@ Each criterion is a sentence and the command that checks it:
 
 - C-01: WHEN the input CSV contains NaN in `score`,
   THE loader SHALL drop the row and log a WARNING with the row index.
-  → uv run pytest tests/test_c01_drops_nan_rows.py -q
-- C-02: The loader→scorer boundary holds.
+  → uv run pytest tests/test_sample_run_loader.py::test_c01_drops_nan_rows -q
+- C-02: The loader→scorer lane boundary holds.
   → uv run pytest tests/contract/test_loader_scorer.py -q
 - C-03: [human] The warning is actionable for someone reading the log at 3am.
   → verdict: ____  by: ____  at: ____

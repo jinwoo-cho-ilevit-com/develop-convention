@@ -2,55 +2,57 @@
 
 ## Core Rules
 
-- Write the smallest set of tests that catches real regressions. Don't chase line-coverage numbers, and don't write a test per function.
-- Use three layers: unit tests for non-trivial logic, one contract test per module boundary, and 1-3 end-to-end smoke tests that exercise the assembled project through its real entry point.
+- Make the sample run the default check: execute the real entry point — a CLI or pipeline stage (`--limit N`, → [04-pipeline.md](04-pipeline.md)), a library's public function, a service's endpoint through its test client — on a stored sample input, and assert properties derived from the specification: the output schema, counts and invariants, and the exact value for the few inputs whose answer is known. One test file per entry point holds it.
+- Write any other test only for a reason the sample run cannot supply: a branch or parser edge the sample does not reach, a boundary where parallel lanes meet, a bug that was fixed, or a check this document names on its own terms — a characterization before a rewrite, a double confirmed against the real system, a standing guard. A test re-checking what the sample run already catches is deleted, and so is a per-function suite. Don't chase line-coverage numbers.
 - When work splits into parallel lanes, write each boundary's contract test **before** the lanes start, and give it no lane as owner. Disjoint file ownership stops two lanes writing the same file; it does nothing about the two of them holding contradictory assumptions about what crosses between them, and each lane's own tests pass under its own assumption. The test written first is that assumption in executable form (→ [21-development-loop.md](21-development-loop.md)).
-- Store each boundary's representative payload as a file and have the fixture factory load it, rather than building the boundary shape in code. Two lanes can read a written specification differently; they have a much harder time reading the same `parser_out.sample.json` differently. The file is the truth and the factory supplies the variations — NaN, edge values, bulk.
+- Store each lane boundary's representative payload as a file and have the fixture factory load it, rather than building the boundary shape in code. Two lanes can read a written specification differently; they have a much harder time reading the same `parser_out.sample.json` differently. The file is the truth and the factory supplies the variations — NaN, edge values, bulk.
 - A boundary contract imports each symbol crossing it under the name its caller uses, calls it at the signature its caller uses, and pins the value set both sides branch on — the full set of surfaces a boundary drifts on is enumerated in [18-work-contract.md](18-work-contract.md) §5.
-- Give an object that crosses more than one boundary a single fixture and a single source for its field names and literal values, and have the other boundaries' contracts load that file. Two fixtures for one object are two definitions, each locally coherent, neither compared against the other, and both green because a contract test reads only its own fixture.
-- Build each stored payload so that only the correct rule reproduces it. Where two independent properties happen to coincide in the sample — a column order equal to the projection order, an identifier equal to a row index — every implementation that confuses the two passes every contract. Vary one of them in the file.
+- Give an object that crosses more than one lane boundary a single fixture and a single source for its field names and literal values, and have the other boundaries' contracts load that file. Two fixtures for one object are two definitions, each locally coherent, neither compared against the other, and both green because a contract test reads only its own fixture.
+- Build each stored payload — a lane boundary's fixture or a sample run's input — so that only the correct rule reproduces it. Where two independent properties happen to coincide in the sample — a column order equal to the projection order, an identifier equal to a row index — every implementation that confuses the two passes every check. Vary one of them in the file.
 - A double stands in for something outside your project, and it may not assert a shape the real system never produces: a fake index carrying a uniqueness flag the real server does not set teaches the implementation to depend on it, and the dependency breaks on the first real run. Confirm the double against the real thing once and keep that check; for a heavy external dependency, that check is a layer of its own (→ [22-framework-wrapping.md](22-framework-wrapping.md)).
-- Never patch over one of your own components to make a test pass. The substitution does not merely weaken an assertion — it removes that path from the run, so the defect living there cannot be observed until the patch comes out. The end-to-end layer's "no mocking your own modules" (§1) is the same rule at its strictest.
-- Derive a test's expected value from the specification, never by running the code under test and recording what it returns. A recorded output is true by construction — the test asserts that the code does what the code does — and this is the default failure mode when one session writes both the implementation and its tests.
+- Never patch over one of your own components to make a test pass. The substitution does not merely weaken an assertion — it removes that path from the run, so the defect living there cannot be observed until the patch comes out. The sample run's "no mocking your own modules" (§1) is the same rule at its strictest.
+- Derive a test's expected value from the specification, never by running the code under test and recording what it returns. A recorded output is true by construction — the test asserts that the code does what the code does — and this is the default failure mode when one session writes both the implementation and its tests. A sample run makes the capture tempting, since its output is right there; the one capture allowed is characterization, recorded from the base-commit code before a rewrite (→ [00-principles.md](00-principles.md)).
 - Justify each test by three questions: is there a realistic change that would break it, does another test already catch that, and could it ever fail? Reduce the assertion to answer the third: one comparing a constant to a constant, or whose two sides pass through the same normalisation, is an identity wearing a test's name. A test that answers no to any of the three should not exist.
 - A test that fails when behaviour did not change is the mirror failure: a refactor breaks it because it asserts implementation structure rather than what callers observe. Such a change-detector catches no defects and taxes every change — delete it, or re-point it at the public behaviour.
-- Cover every completion criterion with an executable check, but not one test per criterion — one test may satisfy several. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
+- Cover every completion criterion with an executable check, most of them by the sample run: one test function or parametrize case per criterion inside the entry point's file, sharing one run, so each criterion can be observed red on its own. What must reach 100% is criteria coverage, a different measure from line coverage (→ [18-work-contract.md](18-work-contract.md)).
 - Observe every new test failing before it passes: run it at the base commit and keep the output. A test that was never seen red is indistinguishable from one that asserts nothing.
 - A test written for code that already works has no red to observe at the base commit — verify it by sabotage instead: break the behaviour it claims to pin, watch the test fail, and revert. A characterization test never seen failing is ceremony, not verification.
-- Distinguish "the check could not run" from "the check ran and failed". A missing test file, an uncollectable suite, or an unavailable command is a missing baseline, not a red result.
+- Distinguish "the check could not run" from "the check ran and failed". A missing test file, an uncollectable suite, or an external tool that is not installed is a missing baseline, not a red result.
 - Exempt standing invariants from the red check explicitly. A regression guard holding at the base commit is the correct outcome, not a defect.
 - Every fixed bug gains exactly one regression test that reproduces it, and the fix is checked against the defect's siblings before it closes. The same mistake usually sits on the path beside the reported one — the other decoder, the second resume branch — and fixing only what was reported leaves the twin behind under a test proving it is gone.
 - Isolate a fixture from the machine it runs on and from the tests that already used it. A test that builds a repository, spawns a process, or writes a config inherits the developer's environment — global git hooks, signing settings, a proxy — and the failure that produces passes in clean CI and fails only on the machine that wrote it, which is the worst asymmetry a suite can have. A module-scoped fixture handed out by reference or by shallow copy carries one test's mutation into the next, and the test that then fails is not the one that broke it.
 - ML tests assert against a tolerance band, not exact float comparison. Fixtures are a small number of realistic samples including NaN, mixed types, and edge cases. Seeds live in a single session-scoped fixture.
-- CI verifies GPU code paths with small-sample smoke tests on CPU, without a GPU.
+- Where output is not deterministic — text generated by an LLM — the sample run asserts only the deterministic properties: the output parses, the schema holds, required fields are present. Its quality is judged statistically over a set, never by exact match (→ [10-llm-api-inference.md](10-llm-api-inference.md)).
+- CI verifies GPU code paths by running the sample run on CPU, without a GPU.
 - Before declaring completion, run the verification command and read the full output. TODOs, stubs, and skipped tests are blockers, not completion.
 
 ## Details
 
-### 1. Three layers, and what each is for
+### 1. The sample run, and when to add a test
 
-| Layer | Subject | How many | Catches |
+| Check | Subject | How many | Catches |
 |---|---|---|---|
-| Unit | branches, loops, parsers, boundaries | per module, only the non-trivial ones | logic errors |
-| Contract | the input/output schema at a module boundary | one per boundary | interface drift between modules |
-| End-to-end smoke | the assembled project | 1-3 per project | integration failures nothing else sees |
+| Sample run | the real entry point on a stored sample input | one file per entry point | most completion criteria, and the joins between the modules it passes through |
+| Unit | a branch or parser edge the sample does not reach; a fixed bug | only with that reason | logic the sample never exercises |
+| Contract | a boundary where parallel lanes meet | one per lane boundary | interface drift between lanes built apart |
+| Integration run | the assembled project's sample run | 1-3 per project split into lanes, after the merge | failures only the assembly shows |
 
-The layers are not redundant. Unit tests pass while the pieces fail to fit; a contract test pins the shape of a boundary but not the behaviour across it. Only the third layer answers "does the thing work when it is all connected".
+The sample run comes first because it grows with the requirements, not with the code. One run through the real entry point exercises parsing, configuration, each stage and the joins between them, and its assertions read like the specification. A per-function suite exercises the same code in pieces: each piece passes while the pieces fail to fit, and the suite multiplies with every function added.
 
-One per boundary counts contracts, not objects. An object that crosses two boundaries appears in two contract tests, and if each carries its own fixture that object now has two definitions — both locally coherent, neither compared against the other, both green, because a contract test reads only its own fixture. Nothing in the suite can express the disagreement; it surfaces later as lanes built against shapes that cannot both be satisfied. Give the object one fixture and one source for its field names and literals, and have the second contract load the first's file.
+**What makes a sample run.** All four, or it is a unit test wearing the name:
 
-**What makes a test end-to-end.** All four, or it is a unit test wearing the name:
-
-- It enters where a user or CI enters. Calling an internal function directly is not end-to-end.
+- It enters where a user or caller enters: the CLI, the library's public function, the service's endpoint. Calling an internal function directly is not a sample run.
 - It does not mock your own modules. Mock external services only.
-- It runs on a small sample (`--limit N` → [04-pipeline.md](04-pipeline.md)), so it is cheap enough to run every time.
+- It runs on a small stored sample (`--limit N` → [04-pipeline.md](04-pipeline.md)), so it is cheap enough to run every time. The sample is a file a reviewer can open and see what went in.
 - It follows the real sequence of stateful commands. Testing each command alone hides defects in their order — a later step overwriting what an earlier one recorded is invisible until they run together.
 
-An isolated lane cannot hold this layer. Its worktree carries its own modules and not its siblings', so an end-to-end run there fails on import — or is faked by mocking a sibling, which the second condition forbids. The layer belongs to the integration step: a lane's own criteria stop at unit and contract, and the assembled run happens once, after the merge (→ [18-work-contract.md](18-work-contract.md) §5).
+**When a unit test earns its place.** The sample cannot reach an error path, or a malformed input it would have to be corrupted to hold — first try adding the case as a row of the sample, and write a unit test only where it cannot live there. A fixed bug gains its regression test at whichever level reproduces it most directly. A sample-run failure does not have to say which module broke; detection is its job, and the diagnosis is done by reading the dumped stage outputs (→ [04-pipeline.md](04-pipeline.md)), not by a unit suite kept in advance.
 
-An end-to-end failure does not have to say which module broke. Detection is its job; diagnosis belongs to the unit tests.
+**Contracts are for lanes.** Work done in one flow needs no contract test: its sample run crosses every internal boundary and fails when two sides disagree. Contracts exist because parallel lanes build the two sides apart, each green under its own assumption (→ [21-development-loop.md](21-development-loop.md)). One per lane boundary counts contracts, not objects. An object that crosses two lane boundaries appears in two contract tests, and if each carries its own fixture that object now has two definitions — both locally coherent, neither compared against the other, both green, because a contract test reads only its own fixture. Nothing in the suite can express the disagreement; it surfaces later as lanes built against shapes that cannot both be satisfied. Give the object one fixture and one source for its field names and literals, and have the second contract load the first's file.
 
-Don't write: trivial one-liner tests, getter/setter tests, tests that re-verify framework behaviour, mechanical per-function suites. Keep pytest config in pyproject.toml with `--strict-markers`, shared fixtures in `conftest.py`, and remove duplication with `parametrize`.
+**Inside a lane.** A lane's sample run is its own stage's entry point run on a stored sample: the frozen boundary sample, read-only, where the lane consumes one, and the lane's own input sample where its stage comes first. Rows the lane wants to add to a frozen sample go in a separate `<entry>.input.*` file; the frozen file stays frozen. A lane whose entry point imports its siblings' modules — a CLI over the other lanes — cannot run in its own worktree: the run fails on import, or is faked by mocking a sibling, which the second condition forbids. That run, like the assembled project's, belongs to the integration step and happens once, after the merge; it is what the end-to-end condition of [18-work-contract.md](18-work-contract.md) §5 names. Work done in one flow has no separate integration run: its entry point's sample run already is one.
+
+Don't write: trivial one-liner tests, getter/setter tests, tests that re-verify framework behaviour, mechanical per-function suites, a unit test repeating what the sample run asserts. Keep pytest config in pyproject.toml with `--strict-markers`, shared fixtures in `conftest.py`, and remove duplication with `parametrize`.
 
 Sources: [pytest best practices 2026](https://qaskills.sh/blog/pytest-best-practices-2026)
 
@@ -58,9 +60,9 @@ Sources: [pytest best practices 2026](https://qaskills.sh/blog/pytest-best-pract
 
 A work contract states what "done" means as completion criteria, each carrying a command that decides it (→ [18-work-contract.md](18-work-contract.md)). The target is that every criterion is decided by something executable — not that every line is exercised.
 
-The two measures pull in opposite directions. Line coverage rewards adding tests; criteria coverage rewards stating the goal precisely. One criterion is usually one test, but three criteria about the same parser may share one parametrized test. Splitting them to hit a one-to-one count rebuilds the mechanical per-function suite this document forbids.
+The two measures pull in opposite directions. Line coverage rewards adding tests; criteria coverage rewards stating the goal precisely.
 
-Name a test after the criterion it decides (`test_c01_drops_nan_rows`) when the mapping is one-to-one. When one test covers several, say so in the contract, not in the test name.
+Most criteria are decided inside the sample run's file. The run happens once — a module-scoped fixture that returns the output's path or an immutable result, never a shared mutable object (Core Rules) — and each criterion gets its own test function against it: `test_c01_drops_nan_rows`, `test_c02_writes_schema_v2` in `tests/test_sample_run_<entry>.py`. A function per criterion, not a file per criterion. The separate function is what lets each criterion be observed red on its own at the base commit (§3); one assertion block covering five criteria goes red on the first and hides whether the other four already held. Three criteria about the same parser may share one parametrized test, since each case is observed red on its own.
 
 ### 3. Observing red before green
 
@@ -70,11 +72,11 @@ Run the check at the commit the work started from and keep the output as evidenc
 |---|---|
 | the check fails | the intended red — the test detects the absence of the change |
 | the check passes | the test proves nothing about this change. Fix the test, not the record |
-| the check cannot run | no baseline: a missing test file, an uncollectable suite, a command that is not installed |
+| the check cannot run | no baseline: a missing test file, an uncollectable suite, an external tool that is not installed |
 
 The third row is the one that gets mishandled. Treating any non-zero exit as red makes *writing no test at all* look like a passing check, because a missing test path also exits non-zero. Separate collection from execution: if nothing was collected, the answer is no baseline.
 
-A collection error needs one more split. A test that cannot import the module it is about is the ordinary case when that module does not exist yet, and counts as red. A test file that does not parse is a broken test and counts as no baseline.
+A collection error needs one more split. A test that cannot import the module it is about is the ordinary case when that module does not exist yet, and counts as red. A test file that does not parse is a broken test and counts as no baseline. A sample run whose entry point the change creates — the project's command or function is not there yet — is red on the same reasoning; an external tool the run needs that is not installed is no baseline.
 
 Standing invariants are the exception. "Every module exports a schema", "no secret pattern appears in the tree" — these are guards, and they hold at the base commit by design. Mark them (`red: guard` in a contract) rather than letting the gate fail them. Requiring red of a guard makes the gate unusable; leaving guards implicit makes it meaningless.
 
@@ -84,7 +86,7 @@ Sources: [AI-generated tests that pass but don't assert](https://getautonoma.com
 
 ### 4. Budget
 
-State the budget rather than discovering it. Per module: unit tests for the non-trivial branches and one contract test per boundary. The 1-3 end-to-end smoke tests are per project, owned by the integration step (§1), not part of any module's budget. Beyond that needs a reason — usually a bug that escaped, arriving with its own regression test.
+State the budget rather than discovering it. Per entry point: one sample-run file, one test function per criterion it decides. Per lane boundary: one contract test. Per project split into lanes: the 1-3 integration runs, owned by the integration step (§1), not part of any lane's budget. Anything beyond that needs a reason the sample run cannot supply — a branch it does not reach, a bug that escaped arriving with its own regression test, or a check the Core Rules name on its own terms.
 
 A test that has never failed, in any run, is a deletion candidate. Either it guards something no change can break, or it does not assert what its name claims.
 
@@ -94,12 +96,12 @@ Sources: [Change-detector tests considered harmful](https://testing.googleblog.c
 
 ### 5. ML test patterns
 
-- **Small-sample fixtures**: a realistic ~100-row sample (NaN, skew, mixed types), never a toy dict. Keep the representative payload in `tests/fixtures/<boundary>.sample.json` — one file per boundary, or one file named by every boundary that carries the same object — and have the factory load and vary it — a stored sample is reviewable and is what two lanes can both look at, while a factory alone hides what actually crosses the boundary. Samples extracted from real data go through the masking rules in [13-secret-management.md](13-secret-management.md) before they are committed.
+- **Small-sample fixtures**: a realistic ~100-row sample (NaN, skew, mixed types), never a toy dict. It is the sample run's input. At a lane boundary it is also the frozen payload, kept in `tests/fixtures/<boundary>.sample.json` — one file per boundary, or one file named by every boundary that carries the same object — which the factory loads and varies; a stored sample is reviewable and is what two lanes can both look at, while a factory alone hides what actually crosses the boundary. Samples extracted from real data go through the masking rules in [13-secret-management.md](13-secret-management.md) before they are committed.
 - **Tolerance bands**: `assert 0.85 <= auc <= 0.90`, not `assert auc == 0.874`. Bit-exact reproducibility is not guaranteed across hardware (→ [07-ml-development.md](07-ml-development.md)).
-- **Golden files**: store reference outputs and compare with a tolerant diff. Update only via an explicit flag (`--update-golden`).
-- **Seeds**: `PYTHONHASHSEED`, numpy, torch, and CUDA determinism in one session-scoped fixture. Non-deterministic code cannot be tested.
-- **Schema contract tests**: pin the match between training input and inference input to prevent train-serve skew.
-- **GPU paths on CPU**: all GPU code goes through the device helper (→ [03-environment.md](03-environment.md)), so CI runs the smoke tests with `device: cpu` and `--limit 10`. These verify behaviour, not performance: shape errors, device mismatches, config errors. When the entry point carries a `--smoke` mode (→ [23-remote-gpu-iteration.md](23-remote-gpu-iteration.md)), CI invokes that same mode rather than a second recipe.
+- **Golden files**: store reference outputs and compare with a tolerant diff. The values must come from somewhere other than the code under test — a hand-checked answer, a reference implementation, the base-commit code for a characterization — and where no such source exists, assert properties instead. Update only via an explicit flag (`--update-golden`), and review that diff against the specification like code: an update is exactly where a regression gets re-recorded as the expectation.
+- **Seeds**: `PYTHONHASHSEED`, numpy, torch, and CUDA determinism in one session-scoped fixture. Code that is non-deterministic under a fixed seed cannot be tested by value; output that is non-deterministic by nature (an API-served LLM) gets property assertions only (Core Rules).
+- **Train/serve schema**: assert inside the sample run that training input and inference input share one schema, to prevent train-serve skew — an assertion in the run, not a separate contract test.
+- **GPU paths on CPU**: all GPU code goes through the device helper (→ [03-environment.md](03-environment.md)), so CI runs the sample run with `device: cpu` and `--limit 10`. These verify behaviour, not performance: shape errors, device mismatches, config errors. When the entry point carries a `--smoke` mode (→ [23-remote-gpu-iteration.md](23-remote-gpu-iteration.md)), CI invokes that same mode rather than a second recipe.
 
 Sources: [ML testing — fixtures, seeds, golden files](https://medium.com/@connect.hashblock/10-ways-to-test-ml-code-fixtures-seeds-golden-files-811310517cae)
 
@@ -109,4 +111,4 @@ Sources: [ML testing — fixtures, seeds, golden files](https://medium.com/@conn
 - Blockers, not completion: TODO comments, unimplemented branches, stub tests, skipped tests, "probably works".
 - For a rewrite or refactor, completion includes passing the characterization tests (→ [00-principles.md](00-principles.md)).
 - The verifier is not the author: review runs in a fresh context that starts from the diff and the criteria and never sees the author's reasoning (→ [20-review-gate.md](20-review-gate.md)).
-- Integration is verified by the end-to-end layer, which belongs to no lane and runs once after the merge (§1). That run is what a contract's `integration` criteria point at (→ [18-work-contract.md](18-work-contract.md)).
+- Integration is verified by the integration run — the assembled project's sample run, which belongs to no lane and runs once after the merge (§1). That run is what a contract's `integration` criteria point at (→ [18-work-contract.md](18-work-contract.md)).

@@ -40,7 +40,7 @@ A lane is defined by its **input**, not by its attitude. Telling three reviewers
 
 | Lane | Input | Looks for |
 |---|---|---|
-| Module | diff + changed files only | correctness, edge cases, error handling, missing tests |
+| Module | diff + changed files only | correctness, edge cases, error handling, a criterion with no check, a fixed bug with no regression test, a test the sample run already covers |
 | Project | diff + callers/callees + convention docs | duplicate implementations, layer violations, contract drift, doc-code sync, naming/structure consistency |
 | Absence | **requirement/plan + diff** | negative space — whether the stated problem was actually solved, and what is missing (rollback path, failure modes, observability) |
 | Plan *(before approval)* | the plan text + the repository it names | constraints the plan breaks (a test it would fail, a rule it restates, a file it omits), and whether its review points cover every unit |
