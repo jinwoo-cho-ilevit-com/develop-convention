@@ -107,7 +107,7 @@ def test_the_route_map_carries_each_skill_description():
         # The trigger clause only: the full description already sits in the system prompt,
         # and injecting it again on every prompt would repeat what the context holds.
         _, _, clause = front["description"].partition(". Use ")
-        if f"- {clause or front['description']} → {front['name']}" not in result.stdout:
+        if f"- {clause or front['description']} → dev-harness:{front['name']}" not in result.stdout:
             missing.append(path.parent.name)
     assert not missing, f"the routing map does not carry the trigger clause of: {missing}"
 
@@ -250,6 +250,14 @@ def test_a_large_read_is_refused_and_a_small_one_is_not(tmp_path):
     read = lambda p: {"tool_name": "Read", "tool_input": {"file_path": str(p)}}  # noqa: E731
     assert decision(read(big)) == "deny"
     assert decision(read(small)) == "allow"
+
+
+def test_a_large_limit_on_a_small_file_is_not_refused(tmp_path):
+    # What is read is bounded by the file, so a generous `limit` alone costs nothing.
+    small = tmp_path / "small.py"
+    small.write_text("x = 1\n" * 10, encoding="utf-8")
+    payload = {"tool_name": "Read", "tool_input": {"file_path": str(small), "limit": 2000}}
+    assert decision(payload) == "allow"
 
 
 def test_the_read_budget_is_the_one_the_environment_asks_for(tmp_path):

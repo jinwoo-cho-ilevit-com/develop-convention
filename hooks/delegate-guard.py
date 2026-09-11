@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-# Protects the orchestrator's context budget, and nothing else. A read large enough to crowd
-# out the session is refused with the cheaper alternative named; every other tool call goes
-# through untouched. Subagents carry `agent_id` and the main session does not.
-#
-# Delegating the work is a norm this hook does not enforce (→ conventions/09-agentic-workflow.md,
-# 21-development-loop.md). Nothing here stops the main session from editing, so a run that
-# passed the hook is not evidence it stayed out of the tree.
-#
-# Runs on whatever `python3` the session's PATH offers, not on the project's interpreter:
-# standard library only, and no syntax newer than the oldest python3 a machine may ship.
-# Nothing here may raise — a traceback is a non-blocking hook error, and the read proceeds.
-#
-# Falling through to allow is the normal outcome and always was the majority of them. The one
-# path that must never do it is a payload that will not parse: a guard that cannot decide must
-# not be the one that says yes.
+# Refuses a main-session Read large enough to crowd out the orchestrator's context; every other
+# call, and every subagent call (they carry `agent_id`), passes. Stdlib only, and nothing may
+# raise: a traceback lets the read through, so an unparseable payload is refused instead.
 import json
 import os
 import re
@@ -91,10 +79,8 @@ def main():
     path = tool_input.get("file_path")
     path = path if isinstance(path, str) else ""
 
-    # The plan, the lane briefs and AGENTS.md are the orchestrator's own artifacts, and refusing
-    # it the file it was told to write from defeats what the guard exists for. A `..` segment
-    # forfeits the exemption instead of being resolved, because a path can hold the exempt name
-    # and still land outside it.
+    # The plan, the lane briefs and AGENTS.md are the orchestrator's own artifacts. A `..`
+    # segment forfeits the exemption, since such a path can name the exempt file and land elsewhere.
     if ".." not in path.split("/"):
         if path.startswith(PLAN_DIR_NAME + "/") or "/" + PLAN_DIR_NAME + "/" in path:
             allow()
@@ -116,17 +102,11 @@ def main():
         limit = str(DEFAULT_READ_LINE_LIMIT)
     limit = int(limit)
 
-    # A bounded read costs what it asks for, not what the file holds. Judging a 20-line window
-    # by the size of a 5000-line file refuses the cheap request and leaves raising the limit or
-    # bypassing the guard as the only ways through, both worse than the read.
+    # A read costs the lesser of what it asks for and what the file holds, so a window within
+    # budget passes and a larger one is judged by the file below.
     requested = str(tool_input.get("limit"))
-    if counts(requested):
-        if int(requested) <= limit:
-            allow()
-        deny(
-            f"That Read asks for {requested} lines, over the {limit}-line budget for the main "
-            "session. Narrow it, or send an Explore subagent and take its summary."
-        )
+    if counts(requested) and int(requested) <= limit:
+        allow()
 
     if not os.path.isfile(path):
         allow()
