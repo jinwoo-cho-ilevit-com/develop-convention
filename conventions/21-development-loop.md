@@ -13,7 +13,7 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Split by disjoint file ownership | [18-work-contract.md](18-work-contract.md) |
 | Write criteria as sentence plus command, `[human]` where no command exists | [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md) |
 | Challenge the plan before asking for approval | [18-work-contract.md](18-work-contract.md) §3, [20-review-gate.md](20-review-gate.md) |
-| Freeze each boundary with a contract test before the lanes start | [06-testing-verification.md](06-testing-verification.md) |
+| Freeze each boundary with a contract file and its sample before the lanes start | [06-testing-verification.md](06-testing-verification.md) |
 | Review each lane on its own finish, then fix and re-review | [20-review-gate.md](20-review-gate.md) |
 | Merge, integrate last | [09-agentic-workflow.md](09-agentic-workflow.md) |
 | Review the merged whole, then verify end to end | [20-review-gate.md](20-review-gate.md), [06-testing-verification.md](06-testing-verification.md) |
@@ -31,7 +31,7 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Interview | Axes derived from the project, one question at a time, every proposal sourced | §2 below, [16-research-protocol.md](16-research-protocol.md) |
 | Plan | `PLAN.md` (done level, decisions, rejected alternatives, axis table, boundaries, lanes, review points, whole-project condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
 | Challenge | The plan lane runs at the done level's depth; the plan is shown for approval only once its exit is recorded | [20-review-gate.md](20-review-gate.md) §2 |
-| Freeze | One contract test per boundary, plus its sample payload. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1 |
+| Freeze | One contract file per boundary, plus its sample payload. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1 |
 | Fan out | One worktree-isolated agent per lane, disjoint `owns` | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 | Review | Starts per lane on that lane's finish; lanes defined by input; fix and recheck | [20-review-gate.md](20-review-gate.md) |
 | Merge | Criteria pass → merge; integration lane last | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
@@ -53,7 +53,7 @@ A greenfield project has no repository to ground the first step, which is where 
 
 ### 3. Why the loop has these seams
 
-**Ownership is not agreement.** The split rule guarantees two lanes never write the same file. It guarantees nothing about the two of them agreeing on what passes between them, and the more finely the work divides the more such boundaries exist. Freezing each one as an executable test before either lane starts is the only step that closes this, and it has to happen before, not after — a boundary discovered at merge time costs both lanes.
+**Ownership is not agreement.** The split rule guarantees two lanes never write the same file. It guarantees nothing about the two of them agreeing on what passes between them, and the more finely the work divides the more such boundaries exist. Freezing each one as a contract file and a sample both lanes read before either starts is the only step that closes this, and it has to happen before, not after — a boundary discovered at merge time costs both lanes.
 
 **A barrier is a choice, not a fact.** Lanes finish at different times. Reviewing on each finish means a lane's review overlaps with other lanes still working, and the wait disappears rather than being filled. Collecting all lanes before reviewing any creates the pause and then invites the question of what to do during it. Prefer the pipeline (→ [14-context-management.md](14-context-management.md) §1).
 

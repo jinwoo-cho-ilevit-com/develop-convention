@@ -53,7 +53,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
     // an outcome assertion cannot see either: a check reading the wrong tree still answers.
     seen.isolation[label] = opts.isolation
     seen.prompts[label] = prompt
-    // Stands in for the agent that stats the contract test paths. `missingFrozen` is what it
+    // Stands in for the agent that stats the contract file paths. `missingFrozen` is what it
     // reports absent; `freezeCheckDies` makes it answer nothing, which must not read as "none".
     if (label === 'freeze-check') {
       // Answering nothing and dying are different events with the same evidentiary value, and
@@ -123,7 +123,7 @@ async function run(rounds, over = {}) {
           base: 'main',
           lanes: [over.lane ?? { name: 'a', owns: ['src/a/'], security: false }],
           boundaries: over.boundaries ?? [],
-          // What `/dev-harness:build` declares after writing the contract tests. A case can
+          // What `/dev-harness:build` declares after writing the contract files. A case can
           // drop it to reach the refusal.
           ...(over.omitFrozen ? {} : { boundariesFrozen: true }),
         }
@@ -149,7 +149,7 @@ function dispatchChecks(expect, out) {
 // landing there, and the words naming the cause. The path also decides what the row overrides
 // and the first half of the expected note, so no row passes on a message about another field.
 const LANE = { name: 'a', owns: ['src/a/'], security: false }
-const BOUNDARY = { name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }
+const BOUNDARY = { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }
 const SHAPE_ROWS = [
   ['a misspelled top-level key is refused rather than defaulted', 'args', { lanes: [LANE], conventionDir: '/abs/conventions', boundariesFrozen: true }, /unknown key "conventionDir"/],
   ['arguments carrying no lanes at all are refused by name', 'args', { boundariesFrozen: true }, /declares no lanes/],
@@ -167,7 +167,10 @@ const SHAPE_ROWS = [
   ['owns arriving as text of its own is refused', 'args.lanes[0].owns', { name: 'a', owns: '["src/a/"]', security: false }, /must be a non-empty list of path strings/],
   ['an owns entry that is not a path string is refused', 'args.lanes[0].owns', { name: 'a', owns: ['src/a/', 42], security: false }, /must be a non-empty list of path strings/],
   ['a boundary that is a name rather than an object is refused', 'args.boundaries[0]', 'api', /is "api", not an object/],
-  ['a boundary that pins no lane is refused', 'args.boundaries[0]', { name: 'api', test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }, /declares no lanes/],
+  ['a boundary that pins no lane is refused', 'args.boundaries[0]', { name: 'api', contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /declares no lanes/],
+  // The old `test` key is not `contract` — a stale PLAN.md is refused loudly rather than
+  // silently treated as a boundary with no contract path.
+  ['a boundary still using the old `test` key is refused as an unknown key', 'args.boundaries[0]', { name: 'api', lanes: ['a'], test: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /unknown key "test"/],
 ]
 
 const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -400,7 +403,7 @@ const cases = [
     rounds: [[]],
     over: {
       lane: { name: 'a', owns: ['src/a/'], security: false },
-      boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
     },
     expect: {
       outcome: 'passed',
@@ -420,7 +423,7 @@ const cases = [
   },
   {
     // Installed, the workflow is invokable as a skill beside the command. That path skips the
-    // contract tests that freeze the boundaries, so the lanes would fan out onto interfaces
+    // contract files that freeze the boundaries, so the lanes would fan out onto interfaces
     // nothing holds still — no agent may be dispatched at all.
     name: 'a caller that did not freeze the boundaries never reaches an agent',
     rounds: [[]],
@@ -487,14 +490,14 @@ const cases = [
   ...SHAPE_ROWS.map(shapeCase),
   {
     // `rawArgs` replaces the constructed object wholesale, so no text case reached a boundary
-    // and the contract-test check was never exercised on this path at all. A later change that
+    // and the contract-file check was never exercised on this path at all. A later change that
     // dropped `boundaries` on the way through the parse would have left every case green.
-    name: 'the contract-test check runs on the text path too',
+    name: 'the contract-file check runs on the text path too',
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
         lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
-        boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+        boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
         boundariesFrozen: true,
       }),
     },
@@ -503,28 +506,28 @@ const cases = [
   {
     // And that it still refuses there — a check that only ever passes on this path proves
     // nothing about the path.
-    name: 'a missing contract test is refused by name on the text path',
+    name: 'a missing contract file is refused by name on the text path',
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
         lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
-        boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
+        boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
         boundariesFrozen: true,
       }),
-      missingFrozen: ['tests/test_api_contract.py'],
+      missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract tests do not exist: tests\/test_api_contract\.py/ },
+    expect: { refused: /declared frozen but these contract files do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
-    // Declaring the freeze is not doing it, and the lanes are told the contract tests exist on
+    // Declaring the freeze is not doing it, and the lanes are told the contract files exist on
     // the strength of that declaration alone.
-    name: 'a boundary whose contract test does not exist is refused by name',
+    name: 'a boundary whose contract file does not exist is refused by name',
     rounds: [[]],
     over: {
-      boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }],
-      missingFrozen: ['tests/test_api_contract.py'],
+      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
+      missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract tests do not exist: tests\/test_api_contract\.py/ },
+    expect: { refused: /declared frozen but these contract files do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
     // The same paths, and the sha they were absent at. Without it the refusal names files a
@@ -532,16 +535,16 @@ const cases = [
     name: 'the missing-path refusal names the commit the lanes start from',
     rounds: [[]],
     over: {
-      boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }],
-      missingFrozen: ['tests/test_api_contract.py'],
+      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
+      missingFrozen: ['.plans/contracts/api.md'],
       frozenHead: 'deadbee',
     },
     expect: { refused: /not at deadbee, the commit the lanes start from/ },
   },
   {
-    name: 'boundaries whose contract tests all exist fan out normally',
+    name: 'boundaries whose contract files all exist fan out normally',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py', sample: 'tests/fixtures/api.sample.json' }] },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
     expect: { outcome: 'passed', rounds: 1, hasLabel: 'freeze-check' },
   },
   {
@@ -550,7 +553,7 @@ const cases = [
     // be isolated and reset the way a lane is, and only the dispatch shows whether it was.
     name: 'the freeze check measures from a lane-shaped worktree reset to base',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }] },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
     expect: {
       outcome: 'passed',
       rounds: 1,
@@ -575,7 +578,7 @@ const cases = [
     // "none missing" would put the declaration back in charge of itself.
     name: 'a freeze check that answers nothing refuses rather than assuming',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }], freezeCheckDies: true },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }], freezeCheckDies: true },
     expect: { refused: /unmeasured declaration is that same declaration/ },
   },
   {
@@ -584,7 +587,7 @@ const cases = [
     // null — uncaught, it left as a stack trace and the caller got no note to dispatch on.
     name: 'a freeze check that dies refuses in the same words, naming the death',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'], test: 'tests/test_api_contract.py' }], freezeCheckThrows: true },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }], freezeCheckThrows: true },
     expect: { refused: /died \(freeze agent died hard\).*unmeasured declaration is that same declaration/ },
   },
   {
@@ -593,13 +596,13 @@ const cases = [
     expect: { outcome: 'passed', rounds: 1, noLabel: 'freeze-check' },
   },
   {
-    // The freeze check reads `test`/`sample` off each boundary. A boundary yielding neither
-    // emptied `frozenPaths` and skipped the check entirely, while every lane was still told
-    // its contract tests exist — the declaration back in charge of itself.
-    name: 'a boundary naming no contract test path is refused, not skipped',
+    // `contract` and `sample` are both required by the shape check now, so a boundary missing
+    // either is refused there — before the freeze check could skip it and leave every lane
+    // told its contract file exists on the strength of a declaration nothing measured.
+    name: 'a boundary missing a contract path is refused as a missing required field',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'] }] },
-    expect: { refused: /args\.boundaries\[0\] names neither a test nor a sample path/ },
+    over: { boundaries: [{ name: 'api', lanes: ['a'], sample: 'tests/fixtures/api.sample.json' }] },
+    expect: { refused: /args\.boundaries\[0\] declares no contract/ },
   },
   {
     // Both lanes read one brief, take one branch and answer to one label, so the second is
@@ -627,7 +630,7 @@ const cases = [
     // does not exist pins nothing, so the lane is reviewed once and no outcome shows why.
     name: 'a boundary pinning a lane that does not exist is refused',
     rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['nonexistent'], test: 'tests/test_api_contract.py' }] },
+    over: { boundaries: [{ name: 'api', lanes: ['nonexistent'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
     expect: { refused: /args\.boundaries\[0\]\.lanes\[0\] is "nonexistent", which no lane declares/ },
   },
   {
@@ -644,7 +647,7 @@ const cases = [
         conventionsDir: '/abs/plugin/conventions',
         lanes: [{ name: 'a', owns: ['src/a/', 'src/shared/config.py'], security: true }],
         boundaries: [
-          { name: 'parser-validator', lanes: ['a'], test: 'tests/contract/test_parser_validator.py', sample: 'tests/fixtures/parser_out.sample.json' },
+          { name: 'parser-validator', lanes: ['a'], contract: '.plans/contracts/parser-validator.md', sample: 'tests/fixtures/parser_out.sample.json' },
         ],
         boundariesFrozen: true,
       }),

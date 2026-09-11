@@ -14,7 +14,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | Question | Document |
 |---|---|
 | What the sample run checks, and when a test beyond it is warranted | 06 |
-| What a contract test pins, and what belongs in one fixture rather than two | 06 |
+| What a lane boundary's contract file and sample hold, and why one object gets one sample | 06 |
 | Did I watch it fail before it passed, and what if it could not run at all | 06 |
 | How I report what I ran — the table, the words, the real output | 19 |
 | What to write when a check was skipped, bypassed, or waiting on a person | 19 |
