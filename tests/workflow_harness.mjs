@@ -49,6 +49,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
   // it answer about the same criteria and the same commit.
   const devs = {}
   const heads = {}
+  let frozenBase = null
   const ranOn = (label, lane) => (over.ranOn ? over.ranOn(label, heads[lane]) : heads[lane])
   const findingsNow = () => rounds[Math.min(round, rounds.length - 1)] ?? []
 
@@ -66,10 +67,11 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       if (over.freezeCheckDies) return null
       // Defaults model a healthy tool and one passing row per boundary that declares a schema.
       const schemaBoundaries = (over.boundaries ?? []).filter((b) => b.schema)
+      frozenBase = over.frozenBase ?? over.frozenHead ?? 'f00dbabe'
       return {
         missing: over.missingFrozen ?? [],
         head: over.frozenHead ?? 'f00dbabe',
-        base: over.frozenBase ?? over.frozenHead ?? 'f00dbabe',
+        base: frozenBase,
         // An answer missing the field outright — schema-invalid, and it must not read as passing.
         ...(over.omitFreezeTool ? {} : { tool: over.freezeTool ?? { exit: 0, output: 'check-jsonschema, version 0.38.0' } }),
         checked: over.freezeChecked ?? schemaBoundaries.map((b) => ({ boundary: b.name, exit: 0, output: 'ok' })),
@@ -110,7 +112,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
         : over.fixTouchedSeq
           ? (over.fixTouchedSeq[n - 1] ?? over.fixTouchedSeq[over.fixTouchedSeq.length - 1])
           : (over.fixTouched ?? ['src/a.py'])
-      const m = { head: `m${n}`, branchTip: `m${n}`, base: 'b4se', trackedChanges: [], untracked: [], ownershipDiff: [], causationDiff: causation }
+      const m = { head: `m${n}`, branchTip: `m${n}`, base: frozenBase, trackedChanges: [], untracked: [], ownershipDiff: [], causationDiff: causation }
       const answer = over.measure ? over.measure(label, m) : m
       heads[laneOf] = answer.head
       return answer
@@ -248,6 +250,13 @@ const SHAPE_ROWS = [
   ['a boundary with no name is refused', 'args.boundaries[0]', { lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /declares no name/],
   // Sabotage: accept any string as a tier.
   ['a lane tier outside light, mid, top is refused', 'args.lanes[0].tier', { name: 'a', owns: ['src/a/'], security: false, tier: 'opus' }, /must be one of light, mid, top/],
+  // Sabotage: accept any string as `planDir`.
+  ['an absolute planDir is refused', 'args.planDir', { lanes: [LANE], planDir: '/abs/.plans', boundariesFrozen: true }, /is "\/abs\/\.plans", and must be a repository-relative path/],
+  ['a planDir climbing out of the repository is refused', 'args.planDir', { lanes: [LANE], planDir: '../.plans', boundariesFrozen: true }, /must be a repository-relative path/],
+  // Sabotage: skip the shape check on `allLanes` entries.
+  ['an allLanes entry that is a bare name is refused', 'args.allLanes[0]', { lanes: [LANE], allLanes: ['a'], boundariesFrozen: true }, /is "a", not an object/],
+  // Sabotage: drop the resumeNote-without-resumeFrom check.
+  ['a resumeNote with no resumeFrom is refused', 'args.lanes[0]', { ...LANE, resumeNote: 'why' }, /has a resumeNote but no resumeFrom/],
   // Sabotage: accept any object as `resumeFrom`.
   ['a resumeFrom without a branch is refused', 'args.lanes[0].resumeFrom', { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt' } }, /must be an object \{ worktree, branch \}/],
   ['a lane effort outside the effort values is refused', 'args.lanes[0].effort', { name: 'a', owns: ['src/a/'], security: false, effort: 'extreme' }, /must be one of low, medium/],
@@ -701,7 +710,7 @@ const cases = [
       outcome: 'passed',
       rounds: 1,
       isolation: { 'develop:a': 'worktree' },
-      prompt: { 'develop:a': /^Before anything else, run `git reset --hard main`/ },
+      prompt: { 'develop:a': /^Before anything else, run `git reset --hard f00dbabe`/ },
     },
   },
   {
@@ -1263,7 +1272,7 @@ const cases = [
     name: 'two lanes whose owns overlap are refused',
     rounds: [[]],
     over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a'], security: false }, { name: 'b', owns: ['src/a/b/'], security: false }], boundariesFrozen: true }) },
-    expect: { refused: /args\.lanes\[1\]\.owns entry "src\/a\/b\/" overlaps args\.lanes\[0\]\.owns entry "src\/a"/ },
+    expect: { refused: /lane "b" owns "src\/a\/b\/", which overlaps lane "a"'s "src\/a"/ },
   },
   {
     // Sabotage: compare owns with a bare `startsWith`, without the `/` — sibling prefixes then overlap.
@@ -1454,9 +1463,9 @@ const cases = [
       rounds: 2,
       isolation: { 'review:a:module#1': 'worktree', 'verify:a#1': 'worktree', 'recheck:a#2': 'worktree', 'fix:a#1': undefined },
       prompt: {
-        'review:a:module#1': /git reset --hard m0`[^]*git diff b4se\.\.m0/,
+        'review:a:module#1': /git reset --hard m0`[^]*git diff f00dbabe\.\.m0/,
         'verify:a#1': /git reset --hard m0`/,
-        'review:a:module#2': /git reset --hard m1`[^]*git diff b4se\.\.m1/,
+        'review:a:module#2': /git reset --hard m1`[^]*git diff f00dbabe\.\.m1/,
         'recheck:a#2': /git reset --hard m1`/,
       },
       promptExcludes: { 'review:a:module#1': /cd into/ },
@@ -1477,10 +1486,10 @@ const cases = [
     },
   },
   {
-    // Sabotage: drop `head`, `tool` or the `commandsRun` sum from `result`.
+    // Sabotage: drop `head`, `worktree`, `tool` or the `commandsRun` sum from `result`.
     name: 'the lane result names its lenses, their commands, the model family and the measured head',
     rounds: [[finding()], []],
-    expect: { outcome: 'passed', rounds: 2, result: { lenses: ['module'], commandsRun: { module: 6 }, tool: 'Claude', head: 'm1' } },
+    expect: { outcome: 'passed', rounds: 2, result: { lenses: ['module'], commandsRun: { module: 6 }, tool: 'Claude', head: 'm1', worktree: '/tmp/wt' } },
   },
   {
     // Sabotage: drop `head` from `RECHECK_SCHEMA.required` or `base` from `FROZEN_SCHEMA.required`.
@@ -1536,7 +1545,7 @@ const cases = [
       develop: devWith([{ ...CRIT, command: 'uv run pytest tests/a -k smoke' }]),
       recheck: (label, r) => ({ ...r, brief: [{ id: 'C-01', sentence: 's', command: CRIT.command }] }),
     },
-    expect: { outcome: 'criteria-drift', rounds: 1, prompt: { 'recheck:a#1': /git show b4se:\.plans\/lane-a\.md/ } },
+    expect: { outcome: 'criteria-drift', rounds: 1, prompt: { 'recheck:a#1': /git show f00dbabe:\.plans\/lane-a\.md/ } },
   },
   {
     // Sabotage: drop `guard` from `RED_KINDS`, or its exemption wording from the develop prompt.
@@ -1550,7 +1559,7 @@ const cases = [
     name: 'a file moved into owns from outside is an ownership violation',
     rounds: [[]],
     over: { measure: (label, m) => ({ ...m, ownershipDiff: ['lib/moved.py', 'src/a/moved.py'] }) },
-    expect: { outcome: 'ownership-violated', rounds: 0, note: /lib\/moved\.py/, prompt: { 'touched:a#0': /diff --no-renames --name-only main\.\.HEAD → ownershipDiff/ } },
+    expect: { outcome: 'ownership-violated', rounds: 0, note: /lib\/moved\.py/, prompt: { 'touched:a#0': /diff --no-renames --name-only f00dbabe\.\.HEAD → ownershipDiff/ } },
   },
   {
     // Sabotage: count any answer in `onHead`, whatever sha it ran on.
@@ -1588,24 +1597,43 @@ const cases = [
     expect: { outcome: 'dirty-worktree', rounds: 0, note: /is not the worktree HEAD/, prompt: { 'touched:a#0': /git rev-parse lane-a → branchTip/ } },
   },
   {
-    // Sabotage: dispatch develop whatever `resumeFrom` says.
-    name: 'a resumed lane skips develop, is measured in its worktree, and is rechecked from its brief',
+    // Sabotage: give a resumed lane's develop agent a fresh isolated worktree and the reset prompt.
+    name: 'a resumed lane continues in its worktree with a continue prompt, then takes the normal path',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' } } },
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' } },
     expect: {
       outcome: 'passed',
       rounds: 1,
-      noLabel: 'develop:',
-      hasLabel: ['touched:a#0', 'recheck:a#1'],
-      prompt: { 'touched:a#0': /Measure the worktree \/tmp\/wt2/, 'recheck:a#1': /Run the command of every criterion in that brief/ },
+      hasLabel: ['develop:a', 'touched:a#0', 'recheck:a#1'],
+      isolation: { 'develop:a': undefined },
+      prompt: {
+        'develop:a': /which halted: criteria-failed: C-01\.\nContinue in its existing worktree \/tmp\/wt2 on branch lane-a — do not reset it[^]*git show f00dbabe:\.plans\/lane-a\.md/,
+        'touched:a#0': /Measure the worktree \/tmp\/wt2/,
+      },
+      promptExcludes: { 'develop:a': /git reset --hard/ },
+      result: { worktree: '/tmp/wt2', branch: 'lane-a' },
     },
   },
   {
-    // Sabotage: hold a resumed lane to no criteria (`expected = []`).
-    name: "a resumed lane whose brief criterion fails on the recheck fails",
+    // Sabotage: skip the develop-time red check for a resumed lane.
+    name: 'a resumed lane must report red again, and fails without it',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' } }, recheck: (label, r) => ({ ...r, results: r.results.map((x) => ({ ...x, exit: 1 })) }) },
-    expect: { outcome: 'criteria-failed', rounds: 1 },
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' }, develop: devWith([{ criterion: 'C-01', command: 'uv run pytest tests/a', passed: true }]) },
+    expect: { outcome: 'criteria-failed', rounds: 0, noLabel: 'review:', note: /red for "C-01" was not recorded/ },
+  },
+  {
+    // Sabotage: skip the drift comparison for a resumed lane.
+    name: 'a resumed lane is compared against its brief at base like any other',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' }, recheck: (label, r) => ({ ...r, brief: [...r.brief, { id: 'C-02', sentence: 's', command: 'uv run pytest tests/b' }] }) },
+    expect: { outcome: 'criteria-drift', rounds: 1 },
+  },
+  {
+    // Sabotage: skip the ownership check for a resumed lane.
+    name: 'a resumed lane whose diff reaches outside owns is an ownership violation',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' }, measure: (label, m) => ({ ...m, ownershipDiff: ['src/other.py'] }) },
+    expect: { outcome: 'ownership-violated', rounds: 0, result: { worktree: '/tmp/wt2' } },
   },
   {
     // Sabotage: skip the measurement for a resumed lane.
@@ -1621,7 +1649,7 @@ const cases = [
     over: {
       rawArgs: JSON.stringify({
         lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
-        allLanes: ['a', 'b'],
+        allLanes: [{ name: 'a', owns: ['src/a/'] }, { name: 'b', owns: ['src/b/'] }],
         boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
         boundariesFrozen: true,
       }),
@@ -1632,7 +1660,7 @@ const cases = [
     // Sabotage: drop the lanes-in-allLanes check.
     name: 'a lane missing from allLanes is refused',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }], allLanes: ['b'], boundariesFrozen: true }) },
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }], allLanes: [{ name: 'b', owns: ['src/b/'] }], boundariesFrozen: true }) },
     expect: { refused: /args\.lanes\[0\] is "a", which args\.allLanes omits/ },
   },
   {
@@ -1662,6 +1690,33 @@ const cases = [
     rounds: [[finding()]],
     over: { measure: (label, m) => (label === 'touched:a#1' ? { ...m, ownershipDiff: ['src/other.py'] } : m) },
     expect: { outcome: 'ownership-violated', rounds: 1, note: /src\/other\.py/ },
+  },
+  {
+    // Sabotage: drop the `m.base !== baseSha` check from `measure`.
+    name: 'a measurement resolving base to another sha than the freeze check halts',
+    rounds: [[]],
+    over: { measure: (label, m) => ({ ...m, base: 'elsewhere' }) },
+    expect: { outcome: 'measurement-failed', rounds: 0, note: /resolved base to elsewhere, not the pinned f00dbabe/ },
+  },
+  {
+    // Sabotage: check owns overlap among the run lanes only, not `allLanes`.
+    name: 'a lane whose owns overlaps a lane not being run is refused',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
+        allLanes: [{ name: 'a', owns: ['src/a/'] }, { name: 'b', owns: ['src/a/x/'] }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { refused: /lane "b" owns "src\/a\/x\/", which overlaps lane "a"'s "src\/a\/"/ },
+  },
+  {
+    // Sabotage: keep `state` when any merged member has it, rather than every one.
+    name: 'a minor merged with a later refutation at the same line is not refuted',
+    rounds: [[finding({ line: 3, severity: 'minor', summary: 'm' }), finding({ file: 'src/b.py', summary: 'go' })], [finding({ line: 3, summary: 'r' })]],
+    over: { verdict: (label, key) => (key === 'src/a.py:3' ? { state: 'refuted' } : {}) },
+    expect: { outcome: 'passed', rounds: 2, carriedState: [['m | r', undefined]] },
   },
 ]
 
