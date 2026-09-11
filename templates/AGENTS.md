@@ -14,8 +14,7 @@ Instructions for coding agents working in this repository.
 - Sample run: `[entry point on its stored sample — e.g. uv run python -m ENTRY --limit 10 device=cpu]`
 
 <!--
-Nothing else belongs here. The conventions ship as the dev-harness plugin, which reads them
-directly; a copy pasted into this file drifts from its source while being loaded in every
-session. Tools that read neither plugins nor a local clone get one pointer instead:
-https://jinwoo-cho-ilevit-com.github.io/develop-convention/
+Only the project line and its commands belong here: the rules ship in the dev-harness plugin, and a
+copy pasted here drifts. Claude Code reads this file through CLAUDE.md's `@AGENTS.md` line; a tool
+with neither plugin nor clone reads https://jinwoo-cho-ilevit-com.github.io/develop-convention/
 -->

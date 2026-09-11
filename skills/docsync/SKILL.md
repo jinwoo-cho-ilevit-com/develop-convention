@@ -12,7 +12,7 @@ Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc
 | Layer | This Skill's Role |
 |---|---|
 | L1 I/O contract | Not managed — code (type hints/schema) is the single source. Docs contain only a summary + code reference |
-| L2 Module docs | Create/update the managed block in each directory's AGENTS.md |
+| L2 Module docs | Create/update the managed block in each directory's AGENTS.md, and the sibling CLAUDE.md that imports it |
 | L3 Overall flow | Update ARCHITECTURE.md + dependency graph/sequence diagram |
 | L4 Decision history | Not managed — history lives in structured commit bodies, written at commit time |
 
@@ -119,6 +119,7 @@ If contradictory reason codes accumulate on the same section (e.g. once "too lon
 
 - A document with a state file: `git diff --name-only <its verified_commit>..HEAD -- <its directory>`. Non-empty puts that module in scope.
 - A directory with no state file has never been synced, so it is in scope. No state files at all is the first run: every module.
+- A directory whose AGENTS.md has no sibling `CLAUDE.md` is in scope, so a module the sync already covered still gets one.
 - A document at the repository root, such as `ARCHITECTURE.md`, has the root as its directory, which changes on nearly every commit. Judge it by step 4's triggers instead — a changed dependency graph or entry-point flow — rather than by that diff being non-empty.
 - A module unit is "a directory with cohesive responsibility" — don't over-split (roughly 2+ Python files per directory, or an entry point).
 - Before editing docs, resolve symlinks to their canonical path (to prevent accidentally editing an alias).
@@ -129,7 +130,8 @@ For each module (independent, so can run in parallel; delegate to a subagent if 
 
 1. Read the module's code + existing AGENTS.md + recent corrections for that module.
 2. Regenerate only the managed block. **Never edit outside the block.**
-3. Authoring rules:
+3. Give the module's AGENTS.md its sibling `CLAUDE.md` under the rule in [15-doc-tracking.md](../../conventions/15-doc-tracking.md) §1.
+4. Authoring rules:
    - Citability rule: → [15-doc-tracking.md](../../conventions/15-doc-tracking.md) Core Rules.
    - If the meaning is unchanged from the existing text, don't reword it (minimize diff).
    - Reflect corrections' reason codes as negative examples (e.g. avoid the same mistake if there's a `granularity` history).
@@ -143,7 +145,7 @@ For each module (independent, so can run in parallel; delegate to a subagent if 
 
 ### 5. Verification
 
-Hand the diff and criteria — never the authoring session's reasoning — to a fresh-context review (a separate subagent or session), which may read the referenced code to confirm: (1) no edits outside the managed block, (2) updated narrative matches the code, (3) no uncitable claims. Do not self-approve in the authoring context.
+Hand the diff and criteria — never the authoring session's reasoning — to a fresh-context review (a separate subagent or session), which may read the referenced code to confirm: (1) no edits outside the managed block other than step 3's sibling `CLAUDE.md` line, (2) updated narrative matches the code, (3) no uncitable claims. Do not self-approve in the authoring context.
 
 ### 6. Wrap-up
 
@@ -165,7 +167,16 @@ Staleness score = time elapsed since that document's `audited_at` × that module
 
 ### 3. Blind rebuild
 
-For each selected module: a fresh-context agent, **with the existing AGENTS.md blocked from context**, reads only the code and rewrites the managed block from scratch.
+For each selected module: a fresh-context agent, **with the existing AGENTS.md kept out of its context**, reads only the code and rewrites the managed block from scratch.
+
+An instruction not to read the file does not keep it out. In Claude Code a subdirectory's `CLAUDE.md` is "included when Claude reads files in those subdirectories", and the sibling `CLAUDE.md` imports `AGENTS.md`, so reading the module's code loads the retained version. Give the agent a copy that has neither file:
+
+```bash
+git archive HEAD <module-path> | tar -x -C <scratch>
+find <scratch> \( -name AGENTS.md -o -name CLAUDE.md \) -delete
+```
+
+and point it at `<scratch>` only. `git archive` writes the tree as committed at `HEAD`, which is also the commit the rebuild is compared against (sources: [Claude Code — memory](https://code.claude.com/docs/en/memory), [git-archive](https://git-scm.com/docs/git-archive), checked 2026-09-12). `claudeMdExcludes` is not the tool here: the memory documentation describes it as a setting for skipping files by path, and says nothing of it applying to a subagent started for one task.
 
 ### 4. Claim Comparison
 

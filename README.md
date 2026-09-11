@@ -97,7 +97,7 @@ claude plugin marketplace add jinwoo-cho-ilevit-com/develop-convention
 claude plugin install dev-harness@develop-convention
 ```
 
-Then run `/dev-harness:setup` once in each project. It reads the repository, proposes the run/test/lint/smoke commands, and writes a short `AGENTS.md` with them — the only thing the plugin cannot know. Python projects can also copy [templates/pyproject.toml](templates/pyproject.toml) and `templates/.pre-commit-config.yaml` for the local tool configuration.
+Then run `/dev-harness:setup` once in each project. It reads the repository, proposes the run/test/lint/smoke commands, and writes a short `AGENTS.md` with them — the only thing the plugin cannot know — plus the sibling `CLAUDE.md` that imports it, since Claude Code reads only `CLAUDE.md` — the cases (an existing file, a symlink, `.claude/CLAUDE.md`) are setup's and [15-doc-tracking.md](conventions/15-doc-tracking.md) §1's. Python projects can also copy [templates/pyproject.toml](templates/pyproject.toml) and `templates/.pre-commit-config.yaml` for the local tool configuration.
 
 ### Updating
 
@@ -105,7 +105,7 @@ Then run `/dev-harness:setup` once in each project. It reads the repository, pro
 claude plugin update dev-harness
 ```
 
-Then run `/reload-plugins`, or restart. Skills take effect immediately in a running session; hooks, MCP servers, agents and output styles do not (→ <https://code.claude.com/docs/en/plugins-reference>). Between the update and the reload the hooks do not fire at all, so the read budget is not merely stale but unenforced — measured in this repository, not documented upstream.
+Then run `/reload-plugins`, or restart, and re-run `/dev-harness:setup` in each existing project so it picks up what setup now writes — currently the `CLAUDE.md` line that imports `AGENTS.md`. Skills take effect immediately in a running session; hooks, MCP servers, agents and output styles do not (→ <https://code.claude.com/docs/en/plugins-reference>). Between the update and the reload the hooks do not fire at all, so the read budget is not merely stale but unenforced — measured in this repository, not documented upstream.
 
 To see which copy is actually running, read `~/.claude/plugins/installed_plugins.json` — it records the active install path, its version and the git commit it was built from, so the live copy is identifiable without inferring it from how a hook behaves.
 
@@ -119,7 +119,7 @@ Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste co
 |---|---|
 | `/dev-harness:spec` | Interviews you until the work is specific enough to split, then writes `PLAN.md` — review points table included — and one brief per lane |
 | `/dev-harness:build` | Freezes each boundary with a contract file, sample and (for JSON/YAML/TOML payloads) schema, fans the lanes out to worktree-isolated agents, reviews each lane the moment it finishes, merges, reviews the merged whole, and verifies |
-| `/dev-harness:setup` | Writes the short `AGENTS.md` by hand |
+| `/dev-harness:setup` | Writes the short `AGENTS.md` by hand, and the `CLAUDE.md` line that imports it |
 
 Eight skills load themselves when the work matches, so you do not have to remember which rules apply. Each routes to the documents in its Document Map group and copies none of them — a rule stays in exactly one place, where it can only be wrong once:
 
@@ -154,7 +154,7 @@ The main session orchestrates: it plans, splits and judges, and sends the editin
 
 | Tool | Behavior |
 |---|---|
-| Claude Code | Install the plugin. The conventions, hooks, commands and skills come with it; `AGENTS.md` holds only this project's commands |
+| Claude Code | Install the plugin. The conventions, hooks, commands and skills come with it; `AGENTS.md` holds only this project's commands, and reaches Claude Code through the sibling `CLAUDE.md` that `/dev-harness:setup` writes — Claude Code does not read `AGENTS.md` itself |
 | Codex CLI | Reads `AGENTS.md` natively (root→current-directory chain, with a size cap). Point it at the published docs for the rules themselves |
 | Cursor | Co-author of the AGENTS.md standard — reads it natively. Promote only the few rules that must always be enforced to `.cursor/rules/` if needed |
 | Other (Gemini CLI, Windsurf, Aider, etc.) | Tools that read the AGENTS.md standard behave the same way. For unsupported tools only, add one line in that tool's instruction file pointing to AGENTS.md |
@@ -295,7 +295,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Agentic Workflow ([09](conventions/09-agentic-workflow.md))
 
-- Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module, and put occasionally-used knowledge into Skills. Keep instruction anti-patterns out of them too: verification rituals, thoroughness boosters, redundant procedures/scratchpads, stale long-reasoning examples, contradictory rules, and dated configuration all cost tokens on current models without adding capability.
+- Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module — each AGENTS.md with its sibling CLAUDE.md, which Claude Code loads when it reads files in that directory ([15](conventions/15-doc-tracking.md) §1) — and put occasionally-used knowledge into Skills. Keep instruction anti-patterns out of them too: verification rituals, thoroughness boosters, redundant procedures/scratchpads, stale long-reasoning examples, contradictory rules, and dated configuration all cost tokens on current models without adding capability.
 - Prefer workflows/subagent orchestration for parallelization. Git worktree isolates concurrent writes to disjoint files; it does not make overlapping tasks parallel — tasks with overlapping file ownership run sequentially. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §4) rather than restarting everything; assign locks/migrations to a single owner. Confirm a subagent answered with content, not merely that it finished.
 - Merge each branch only after its completion criteria and CI-enforced checks such as lint pass (→ 18, 06, 03) and its review has closed with no blocker (→ 20), then do the integration run. Route models on two axes, tier and effort, not tier alone — a stronger model at lower effort can beat a weaker model pushed to high effort, so choose effort per task and re-choose it whenever the model changes rather than carrying the old setting over.
 - A merged lane is a closed lane: remove its worktree and delete its branch (`git worktree remove` without `--force`, `git branch -d` never `-D` — refusals are safety signals). Halted lanes keep theirs; fix rounds resume there.
@@ -351,7 +351,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Doc Tracking ([15](conventions/15-doc-tracking.md))
 
-- Docs are split into 4 tiers: for input/output contracts, code is the single source (no hand-written docs); module logic goes in a per-directory AGENTS.md; overall flow goes in ARCHITECTURE.md + Mermaid (generate dependency graphs with a deterministic tool); decision history uses structured commit bodies (record reversed decisions and rollbacks too, with reasons — git log is where they are searched for).
+- Docs are split into 4 tiers: for input/output contracts, code is the single source (no hand-written docs); module logic goes in a per-directory AGENTS.md, with the sibling CLAUDE.md that imports it for Claude Code (§1 states when to create one); overall flow goes in ARCHITECTURE.md + Mermaid (generate dependency graphs with a deterministic tool); decision history uses structured commit bodies (record reversed decisions and rollbacks too, with reasons — git log is where they are searched for).
 - Agents regenerate only inside `docsync:managed` markers (human sections are off-limits, stamped with a verification commit). Factual claims in managed docs must be citable to a code location (decision rationale/failure history go in human sections or the commit body); the primary update mechanism is incremental sync at change time — periodic runs are audit-only (dead-man's switch + blind-rebuild hallucination audit; semantically equivalent phrasing is not drift).
 - When a human edits a managed section, record a reason code so future generation accounts for it (RMA). Include a "code change ↔ doc update consistency" check in the review gate.
 - When something ships, update what distributes it in the same change — the installer, the getting-started page, the excerpt loaded elsewhere, the published site's navigation. Docs-follow-code covers the description; nothing covers the delivery path, and that is the one that leaves a working artifact unreachable.
