@@ -404,10 +404,8 @@ def test_the_plan_exemption_does_not_reach_outside_the_plan(spelling, tmp_path):
 
 @pytest.mark.parametrize("where", ["AGENTS.md", "src/parser/AGENTS.md"])
 def test_the_orchestrator_may_read_agents_md(where, tmp_path):
-    """`/dev-harness:setup` writes this file and the other two commands read it back.
-
-    A project that documented its commands at length was then refused the file that holds
-    them, which is the one artifact the rest of the plugin depends on.
+    """`/dev-harness:setup` writes this file to hold the project's commands; the guard lets
+    the orchestrator read it whole, however long the project made it.
     """
     path = tmp_path / where
     path.parent.mkdir(parents=True, exist_ok=True)
