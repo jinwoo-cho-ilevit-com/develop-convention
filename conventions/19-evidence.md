@@ -11,7 +11,7 @@ Evidence is produced by execution, not by writing. A file the model composed to 
 - Record status as a word — `PASS`, `FAIL`, `PENDING-HUMAN`, `NO-BASELINE` — never a symbol or emoji, so status survives grep and diff. The four are not interchangeable; `NO-BASELINE` in particular is defined in [06-testing-verification.md](06-testing-verification.md) §3.
 - Paste what the command printed, not a description of it. Where the output is too large, keep it under `artifacts/<feature>/` and cite the path — that directory is gitignored, so nothing there is a commit-size concern.
 - **Mask secrets before evidence leaves the machine.** Command lines and environment values are recorded verbatim otherwise, and evidence is meant to be shared. The pre-commit scan never sees gitignored artifacts, so pasting a report into a review is the path that leaks (→ [13-secret-management.md](13-secret-management.md)).
-- Block completion on `PENDING-HUMAN` regardless of done level. A `[human]` criterion passes only once a verdict, its author, and its timestamp are recorded — an unanswered human check is a TODO, and TODOs are blockers (→ [06-testing-verification.md](06-testing-verification.md), [18-work-contract.md](18-work-contract.md)).
+- Block completion on `PENDING-HUMAN` regardless of done level. A `[human]` criterion passes only once a verdict, its author, and its timestamp are recorded — an unanswered human check is a TODO, and TODOs are blockers (§3, → [06-testing-verification.md](06-testing-verification.md)).
 - Name the commit the run was made against and whether the tree was clean. A passing table against an unknown tree proves nothing about the tree that gets merged.
 - Record every gate bypass with its reason. A bypass that leaves no trace is a blocker; a recorded one is a decision.
 
@@ -33,7 +33,7 @@ A human reading this looks at the non-`PASS` rows and stops. That is the entire 
 
 The `red` column records which of the red checks in [06-testing-verification.md](06-testing-verification.md) §3 established the row — `observed`, `sabotage` or `guard` — with its output kept beside the row's command output, and `—` for a `[human]` row.
 
-The whole-project claim is the union of the lane tables, each re-run on the merged head, plus the end-to-end condition from the plan (→ [21-development-loop.md](21-development-loop.md)). Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
+The final report covers the end-to-end condition ([18-work-contract.md](18-work-contract.md) §1), every run that definition names with its rows. Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
 
 ### 2. Execution output
 
@@ -43,7 +43,7 @@ Masking applies to the command line and the environment, not only to the output.
 
 ### 3. Human verdicts
 
-A `[human]` criterion has three states: `PENDING-HUMAN` until someone answers, then `PASS` or a rejection that becomes a blocker.
+A `[human]` criterion has three states: `PENDING-HUMAN` until someone answers, then `PASS` or a rejection that becomes a blocker. An unanswered one blocks completion at every done level.
 
 The verdict record carries the verdict, who gave it, when, and an optional note. Recording the author matters more than it looks: a criterion whose verdict has no author is indistinguishable from one the tooling marked passed on its own.
 

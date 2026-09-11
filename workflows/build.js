@@ -665,7 +665,7 @@ function verifyPrompt(lane, blockers, again) {
     'cannot happen and the state is `refuted`. Report how many commands each verdict rests on. A verdict',
     'reached by reading alone is `unverified` — reading decides nothing here.',
     ...(again
-      ? ['A first pass left these unverified. Reproduce each one: write and run the smallest input that triggers it.']
+      ? ['A first run left these unverified. Reproduce each one: write and run the smallest input that triggers it.']
       : []),
     'Return one verdict per key, with the key copied exactly, and say what you ran and what it printed.',
     ...(contracts ? [contracts] : []),

@@ -28,7 +28,7 @@ Four instances from one benchmark harness, all found on rented GPUs after a full
 | A fix silently fell through a `TypeError` fallback | The fake `unwrap_model` did not take the real argument |
 | A single flaky upload sank a finished run | The fake uploader could only express permanent failure |
 
-The last one is the sharpest: the fix was applied, the suite stayed green, and nothing indicated the new code path was never reached. **When a test double is changed, ask what failure it can now represent that it could not before** — if the answer is none, the change is decorative.
+The last row is the sharpest: a double that can express only one kind of failure lets a fix for another kind pass the suite without its code path ever running. **When a test double is changed, ask what failure it can now represent that it could not before** — if the answer is none, the change is decorative.
 
 ### 2. What to shrink and what to keep
 

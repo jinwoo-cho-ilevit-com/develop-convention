@@ -1,23 +1,20 @@
 # 21. The Development Loop
 
-One pass from "I want to build this" to a merged, verified change. Every step is specified in another document; this one is the order they run in and the seams between them. The `dev-harness` plugin in this repository runs the loop, and running it by hand against the same documents is legitimate.
+One loop from "I want to build this" to a merged, verified change. Every step is specified in another document; this one is the order they run in and the seams between them. The `dev-harness` plugin in this repository runs the loop, and running it by hand against the same documents is legitimate.
 
 ## Core Rules
 
-Run the steps in this order, each governed by the document beside it. Only the interview rules below belong to this document; everything else is a pointer, because a rule written twice drifts.
-
-| Step | Governed by |
-|---|---|
-| Orchestrate, do not develop | [09-agentic-workflow.md](09-agentic-workflow.md), [14-context-management.md](14-context-management.md) |
-| Interview to a plan and one brief per lane | this document |
-| Split by disjoint file ownership | [18-work-contract.md](18-work-contract.md) |
-| Write criteria as sentence plus command, `[human]` where no command exists | [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md) |
-| Challenge the plan before asking for approval | [18-work-contract.md](18-work-contract.md) §3, [20-review-gate.md](20-review-gate.md) |
-| Freeze each boundary with a contract file and its sample before the lanes start | [06-testing-verification.md](06-testing-verification.md) |
-| Review each lane on its own finish, then fix and re-review | [20-review-gate.md](20-review-gate.md) |
-| Merge, integrate last | [09-agentic-workflow.md](09-agentic-workflow.md) |
-| Review the merged whole, then verify end to end | [20-review-gate.md](20-review-gate.md), [06-testing-verification.md](06-testing-verification.md) |
-
+- Run the steps in this order, each governed by the document named beside it. Only the interview rules below belong to this document; the rest are pointers, because a rule written twice drifts.
+  - Orchestrate, do not develop: [09-agentic-workflow.md](09-agentic-workflow.md), [14-context-management.md](14-context-management.md).
+  - Interview to a plan and one brief per lane: this document.
+  - Split by disjoint file ownership: [18-work-contract.md](18-work-contract.md).
+  - Write criteria as sentence plus command, `[human]` where no command exists: [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md).
+  - Choose the done level: [18-work-contract.md](18-work-contract.md) §3.
+  - Challenge the plan before asking for approval: [18-work-contract.md](18-work-contract.md) §3, [20-review-gate.md](20-review-gate.md).
+  - Freeze each boundary with a contract file and its sample before the lanes start: [06-testing-verification.md](06-testing-verification.md).
+  - Review each lane on its own finish, then fix and re-review: [20-review-gate.md](20-review-gate.md).
+  - Merge, integration lane last: [09-agentic-workflow.md](09-agentic-workflow.md).
+  - Review the merged whole, then check the end-to-end condition: [20-review-gate.md](20-review-gate.md), [06-testing-verification.md](06-testing-verification.md).
 - Specify by interview, not by template. What to ask about is derived from this project — infer the axes from the request and the repository, check once for what recent practice adds, then keep only those that name a way this project could fail. A fixed axis list can only cover what someone already knew to list.
 - Keep the axis list open during the interview. When an answer reveals an axis you did not have, add it. Record every axis and its state — decided, not applicable, still open — because that record is the only account of what was never asked.
 - The interview ends when the person says it ends, and its output is a plan plus one brief per lane, not prose.
@@ -29,14 +26,14 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Step | What happens | Specified in |
 |---|---|---|
 | Interview | Axes derived from the project, one question at a time, every proposal sourced | §2 below, [16-research-protocol.md](16-research-protocol.md) |
-| Plan | `PLAN.md` (done level, decisions, rejected alternatives, axis table, boundaries, lanes, review points, whole-project condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
+| Plan | `PLAN.md` (done level, decisions, rejected alternatives, axis table, boundaries, lanes, review points, end-to-end condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
 | Challenge | The plan lane runs at the done level's depth; the plan is shown for approval only once its exit is recorded | [20-review-gate.md](20-review-gate.md) §2 |
 | Freeze | One contract file per boundary, plus its sample payload and, where the payload lands as JSON, YAML or TOML, its schema. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1, §7 |
 | Fan out | One worktree-isolated agent per lane, disjoint `owns` | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 | Review | Starts per lane on that lane's finish; lanes defined by input; fix and recheck | [20-review-gate.md](20-review-gate.md) |
 | Merge | Criteria and CI checks pass, review closed on no blocker → merge; integration lane last | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 | Merged-whole | One lane over the assembled change, pinned to two commits, before any worktree is removed | [20-review-gate.md](20-review-gate.md) §2 |
-| Verify | Whole-project condition, `[human]` criteria answered, evidence reported as a criteria table | [19-evidence.md](19-evidence.md) |
+| Verify | End-to-end condition ([18-work-contract.md](18-work-contract.md) §1), `[human]` criteria answered, evidence reported as a criteria table | [19-evidence.md](19-evidence.md) |
 | Clean up | Merged lanes lose worktree and branch; halted lanes keep theirs | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 
 ### 2. Deriving what to ask
@@ -55,7 +52,7 @@ A greenfield project has no repository to ground the first step, which is where 
 
 **Ownership is not agreement.** The split rule guarantees two lanes never write the same file. It guarantees nothing about the two of them agreeing on what passes between them, and the more finely the work divides the more such boundaries exist. Freezing each one as a contract file and a sample both lanes read before either starts is the only step that closes this, and it has to happen before, not after — a boundary discovered at merge time costs both lanes.
 
-**A barrier is a choice, not a fact.** Lanes finish at different times. Reviewing on each finish means a lane's review overlaps with other lanes still working, and the wait disappears rather than being filled. Collecting all lanes before reviewing any creates the pause and then invites the question of what to do during it. Prefer the pipeline (→ [14-context-management.md](14-context-management.md) §1).
+**A barrier is a choice, not a fact.** Lanes finish at different times; when each lane's review starts, and why waiting for all of them costs more than it saves, is [20-review-gate.md](20-review-gate.md) Core Rules.
 
 **Two review points are fixed by time, not by risk.** Every other lane is chosen by what the change touches; the plan review and the merged-whole review are chosen by when they run. Before approval is the last moment a direction can change cheaply, and after the last merge is the first moment the seams between units exist to be read — a unit review passes each piece against itself, and what only appears where pieces meet has no earlier reader.
 

@@ -23,7 +23,7 @@ For a new project or a refactor, treat the existing codebase's structure not as 
 
 ### 2. Fresh-context principle
 
-AI agents anchor to conclusions already present in context, and the anchoring has been measured. On meta-review generation, GPT-4o showed an anchoring coefficient toward the first reviewer of 0.255 against a 0.193 human-committee baseline, and the authors report the bias persists even when later reviews supply contradictory evidence. Separating the review session changes the outcome and not just the wording: in a controlled comparison, cross-context review reached F1 28.6% versus 24.6% for same-session review (p=0.008), while reviewing twice in the same session did not beat reviewing once (p=0.11) — so the gain comes from the context separation itself, not from the extra pass.
+AI agents anchor to conclusions already present in context, and the anchoring has been measured. On meta-review generation, GPT-4o showed an anchoring coefficient toward the first reviewer of 0.255 against a 0.193 human-committee baseline, and the authors report the bias persists even when later reviews supply contradictory evidence. Separating the review session changes the outcome and not just the wording: in a controlled comparison, cross-context review reached F1 28.6% versus 24.6% for same-session review (p=0.008), while reviewing twice in the same session did not beat reviewing once (p=0.11) — so the gain comes from the context separation itself, not from the extra review.
 
 Both are single studies (the second an unrefereed preprint). Treat the direction as evidence and the magnitudes as provisional.
 
