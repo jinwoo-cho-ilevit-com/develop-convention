@@ -65,6 +65,7 @@ nav:
       - conventions/22-framework-wrapping.md
       - conventions/23-remote-gpu-iteration.md
       - conventions/24-explainer-docs.md
+      - conventions/25-agent-sandboxing.md
   - Harness:
       - skills/plan-and-delegate/SKILL.md
       - skills/code-and-config/SKILL.md

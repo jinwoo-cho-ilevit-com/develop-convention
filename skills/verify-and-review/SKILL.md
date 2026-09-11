@@ -21,6 +21,7 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | Who reviews this, and what input each reviewer gets | 20 |
 | When the review loop stops, and which exits need a human | 20 |
 | What reviews the plan, and what reviews the merged whole | 20 |
+| Whether a hook may block a session nobody is watching | 20 |
 
 ## Order
 
