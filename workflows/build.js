@@ -321,6 +321,12 @@ function lensesFor(lane) {
   return lane.security === true ? [...base, SECURITY_LENS] : base
 }
 
+// Every lane-scoped agent needs this, or the reviewer runs the whole suite in the lane,
+// trips on a contract's sibling import, and the fixer is sent to mock the sibling (→ 18 §5).
+const CONTRACTS_AT_INTEGRATION =
+  'Boundary contract tests under tests/contract/ run at integration, once every side is merged — never inside a lane. ' +
+  'Do not run them here, do not treat their failure here as a finding, and never edit them.'
+
 function developPrompt(lane) {
   return [
     `Before anything else, run \`git reset --hard ${base}\` in your worktree, then \`git log --oneline -1\``,
@@ -332,8 +338,9 @@ function developPrompt(lane) {
     '',
     `Work only inside your owned paths: ${(lane.owns ?? []).join(', ')}.`,
     'Every other path belongs to another lane running right now; touching one collides.',
-    'The contract tests for your boundaries already exist and no lane owns them — build your side to satisfy them and never edit them.',
-    'They run at integration, once every side is merged; your own check is your stage\'s sample run on the frozen sample.',
+    'The contract tests for your boundaries already exist and no lane owns them — build your side to satisfy them.',
+    CONTRACTS_AT_INTEGRATION,
+    "Your own checks are the brief's completion criteria; where your stage reads a frozen sample, read it and never write it.",
     '',
     'Create a branch for this lane, commit your work to it, and run every command listed under',
     'the brief\'s completion criteria. Update the AGENTS.md of each directory you own in the same pass',
@@ -353,7 +360,8 @@ function reviewPrompt(lane, lens, round, fixSummary) {
     `cd into ${lane.worktree} before running anything — that is where this lane's work is.`,
     'Running the test command anywhere else tests a tree without the change and reports it as your verdict.',
     '',
-    `Read the change with \`git diff ${lane.base}..${lane.branch}\` and \`git show ${lane.branch}:<path>\`.`,
+    `Read the change with \`git diff ${lane.base}..${lane.branch}\` and \`git show ${lane.branch}:<path>\`,`,
+    `and its commit messages with \`git log ${lane.base}..${lane.branch}\` — a bug fix's reproduction lives in its ## Result.`,
     "Never switch branches in a shared worktree — one checkout erases every other lane's subject.",
     '',
     "You did not write this code and you do not get the author's reasoning. Judge the diff against",
@@ -361,6 +369,7 @@ function reviewPrompt(lane, lens, round, fixSummary) {
     '',
     'Run the code. You have the test command and the tool under review; report how many commands you',
     'actually executed. A verdict from a lane that ran none is a reading, not a review.',
+    CONTRACTS_AT_INTEGRATION,
     '',
     'Flag correctness and requirement gaps only. Do not manufacture problems in sound code.',
     round > 1
@@ -380,6 +389,7 @@ function verifyPrompt(lane, blockers) {
     '',
     'Reproduce it, or read the code path and show it cannot happen. Return one verdict per key,',
     'with the key copied exactly, and say what you ran or read.',
+    CONTRACTS_AT_INTEGRATION,
     '',
     'A finding with no concrete failing scenario is not confirmed. Reviewers asked to find problems',
     'manufacture them in sound code, and an unconfirmed blocker forces a fix that then shows up as',
@@ -397,6 +407,7 @@ function fixPrompt(lane, blockers) {
     'Fix only these. Anything else you notice goes in your summary, not in the diff — an unrelated',
     'change here forces the whole lane through another review round.',
     'Re-run the criteria commands from your brief before returning.',
+    CONTRACTS_AT_INTEGRATION,
     '',
     'Return a short summary of what you changed.',
   ].join('\n')
