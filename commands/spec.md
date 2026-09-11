@@ -44,22 +44,22 @@ Settle the done level in the interview (→ 18 §3); it decides how deep the pla
 
 After `ExitPlanMode` is approved — not before, because plan mode blocks these writes — write `.plans/<feature>/`:
 
-**`PLAN.md`** — the done level, decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, the review points table carried from section 2, and the whole-project completion condition (every lane's criteria re-run on the merged head, plus the end-to-end sample run). A lane brief never lists a boundary contract as a criterion: a contract is a file, not a command, and nothing inside one lane can check it (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
+**`PLAN.md`** — the done level, decisions and their reasoning, rejected alternatives with why, the axis table (`decided` / `not applicable` / `open` — this is the only coverage record, so it is where "what we never asked" stays visible), the boundary table, the lane table, the review points table carried from section 2, and the whole-project completion condition (every lane's criteria re-run on the merged head, plus the end-to-end sample run). A lane brief never lists the whole boundary contract as a criterion — the other side is not in its worktree — but the lane producing a schema'd payload lists the check of its own fresh output against that schema (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
 
 **`lane-<name>.md`** per lane — scope, owned files, completion criteria, out of scope.
 
 Split as far as file ownership allows. `owns` entries are directory prefixes or individually named files, never globs — a glob is expanded against the files that exist now and misses the ones the work is about to create. Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
 
-List every boundary between lanes with the contract file and sample that will pin it. The contract file lives at `.plans/<feature>/contracts/<boundary>.md`, so it shares the plan's lifetime; the sample lives under `tests/fixtures/`. Neither is a test, both belong to no lane, and both are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches a single agent to write them all, so an object reaching two boundaries gets one definition instead of two (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
+List every boundary between lanes with the contract file and sample that will pin it, and — where the payload lands as JSON, YAML or TOML — the schema. The contract file and schema live under `.plans/<feature>/contracts/`, so they share the plan's lifetime; the sample lives under `tests/fixtures/`. Rows sharing a `sample` share a `schema` too. Leave `schema` empty only for a boundary with no file payload (a call surface) or a JSON Lines / Parquet dump. None of these is a test, both belong to no lane, and both are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches a single agent to write them all, so an object reaching two boundaries gets one definition instead of two (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
 
 Decide here, not at freeze time, which objects cross more than one boundary: give those rows the same `sample` value. One file listed twice is what both contract files point at, and `build.js` checks each row's path and finds it. Two paths for one object is the shape that cannot be fixed later — the freeze cannot merge them without leaving a path the existence check refuses the build over, and if it does not merge them the object has two definitions that nothing compares.
 
 Write the boundary table with these exact keys, because `build.js` reads them and a boundary spelled another way silently drops that lane from three review lenses to one:
 
 ```markdown
-| name | lanes | contract | sample |
-|---|---|---|---|
-| parser-validator | lane-a, lane-b | .plans/ingest/contracts/parser-validator.md | tests/fixtures/parser_out.sample.json |
+| name | lanes | contract | schema | sample |
+|---|---|---|---|---|
+| parser-validator | lane-a, lane-b | .plans/ingest/contracts/parser-validator.md | .plans/ingest/contracts/parser_out.schema.json | tests/fixtures/parser_out.sample.json |
 ```
 
 The lane table uses these keys, all three required — `build.js` refuses a plan whose lane omits one:
@@ -80,6 +80,8 @@ Write each completion criterion as a sentence paired with the command that check
 
 - Rows with an empty required field SHALL be dropped with a warning
   → uv run pytest tests/parser/test_sample_run.py::test_c01_drops_empty_rows
+- The parser's output at the parser-validator boundary matches its schema
+  → rm -rf runs/sample && uv run python -m parser --limit 100 --dump runs/sample && uvx check-jsonschema@0.38.0 --schemafile .plans/ingest/contracts/parser_out.schema.json runs/sample/parser_out.json
 - [human] The warning text is actionable for an operator
   → verdict: ____  by: ____  at: ____
 

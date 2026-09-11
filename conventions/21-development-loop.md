@@ -31,7 +31,7 @@ Run the steps in this order, each governed by the document beside it. Only the i
 | Interview | Axes derived from the project, one question at a time, every proposal sourced | §2 below, [16-research-protocol.md](16-research-protocol.md) |
 | Plan | `PLAN.md` (done level, decisions, rejected alternatives, axis table, boundaries, lanes, review points, whole-project condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
 | Challenge | The plan lane runs at the done level's depth; the plan is shown for approval only once its exit is recorded | [20-review-gate.md](20-review-gate.md) §2 |
-| Freeze | One contract file per boundary, plus its sample payload. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1 |
+| Freeze | One contract file per boundary, plus its sample payload and, where the payload lands as a file, its schema. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1 |
 | Fan out | One worktree-isolated agent per lane, disjoint `owns` | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 | Review | Starts per lane on that lane's finish; lanes defined by input; fix and recheck | [20-review-gate.md](20-review-gate.md) |
 | Merge | Criteria pass → merge; integration lane last | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |

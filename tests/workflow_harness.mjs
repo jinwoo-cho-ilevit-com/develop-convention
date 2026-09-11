@@ -60,7 +60,15 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       // this call is the one outside the pipeline, so only it can take a throw out of the run.
       if (over.freezeCheckThrows) throw new Error('freeze agent died hard')
       if (over.freezeCheckDies) return null
-      return { missing: over.missingFrozen ?? [], head: over.frozenHead ?? 'f00dbabe' }
+      // Defaults model a healthy tool and one passing row per boundary that declares a
+      // schema, derived from the same boundaries the workflow itself was given.
+      const schemaBoundaries = (over.boundaries ?? []).filter((b) => b.schema)
+      return {
+        missing: over.missingFrozen ?? [],
+        head: over.frozenHead ?? 'f00dbabe',
+        tool: over.freezeTool ?? { exit: 0, output: 'check-jsonschema, version 0.38.0' },
+        checked: over.freezeChecked ?? schemaBoundaries.map((b) => ({ boundary: b.name, exit: 0, output: 'ok' })),
+      }
     }
     if (label.startsWith('develop:')) {
       // eslint-disable-next-line no-throw-literal
@@ -154,6 +162,7 @@ function dispatchChecks(expect, out) {
 // and the first half of the expected note, so no row passes on a message about another field.
 const LANE = { name: 'a', owns: ['src/a/'], security: false }
 const BOUNDARY = { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }
+const SCHEMA_BOUNDARY = { ...BOUNDARY, schema: '.plans/contracts/api.schema.json' }
 const SHAPE_ROWS = [
   ['a misspelled top-level key is refused rather than defaulted', 'args', { lanes: [LANE], conventionDir: '/abs/conventions', boundariesFrozen: true }, /unknown key "conventionDir"/],
   ['arguments carrying no lanes at all are refused by name', 'args', { boundariesFrozen: true }, /declares no lanes/],
@@ -723,6 +732,133 @@ const cases = [
       hasLabel: 'review:a:security#1',
       prompt: { 'develop:a': /Work only inside your owned paths: src\/a\/, src\/shared\/config\.py\./ },
     },
+  },
+  {
+    // Sabotage: drop the `frozen.tool?.exit !== 0` refusal and this note never fires, since
+    // the schema-check-failed refusal below it is the one this pins.
+    name: 'a sample that fails its schema check is refused naming the boundary and output',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      freezeChecked: [{ boundary: 'api', exit: 1, output: 'additional properties not allowed' }],
+    },
+    expect: { refused: /api \(exit 1: additional properties not allowed\)/ },
+  },
+  {
+    // Sabotage: drop the `frozen.tool?.exit !== 0` refusal block entirely — this then falls
+    // through to the schema-check-failed wording instead, or passes outright.
+    name: 'a schema tool that cannot run is refused with wording distinct from a failing sample',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      freezeTool: { exit: 127, output: 'uvx: command not found' },
+    },
+    expect: { refused: /schema tool could not run/ },
+  },
+  {
+    // Sabotage: remove the `uncheckedNames.length` arm of the one-to-one refusal.
+    name: 'a schema boundary with no checked row is refused as unmeasured',
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY], freezeChecked: [] },
+    expect: { refused: /unmeasured/ },
+  },
+  {
+    // Sabotage: remove the `duplicatedNames.length` arm of the one-to-one refusal.
+    name: 'a duplicate checked row for the same boundary is refused as unmeasured',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      freezeChecked: [
+        { boundary: 'api', exit: 0, output: 'ok' },
+        { boundary: 'api', exit: 0, output: 'ok' },
+      ],
+    },
+    expect: { refused: /unmeasured/ },
+  },
+  {
+    // Sabotage: remove the `unknownNames.length` arm of the one-to-one refusal.
+    name: 'an unknown checked row naming no schema boundary is refused as unmeasured',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      freezeChecked: [
+        { boundary: 'api', exit: 0, output: 'ok' },
+        { boundary: 'ghost', exit: 0, output: 'ok' },
+      ],
+    },
+    expect: { refused: /unmeasured/ },
+  },
+  {
+    // Sabotage: build `detail` from `schemaBoundaries` instead of `failedChecks` — the
+    // passing boundary then shows up in the note too.
+    name: 'two schema boundaries with one failing names only the failing one',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY, { name: 'db', lanes: ['a'], contract: '.plans/contracts/db.md', sample: 'tests/fixtures/db.sample.json', schema: 'tests/fixtures/db.schema.json' }],
+      freezeChecked: [
+        { boundary: 'api', exit: 0, output: 'ok' },
+        { boundary: 'db', exit: 1, output: 'boom' },
+      ],
+    },
+    expect: { refused: /^(?!.*api \(exit).*db \(exit 1: boom\).*$/ },
+  },
+  {
+    // Sabotage: move the missing-path check after the schema checks — this then fails on the
+    // schema-check-failed wording instead of the missing-path wording.
+    name: 'missing path refusal wins even when the schema check would fail',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      missingFrozen: ['tests/fixtures/api.sample.json'],
+      freezeChecked: [{ boundary: 'api', exit: 1, output: 'boom' }],
+    },
+    expect: { refused: /declared frozen but these contract or sample files do not exist/ },
+  },
+  {
+    // Sabotage: always include `--schemafile` regardless of `b.schema` — this then matches
+    // where it must not.
+    name: 'a boundary without a schema gets no --schemafile line and needs no checked row',
+    rounds: [[]],
+    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
+    expect: { outcome: 'passed', rounds: 1, promptExcludes: { 'freeze-check': /--schemafile/ } },
+  },
+  {
+    // Sabotage: drop `SCHEMA_CHECK`/`--version`/the per-boundary command line from the freeze
+    // prompt — each is otherwise unobserved by any other case.
+    name: "the freeze prompt names the schema tool, --version, and each schema boundary's exact paths",
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY] },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      prompt: {
+        'freeze-check': /(?=[\s\S]*uvx check-jsonschema@0\.38\.0 --version)(?=[\s\S]*uvx check-jsonschema@0\.38\.0 --schemafile \.plans\/contracts\/api\.schema\.json tests\/fixtures\/api\.sample\.json)/,
+      },
+    },
+  },
+  {
+    // Sabotage: drop the schema path from `boundaryContracts`'s per-boundary line.
+    name: "a pinned lane's prompts include its boundary's schema path",
+    rounds: [[]],
+    over: { boundaries: [SCHEMA_BOUNDARY] },
+    expect: {
+      outcome: 'passed',
+      prompt: {
+        'develop:a': /- api: contract \.plans\/contracts\/api\.md, schema \.plans\/contracts\/api\.schema\.json, sample tests\/fixtures\/api\.sample\.json/,
+      },
+    },
+  },
+  {
+    // Sabotage: remove the boundary-name duplicate check from the `complaint` chain.
+    name: 'two boundaries of the same name are refused',
+    rounds: [[]],
+    over: {
+      boundaries: [
+        { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' },
+        { name: 'api', lanes: ['a'], contract: '.plans/contracts/api2.md', sample: 'tests/fixtures/api2.sample.json' },
+      ],
+    },
+    expect: { refused: /args\.boundaries\[1\] repeats the name "api"/ },
   },
 ]
 
