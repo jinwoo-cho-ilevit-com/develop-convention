@@ -79,7 +79,7 @@ Round count is not an exit condition. One loop here ran eleven rounds without co
 
 ### 4. Review tools
 
-Choose before development starts. Outside the two fixed points below, a single-lane review uses one path; a multi-lane review mixes both so not every lane shares a vendor.
+Choose before development starts. Outside the two fixed points below, a unit's lanes may all use one path; the two fixed points run both.
 
 **Path A — Codex plugin (inside the development session).** With the Stop review gate on (`/codex:setup --enable-review-gate`), an automatic `ALLOW`/`BLOCK` review runs at the end of every turn that changed code, using whatever model the Codex CLI is configured with. After the work is complete, `/codex:review` (standard) and `/codex:adversarial-review` (design-adversarial) are available. The plugin returns the review verbatim and does not auto-fix, so the orchestrator reads and applies it.
 

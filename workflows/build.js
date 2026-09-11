@@ -43,7 +43,7 @@ const DEVELOP_SCHEMA = {
           passed: { type: 'boolean' },
           output: { type: 'string' },
           red: { type: 'string', enum: RED_KINDS, description: 'required when command is non-empty: how you saw this check fail' },
-          redOutput: { type: 'string', description: 'required when command is non-empty: the failing output you saw' },
+          redOutput: { type: 'string', description: 'required when command is non-empty: the failing output, or for `guard` the exemption reason or its passing output at base' },
         },
       },
     },
@@ -52,9 +52,10 @@ const DEVELOP_SCHEMA = {
 
 const FINDINGS_SCHEMA = {
   type: 'object',
-  required: ['findings', 'commandsRun', 'tool'],
+  required: ['head', 'findings', 'commandsRun', 'tool'],
   additionalProperties: false,
   properties: {
+    head: { type: 'string', description: 'the sha `git rev-parse HEAD` printed after your reset' },
     commandsRun: { type: 'integer', description: 'how many commands you actually executed' },
     tool: { type: 'string', description: 'the model family you run on, e.g. Claude' },
     findings: {
@@ -92,10 +93,11 @@ const FIX_SCHEMA = {
 // is not evidence about it. Every later step reads this, never the lane's own report.
 const MEASURE_SCHEMA = {
   type: 'object',
-  required: ['head', 'base', 'trackedChanges', 'untracked', 'ownershipDiff', 'causationDiff'],
+  required: ['head', 'branchTip', 'base', 'trackedChanges', 'untracked', 'ownershipDiff', 'causationDiff'],
   additionalProperties: false,
   properties: {
     head: { type: 'string', description: 'the sha printed by git rev-parse HEAD' },
+    branchTip: { type: 'string', description: 'the sha printed by git rev-parse of the lane branch' },
     base: { type: 'string', description: 'the sha printed by git rev-parse of the base' },
     trackedChanges: { type: 'array', items: { type: 'string' }, description: 'one entry per line of git status --porcelain --untracked-files=no' },
     untracked: { type: 'array', items: { type: 'string' }, description: 'paths from git ls-files --others --exclude-standard' },
@@ -106,7 +108,7 @@ const MEASURE_SCHEMA = {
 
 const FROZEN_SCHEMA = {
   type: 'object',
-  required: ['missing', 'head', 'tool', 'checked'],
+  required: ['missing', 'head', 'base', 'tool', 'checked'],
   additionalProperties: false,
   properties: {
     missing: {
@@ -115,6 +117,7 @@ const FROZEN_SCHEMA = {
       description: 'only the given paths that do not exist; a path that exists is left out entirely',
     },
     head: { type: 'string', description: 'the sha printed by git rev-parse HEAD after the reset' },
+    base: { type: 'string', description: 'the sha printed by git rev-parse of the base' },
     tool: {
       type: 'object',
       required: ['exit', 'output'],
@@ -144,9 +147,10 @@ const FROZEN_SCHEMA = {
 
 const VERDICT_SCHEMA = {
   type: 'object',
-  required: ['verdicts'],
+  required: ['head', 'verdicts'],
   additionalProperties: false,
   properties: {
+    head: { type: 'string', description: 'the sha `git rev-parse HEAD` printed after your reset' },
     verdicts: {
       type: 'array',
       items: {
@@ -166,9 +170,10 @@ const VERDICT_SCHEMA = {
 
 const RECHECK_SCHEMA = {
   type: 'object',
-  required: ['results', 'brief'],
+  required: ['head', 'results', 'brief'],
   additionalProperties: false,
   properties: {
+    head: { type: 'string', description: 'the sha `git rev-parse HEAD` printed after your reset' },
     results: {
       type: 'array',
       description: 'exactly one row per command you were given',
@@ -231,11 +236,14 @@ function dedupe(findings) {
       continue
     }
     const top = SEVERITY_RANK[f.severity] > SEVERITY_RANK[prev.severity] ? f : prev
+    const { state, ...rest } = top
     byKey.set(keyOf(f), {
-      ...top,
+      ...rest,
       summary: joinDistinct(prev.summary, f.summary),
       failureScenario: joinDistinct(prev.failureScenario, f.failureScenario),
       causedByPreviousFix: Boolean(prev.causedByPreviousFix || f.causedByPreviousFix),
+      // A refutation covers only the finding it was made on, not another at the same line.
+      ...(state && prev.state === f.state ? { state } : {}),
     })
   }
   return [...byKey.values()]
@@ -311,6 +319,8 @@ const ARG_FIELDS = [
   ['conventionsDir', isText, 'a non-empty string'],
   ['lanes', Array.isArray, 'a list of lane objects'],
   ['boundaries', Array.isArray, 'a list of boundary objects'],
+  // Every lane of the plan, for a partial re-run whose boundaries name lanes it does not run.
+  ['allLanes', isTextList, 'a non-empty list of lane names'],
   // Type only; whether it is true is policy, refused separately below.
   ['boundariesFrozen', (v) => typeof v === 'boolean', 'a boolean'],
 ]
@@ -320,6 +330,12 @@ const LANE_FIELDS = [
   ['security', (v) => typeof v === 'boolean', 'a boolean'],
   ['tier', (v) => Object.keys(TIER_MODEL).includes(v), `one of ${Object.keys(TIER_MODEL).join(', ')}`],
   ['effort', (v) => EFFORTS.includes(v), `one of ${EFFORTS.join(', ')}`],
+  // A halted lane's existing worktree and branch: develop is skipped and review starts at round 1.
+  [
+    'resumeFrom',
+    (v) => isPlainObject(v) && Object.keys(v).length === 2 && isText(v.worktree) && isText(v.branch),
+    'an object { worktree, branch } of non-empty strings',
+  ],
 ]
 const BOUNDARY_FIELDS = [
   ['name', isText, 'a non-empty string'],
@@ -389,6 +405,7 @@ const conventionsDir = input?.conventionsDir ?? 'conventions'
 const base = input?.base ?? 'main'
 const lanes = input?.lanes ?? []
 const boundaries = input?.boundaries ?? []
+const allLanes = input?.allLanes
 
 // Nothing can be read off a value that is not an object, so the freeze check below would
 // refuse in the name of a freeze that may well have happened.
@@ -432,10 +449,11 @@ const complaint =
     .find(Boolean) ??
   // A pinned lane gets three lenses instead of one; a name matching no lane buys the shallower
   // review and says nothing.
+  lanes.map((l, i) => (allLanes && !allLanes.includes(l.name) ? `args.lanes[${i}] is ${JSON.stringify(l.name)}, which args.allLanes omits` : null)).find(Boolean) ??
   boundaries
     .flatMap((b, i) =>
       (b.lanes ?? []).map((n, j) =>
-        lanes.some((l) => l.name === n) ? null : `args.boundaries[${i}].lanes[${j}] is ${JSON.stringify(n)}, which no lane declares`,
+        (allLanes ?? lanes.map((l) => l.name)).includes(n) ? null : `args.boundaries[${i}].lanes[${j}] is ${JSON.stringify(n)}, which no lane declares`,
       ),
     )
     .find(Boolean) ??
@@ -523,8 +541,8 @@ function schemaFindingNotes(lane) {
 }
 
 const resetTo = (sha) => [
-  `Before anything else, run \`git reset --hard ${sha}\` in your worktree and confirm \`git rev-parse HEAD\``,
-  'prints that sha. It is the lane\'s work as measured; a verdict from any other tree is about code without the change.',
+  `Before anything else, run \`git reset --hard ${sha}\` in your worktree, then report what \`git rev-parse HEAD\``,
+  'prints as `head`. That sha is the lane\'s work as measured; an answer from any other tree is not counted.',
 ]
 
 function developPrompt(lane) {
@@ -563,7 +581,8 @@ function developPrompt(lane) {
     '',
     `For every criterion with a command, report \`red\` and \`redOutput\` (→ ${conventionsDir}/06-testing-verification.md §3):`,
     '`observed` when it failed at the base commit before your change, `sabotage` when you broke the code it',
-    'checks after the change and saw it fail, `guard` for a standing invariant — and the failing output.',
+    'checks after the change and saw it fail — with that failing output — or `guard` for a standing',
+    'invariant, with the reason it is exempt or its passing output at the base commit.',
     'A check that could not run at the base commit has no baseline, which is not a red: after implementing,',
     'sabotage the code it checks, record that failure as `sabotage`, and restore the code.',
   ].join('\n')
@@ -571,7 +590,7 @@ function developPrompt(lane) {
 
 function reviewPrompt(lane, lens, round, fixSummary) {
   const contracts = boundaryContracts(lane)
-  const commandCriteria = lane.criteria.filter((c) => c.command)
+  const commandCriteria = lane.criteria.filter(isCommand)
   return [
     `Review lane "${lane.name}" through one lens only: ${lens.key}.`,
     `Your input is ${lens.input}.`,
@@ -632,8 +651,8 @@ function verifyPrompt(lane, blockers, again) {
     'Return one verdict per key, with the key copied exactly, and say what you ran and what it printed.',
     ...(contracts ? [contracts] : []),
     '',
-    'A finding with no concrete failing scenario is not confirmed. An unconfirmed blocker forces a fix',
-    'that then shows up as the next round\'s regression signal.',
+    'A finding with no concrete failing scenario is not confirmed: a fix sent after a defect nobody showed',
+    'changes sound code, and that change is the next round\'s regression signal.',
   ].join('\n')
 }
 
@@ -661,57 +680,68 @@ function measurePrompt(lane, baseRef, since) {
     '',
     'Run exactly these commands and copy their output into the field named after each:',
     '1. git rev-parse HEAD → head',
-    `2. git rev-parse ${baseRef} → base`,
-    '3. git status --porcelain --untracked-files=no → trackedChanges, one entry per output line',
-    `4. git ls-files --others --exclude-standard -- ${lane.owns.join(' ')} → untracked`,
-    `5. git --no-pager diff --name-only ${baseRef}..HEAD → ownershipDiff`,
-    `6. git --no-pager diff --name-only ${since}..HEAD → causationDiff`,
+    `2. git rev-parse ${lane.branch} → branchTip`,
+    `3. git rev-parse ${baseRef} → base`,
+    '4. git status --porcelain --untracked-files=no → trackedChanges, one entry per output line',
+    `5. git ls-files --others --exclude-standard -- ${lane.owns.join(' ')} → untracked`,
+    `6. git --no-pager diff --no-renames --name-only ${baseRef}..HEAD → ownershipDiff`,
+    `7. git --no-pager diff --no-renames --name-only ${since}..HEAD → causationDiff`,
     '',
     'Report every line exactly as printed, without filtering to what looks relevant; an empty output is [].',
   ].join('\n')
 }
 
 function recheckPrompt(lane, commandCriteria) {
+  const brief = `git show ${lane.baseSha}:${normalPath(`${planDir}/lane-${lane.name}.md`)}`
   return [
     `Re-run lane "${lane.name}"'s completion criteria on its measured commit. You did not write this code.`,
     ...resetTo(lane.head),
     '',
-    'Run each of these commands exactly as written and report one `results` row per criterion: its',
-    'name exactly as given, the exit code, and the output verbatim.',
-    ...(commandCriteria.length ? commandCriteria.map((c) => `- ${c.criterion}: \`${c.command}\``) : ['(none — report `results` as [])']),
+    `Read the lane brief as the base commit holds it, with \`${brief}\` — not the copy in your tree, which`,
+    'the lane may have changed. Report every completion criterion it lists as `brief`: its id (or its sentence',
+    'verbatim when it has none), its sentence, and its command verbatim — `[human]` for a criterion a person decides.',
     '',
-    `Then read ${planDir}/lane-${lane.name}.md and report every completion criterion it lists as \`brief\`:`,
-    'its id (or its sentence verbatim when it has none), its sentence, and its command verbatim — `[human]`',
-    'for a criterion a person decides. Copy the brief; do not reconcile it with the list above.',
+    ...(lane.resumed
+      ? [
+          'Run the command of every criterion in that brief that has one, exactly as written, and report one',
+          '`results` row per such criterion: its id as reported in `brief`, the exit code, and the output verbatim.',
+        ]
+      : [
+          'Run each of these commands exactly as written and report one `results` row per criterion: its',
+          'name exactly as given, the exit code, and the output verbatim. Copy the brief; do not reconcile it with this list.',
+          ...(commandCriteria.length ? commandCriteria.map((c) => `- ${c.criterion}: \`${c.command}\``) : ['(none — report `results` as [])']),
+        ]),
   ].join('\n')
 }
 
 const kindOf = (command) => (!command || command.trim() === '[human]' ? 'human' : 'command')
-const normalCommand = (command) => command.trim().replace(/\s+/g, ' ')
+const isCommand = (c) => kindOf(c.command) === 'command'
 // The kind travels in the command, so a `[human]` marker in an id is not part of the name.
 const normalId = (id) => String(id).replace(/^\s*\[human\]\s*/, '').trim()
 
 // Every criterion the brief sets must reach the report unweakened: same id, same kind, same
 // command (→ conventions/18-work-contract.md). Criteria the lane added beyond the brief are allowed.
 function criteriaDrift(brief, criteria) {
+  const ids = criteria.map((c) => normalId(c.criterion))
   const byId = new Map(criteria.map((c) => [normalId(c.criterion), c]))
-  return brief
+  const repeated = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))].map((id) => `${id} is reported more than once`)
+  return repeated.concat(brief
     .map((b) => {
       const c = byId.get(normalId(b.id))
       if (!c) return `${b.id} is missing`
       if (kindOf(b.command) !== kindOf(c.command)) return `${b.id} is a ${kindOf(c.command)} criterion, and the brief makes it a ${kindOf(b.command)} one`
-      if (kindOf(b.command) === 'command' && normalCommand(b.command) !== normalCommand(c.command)) {
+      if (kindOf(b.command) === 'command' && b.command.trim() !== c.command.trim()) {
         return `${b.id} ran \`${c.command}\` instead of the brief's \`${b.command}\``
       }
       return null
     })
-    .filter(Boolean)
+    .filter(Boolean))
 }
 
 // A missing red record and a failing producer check are injected as failed criteria, so they
 // halt through the same `criteria-failed` exit as any other (→ conventions/06-testing-verification.md §3, §7).
 function withInjected(lane, criteria, { red }) {
-  const noRed = red ? criteria.filter((c) => c.command && !(RED_KINDS.includes(c.red) && isText(c.redOutput))) : []
+  const noRed = red ? criteria.filter((c) => isCommand(c) && !(RED_KINDS.includes(c.red) && isText(c.redOutput))) : []
   const producer = boundaries
     .filter((b) => b.schema && b.producer === lane.name)
     .map((b) => ({ b, issue: producerCheckFailure(criteria, b) }))
@@ -719,7 +749,7 @@ function withInjected(lane, criteria, { red }) {
   return [
     ...criteria,
     ...noRed.map((c) => ({
-      criterion: `red for "${c.criterion}" was not recorded as one of ${RED_KINDS.join(', ')} with its failing output`,
+      criterion: `red for "${c.criterion}" was not recorded as one of ${RED_KINDS.join(', ')} with its output`,
       command: c.command,
       passed: false,
     })),
@@ -731,7 +761,7 @@ function withInjected(lane, criteria, { red }) {
   ]
 }
 
-const failing = (criteria) => criteria.filter((c) => c.command && !c.passed)
+const failing = (criteria) => criteria.filter((c) => isCommand(c) && !c.passed)
 
 // Review, fix and recheck for one lane, independent of every other lane.
 async function reviewLoop(dev, lane) {
@@ -757,27 +787,33 @@ async function reviewLoop(dev, lane) {
     ...extra,
   })
   if (!dev) return result('develop-failed', 0)
-  if (!dev.criteria?.length) {
-    return result('criteria-failed', 0, { criteria: [], note: 'develop reported no completion criteria, so nothing says the lane is done.' })
+  // A resumed lane has no develop report; its criteria are read from the brief by the recheck.
+  let criteria = []
+  if (!dev.resumed) {
+    if (!dev.criteria?.length) {
+      return result('criteria-failed', 0, { criteria: [], note: 'develop reported no completion criteria, so nothing says the lane is done.' })
+    }
+    // A lane whose own criteria failed is not done, and is not reviewed (→ conventions/18-work-contract.md).
+    criteria = withInjected(lane, dev.criteria, { red: true })
+    const failedAtDevelop = failing(criteria)
+    if (failedAtDevelop.length) {
+      return result('criteria-failed', 0, {
+        criteria,
+        note: `${failedAtDevelop.length} criteria with a command did not pass: ${failedAtDevelop.map((c) => c.criterion).join('; ')}`,
+      })
+    }
   }
 
-  // A lane whose own criteria failed is not done, and is not reviewed (→ conventions/18-work-contract.md).
-  const criteria = withInjected(lane, dev.criteria, { red: true })
-  const failedAtDevelop = failing(criteria)
-  if (failedAtDevelop.length) {
-    return result('criteria-failed', 0, {
-      criteria,
-      note: `${failedAtDevelop.length} criteria with a command did not pass: ${failedAtDevelop.map((c) => c.criterion).join('; ')}`,
-    })
-  }
-
-  const ctx = { ...lane, worktree: dev.worktree, branch: dev.branch, criteria, baseSha: null, head: null }
+  const ctx = { ...lane, worktree: dev.worktree, branch: dev.branch, resumed: Boolean(dev.resumed), criteria, baseSha: null, head: null }
 
   // Returns the measurement, or the outcome that halts on it.
   const measure = async (label, since) => {
     const m = await agent(measurePrompt(ctx, ctx.baseSha ?? base, since), { label, phase: 'Review', schema: MEASURE_SCHEMA })
     if (!isText(m?.head) || !isText(m?.base)) {
       return { outcome: 'measurement-failed', note: `${label} returned no head or base sha, so which commit to review is unknown.` }
+    }
+    if (m.branchTip !== m.head) {
+      return { outcome: 'dirty-worktree', note: `the tip of ${ctx.branch} (${m.branchTip}) is not the worktree HEAD (${m.head}), so the commit reviewed would not be the one merged.` }
     }
     const dirty = [...(m.trackedChanges ?? []), ...(m.untracked ?? []).filter((p) => owned(lane, repoPath(p, ctx.worktree)))]
     if (dirty.length) {
@@ -809,11 +845,13 @@ async function reviewLoop(dev, lane) {
     const missing = submitted.filter((k) => !byKey.has(k))
     const duplicated = submitted.filter((k) => (byKey.get(k) ?? []).length > 1)
     const unknown = [...byKey.keys()].filter((k) => !submitted.includes(k))
-    if (!answer || missing.length || duplicated.length || unknown.length) {
+    if (!answer || answer.head !== ctx.head || missing.length || duplicated.length || unknown.length) {
       return {
         incomplete: !answer
           ? 'The verifier returned nothing.'
-          : `Verification did not cover the blockers one to one: ${missing.length} missing, ${duplicated.length} duplicated, ${unknown.length} unknown keys.`,
+          : answer.head !== ctx.head
+            ? `The verifier ran on ${answer.head}, not on the measured ${ctx.head}.`
+            : `Verification did not cover the blockers one to one: ${missing.length} missing, ${duplicated.length} duplicated, ${unknown.length} unknown keys.`,
       }
     }
     const stateOf = (v) => (['confirmed', 'refuted'].includes(v.state) && v.commandsRun > 0 ? v.state : 'unverified')
@@ -822,35 +860,35 @@ async function reviewLoop(dev, lane) {
 
   // Every clean exit re-runs the criteria on the measured head first, by an agent that is not the fixer.
   const finish = async (round) => {
-    const commandCriteria = criteria.filter((c) => c.command)
-    const re = await agent(recheckPrompt(ctx, commandCriteria), {
+    const re = await agent(recheckPrompt(ctx, criteria.filter(isCommand)), {
       label: `recheck:${lane.name}#${round}`,
       phase: 'Review',
       schema: RECHECK_SCHEMA,
       isolation: 'worktree',
     })
+    const incomplete = (note) => result('recheck-incomplete', round, { criteria, note })
+    if (!re) return incomplete('The recheck returned nothing.')
+    if (re.head !== head) return incomplete(`The recheck ran on ${re.head}, not on the measured ${head}.`)
+    if (!re.brief?.length) return incomplete('The recheck read no criteria from the lane brief, so nothing was compared against it.')
+    // A resumed lane is held to its brief directly, so there is no report to drift from it.
+    const expected = ctx.resumed
+      ? re.brief.map((b) => ({ criterion: b.id, command: isCommand(b) ? b.command : '', passed: false }))
+      : criteria
+    const drift = ctx.resumed ? [] : criteriaDrift(re.brief, dev.criteria)
+    if (drift.length) return result('criteria-drift', round, { criteria, note: `the reported criteria differ from the brief: ${drift.join('; ')}` })
     const byName = new Map()
-    ;(re?.results ?? []).forEach((r) => byName.set(r.criterion, (byName.get(r.criterion) ?? []).concat(r)))
-    const names = commandCriteria.map((c) => c.criterion)
+    ;(re.results ?? []).forEach((r) => byName.set(r.criterion, (byName.get(r.criterion) ?? []).concat(r)))
+    const names = expected.filter(isCommand).map((c) => c.criterion)
     const missing = names.filter((n) => !byName.has(n))
     const duplicated = names.filter((n) => (byName.get(n) ?? []).length > 1)
     const unknown = [...byName.keys()].filter((n) => !names.includes(n))
-    if (!re || !re.brief?.length || missing.length || duplicated.length || unknown.length) {
-      return result('recheck-incomplete', round, {
-        criteria,
-        note: !re
-          ? 'The recheck returned nothing.'
-          : !re.brief?.length
-            ? 'The recheck read no criteria from the lane brief, so nothing was compared against it.'
-            : `The recheck did not cover the criteria one to one: ${missing.length} missing, ${duplicated.length} duplicated, ${unknown.length} unknown.`,
-      })
+    if (missing.length || duplicated.length || unknown.length) {
+      return incomplete(`The recheck did not cover the criteria one to one: ${missing.length} missing, ${duplicated.length} duplicated, ${unknown.length} unknown.`)
     }
-    const drift = criteriaDrift(re.brief, dev.criteria)
-    if (drift.length) return result('criteria-drift', round, { criteria, note: `the reported criteria differ from the brief: ${drift.join('; ')}` })
 
     const rechecked = withInjected(
       lane,
-      criteria.map((c) => (c.command ? { ...c, passed: byName.get(c.criterion)[0].exit === 0, output: byName.get(c.criterion)[0].output } : c)),
+      expected.map((c) => (isCommand(c) ? { ...c, passed: byName.get(c.criterion)[0].exit === 0, output: byName.get(c.criterion)[0].output } : c)),
       { red: false },
     )
     const failed = failing(rechecked)
@@ -866,7 +904,8 @@ async function reviewLoop(dev, lane) {
   // A `[human]` criterion or an undecided blocker holds the lane out of `passed`: once merged,
   // a rejection can no longer act (→ conventions/19-evidence.md).
   const clean = (round, rechecked) => {
-    const awaiting = rechecked.filter((c) => !c.command && !c.passed).map((c) => c.criterion)
+    // Every human criterion awaits its verdict, whatever the lane reported about it.
+    const awaiting = rechecked.filter((c) => !isCommand(c)).map((c) => c.criterion)
     if (unverified.size) {
       return result('unverified-blocker', round, {
         criteria: rechecked,
@@ -902,18 +941,20 @@ async function reviewLoop(dev, lane) {
         }),
       ),
     )
+    // An answer from another commit reviewed other code, so it counts as no answer.
+    const onHead = (r) => r?.head === head
     answers.forEach((r, i) => {
-      if (!r) return
+      if (!onHead(r)) return
       commandsRun[lenses[i].key] = (commandsRun[lenses[i].key] ?? 0) + (r.commandsRun ?? 0)
       if (isText(r.tool)) tools.add(r.tool)
     })
-    const reviews = answers.filter(Boolean)
+    const reviews = answers.filter(onHead)
 
     // A lens that did not answer, or answered without running anything, is not a review (→ 20 Core Rules).
     if (reviews.length < lenses.length) {
       return result('review-incomplete', round, {
         criteria,
-        note: `${lenses.length - reviews.length} of ${lenses.length} review lanes returned nothing. Re-run them rather than merging a short review.`,
+        note: `${lenses.length - reviews.length} of ${lenses.length} review lanes returned nothing or ran on a commit other than ${head}. Re-run them rather than merging a short review.`,
       })
     }
     const readings = reviews.filter((r) => !r.commandsRun)
@@ -945,7 +986,7 @@ async function reviewLoop(dev, lane) {
       const s = states.get(keyOf(f))
       if (s === 'unverified') unverified.set(keyOf(f), f)
       else unverified.delete(keyOf(f))
-      if (s === 'refuted') carried.push({ ...f, severity: 'minor', summary: `[refuted] ${f.summary}` })
+      if (s === 'refuted') carried.push({ ...f, severity: 'minor', state: 'refuted' })
     }
     const blockers = rawBlockers.filter((f) => states.get(keyOf(f)) === 'confirmed')
     if (!blockers.length) return finish(round)
@@ -998,94 +1039,103 @@ async function reviewLoop(dev, lane) {
   }
 }
 
-// Every lane is told its contract, schema and sample files exist on the strength of the
-// declaration alone, so one agent measures it; skipped only for a plan with no boundaries.
+// Every lane is told its plan, brief, contract, schema and sample files exist on the strength
+// of the declaration alone, so one agent measures that from a lane's starting commit.
 const schemaBoundaries = boundaries.filter((b) => b.schema)
-const frozenPaths = boundaries.flatMap((b) => [b.contract, b.sample, ...(b.schema ? [b.schema] : [])])
-if (frozenPaths.length) {
-  // Isolated and reset exactly as a lane is, because the question is what a lane sees, not
-  // what the orchestrator has in its tree.
-  let freezeError = null
-  const frozen = await agent(
-    [
-      `Run \`git reset --hard ${base}\` in your worktree before looking at anything. Your worktree is`,
-      `cut from origin/main, which may be behind ${base}, and this check is about what a lane sees`,
-      'after the same reset — not about what the orchestrator has in its tree.',
-      '',
-      'Then, from the repository root, run exactly these checks and report their results — nothing else.',
-      '',
-      'Report which of these paths do not exist as files, as `missing`:',
-      ...frozenPaths.map((p) => `- ${p}`),
-      '',
-      ...(schemaBoundaries.length
-        ? [
-            `Run \`${SCHEMA_CHECK} --version\` and report its exit code and output verbatim as \`tool\`.`,
-            '',
-            "For each of these boundaries, run the command shown and report exactly one `checked` row",
-            "with that boundary's name, the exit code, and the output verbatim:",
-            ...schemaBoundaries.map((b) => `- ${b.name}: \`${SCHEMA_CHECK} --schemafile ${b.schema} ${b.sample}\``),
-          ]
-        : ['No boundary declares a schema, so report `tool` as { exit: 0, output: \'\' } and `checked` as [].']),
-      '',
-      'Check existence and run the commands above only. Create nothing and judge nothing else — not',
-      'whether a file is the right contract or sample, not whether a schema check should have passed.',
-      'Report the paths exactly as they are given here, and report the sha `git rev-parse HEAD` prints',
-      'after the reset as `head`.',
-    ].join('\n'),
-    { label: 'freeze-check', phase: 'Develop', schema: FROZEN_SCHEMA, isolation: 'worktree' },
-  ).catch((err) => {
-    // Outside the pipeline a throw is not turned into null, and a check that died measured
-    // no more than one that answered nothing.
-    freezeError = err instanceof Error ? err.message : String(err)
-    return null
-  })
-  if (!frozen) {
-    log(`The freeze check ${freezeError ? `died: ${freezeError}` : 'returned nothing'}, so nothing about the contract or sample files was measured.`)
-    return {
-      lanes: [],
-      note: `refused: the freeze check ${freezeError ? `died (${freezeError})` : 'returned nothing'}, so whether the contract or sample files exist is unmeasured, and with them the commit every lane starts on. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.`,
-    }
+const frozenPaths = [
+  ...boundaries.flatMap((b) => [b.contract, b.sample, ...(b.schema ? [b.schema] : [])]),
+  `${planDir}/PLAN.md`,
+  ...lanes.map((l) => `${planDir}/lane-${l.name}.md`),
+]
+// Isolated and reset exactly as a lane is, because the question is what a lane sees, not
+// what the orchestrator has in its tree.
+let freezeError = null
+const frozen = await agent(
+  [
+    `Run \`git reset --hard ${base}\` in your worktree before looking at anything. Your worktree is`,
+    `cut from origin/main, which may be behind ${base}, and this check is about what a lane sees`,
+    'after the same reset — not about what the orchestrator has in its tree.',
+    '',
+    'Then, from the repository root, run exactly these checks and report their results — nothing else.',
+    '',
+    'Report which of these paths do not exist as files, as `missing`:',
+    ...frozenPaths.map((p) => `- ${p}`),
+    '',
+    ...(schemaBoundaries.length
+      ? [
+          `Run \`${SCHEMA_CHECK} --version\` and report its exit code and output verbatim as \`tool\`.`,
+          '',
+          "For each of these boundaries, run the command shown and report exactly one `checked` row",
+          "with that boundary's name, the exit code, and the output verbatim:",
+          ...schemaBoundaries.map((b) => `- ${b.name}: \`${SCHEMA_CHECK} --schemafile ${b.schema} ${b.sample}\``),
+        ]
+      : ['No boundary declares a schema, so report `tool` as { exit: 0, output: \'\' } and `checked` as [].']),
+    '',
+    'Check existence and run the commands above only. Create nothing and judge nothing else — not',
+    'whether a file is the right contract or sample, not whether a schema check should have passed.',
+    'Report the paths exactly as they are given here, the sha `git rev-parse HEAD` prints after the reset',
+    `as \`head\`, and the sha \`git rev-parse ${base}\` prints as \`base\`.`,
+  ].join('\n'),
+  { label: 'freeze-check', phase: 'Develop', schema: FROZEN_SCHEMA, isolation: 'worktree' },
+).catch((err) => {
+  // Outside the pipeline a throw is not turned into null, and a check that died measured
+  // no more than one that answered nothing.
+  freezeError = err instanceof Error ? err.message : String(err)
+  return null
+})
+if (!frozen) {
+  log(`The freeze check ${freezeError ? `died: ${freezeError}` : 'returned nothing'}, so nothing about the contract or sample files was measured.`)
+  return {
+    lanes: [],
+    note: `refused: the freeze check ${freezeError ? `died (${freezeError})` : 'returned nothing'}, so whether the contract or sample files exist is unmeasured, and with them the commit every lane starts on. This check exists because the declaration cannot be trusted, and an unmeasured declaration is that same declaration again — a guard that cannot decide must not be the one that says yes.`,
   }
-  if (frozen.missing?.length) {
-    log(`${frozen.missing.length} of ${frozenPaths.length} contract, schema or sample file paths do not exist at ${frozen.head}.`)
-    return {
-      lanes: [],
-      note: `refused: the boundaries were declared frozen but these contract, schema or sample files do not exist: ${frozen.missing.join(', ')} — not at ${frozen.head}, the commit the lanes start from. If they were written they are not in that commit, so commit and push the freeze; otherwise every lane starts where nothing holds the interfaces still and writes its own copy.`,
-    }
+}
+if (frozen.head !== frozen.base) {
+  log(`The freeze check ran on ${frozen.head}, not on base ${frozen.base}.`)
+  return {
+    lanes: [],
+    note: `refused: the freeze check ran on ${frozen.head}, not on base ${frozen.base}, so what it measured is not what the lanes start from.`,
   }
+}
+if (frozen.missing?.length) {
+  log(`${frozen.missing.length} of ${frozenPaths.length} plan, brief, contract, schema or sample file paths do not exist at ${frozen.head}.`)
+  return {
+    lanes: [],
+    note: `refused: the boundaries were declared frozen but these contract, schema, sample or plan files do not exist: ${frozen.missing.join(', ')} — not at ${frozen.head}, the commit the lanes start from. If they were written they are not in that commit, so commit them and merge them into base locally; otherwise every lane starts where nothing holds the interfaces still and writes its own copy.`,
+  }
+}
 
-  // A plan with no schema boundary needs no schema tool, and existence was decided above first.
-  if (schemaBoundaries.length) {
-    if (frozen.tool?.exit !== 0) {
-      log(`the schema tool exited ${frozen.tool?.exit} instead of 0, so no schema result can be trusted.`)
-      return {
-        lanes: [],
-        note: `refused: \`${SCHEMA_CHECK} --version\` exited ${frozen.tool?.exit} instead of 0 (${frozen.tool?.output}), so the schema tool could not run and nothing below it was checked.`,
-      }
+// A plan with no schema boundary needs no schema tool, and existence was decided above first.
+if (schemaBoundaries.length) {
+  if (frozen.tool?.exit !== 0) {
+    log(`the schema tool exited ${frozen.tool?.exit} instead of 0, so no schema result can be trusted.`)
+    return {
+      lanes: [],
+      note: `refused: \`${SCHEMA_CHECK} --version\` exited ${frozen.tool?.exit} instead of 0 (${frozen.tool?.output}), so the schema tool could not run and nothing below it was checked.`,
     }
-    // Exactly one row per schema boundary; anything else did not measure that boundary.
-    const checked = frozen.checked ?? []
-    const byBoundary = new Map()
-    checked.forEach((c) => byBoundary.set(c.boundary, (byBoundary.get(c.boundary) ?? []).concat(c)))
-    const schemaNames = schemaBoundaries.map((b) => b.name)
-    const uncheckedNames = schemaNames.filter((n) => !byBoundary.has(n))
-    const duplicatedNames = schemaNames.filter((n) => (byBoundary.get(n) ?? []).length > 1)
-    const unknownNames = [...byBoundary.keys()].filter((n) => !schemaNames.includes(n))
-    if (uncheckedNames.length || duplicatedNames.length || unknownNames.length) {
-      log(`the schema check did not cover the schema boundaries one to one: ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown.`)
-      return {
-        lanes: [],
-        note: `refused: the schema check did not cover the boundaries with a schema one to one — ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown boundary name(s) in \`checked\`. This is unmeasured, not passing.`,
-      }
+  }
+  // Exactly one row per schema boundary; anything else did not measure that boundary.
+  const checked = frozen.checked ?? []
+  const byBoundary = new Map()
+  checked.forEach((c) => byBoundary.set(c.boundary, (byBoundary.get(c.boundary) ?? []).concat(c)))
+  const schemaNames = schemaBoundaries.map((b) => b.name)
+  const uncheckedNames = schemaNames.filter((n) => !byBoundary.has(n))
+  const duplicatedNames = schemaNames.filter((n) => (byBoundary.get(n) ?? []).length > 1)
+  const unknownNames = [...byBoundary.keys()].filter((n) => !schemaNames.includes(n))
+  if (uncheckedNames.length || duplicatedNames.length || unknownNames.length) {
+    log(`the schema check did not cover the schema boundaries one to one: ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown.`)
+    return {
+      lanes: [],
+      note: `refused: the schema check did not cover the boundaries with a schema one to one — ${uncheckedNames.length} missing, ${duplicatedNames.length} duplicated, ${unknownNames.length} unknown boundary name(s) in \`checked\`. This is unmeasured, not passing.`,
     }
-    const failedChecks = schemaBoundaries.filter((b) => byBoundary.get(b.name)[0].exit !== 0)
-    if (failedChecks.length) {
-      const detail = failedChecks.map((b) => `${b.name} (exit ${byBoundary.get(b.name)[0].exit}: ${byBoundary.get(b.name)[0].output})`).join('; ')
-      log(`${failedChecks.length} boundary sample(s) failed their schema check: ${detail}`)
-      return {
-        lanes: [],
-        note: `refused: the sample for ${detail} did not pass its schema check. Fix the sample or the schema before lanes fan out against it.`,
-      }
+  }
+  const failedChecks = schemaBoundaries.filter((b) => byBoundary.get(b.name)[0].exit !== 0)
+  if (failedChecks.length) {
+    const detail = failedChecks.map((b) => `${b.name} (exit ${byBoundary.get(b.name)[0].exit}: ${byBoundary.get(b.name)[0].output})`).join('; ')
+    log(`${failedChecks.length} boundary sample(s) failed their schema check: ${detail}`)
+    return {
+      lanes: [],
+      note: `refused: the sample for ${detail} did not pass its schema check. Fix the sample or the schema before lanes fan out against it.`,
     }
   }
 }
@@ -1095,13 +1145,15 @@ phase('Develop')
 const results = await pipeline(
   lanes,
   (lane) =>
-    agent(developPrompt(lane), {
-      label: `develop:${lane.name}`,
-      phase: 'Develop',
-      schema: DEVELOP_SCHEMA,
-      isolation: 'worktree',
-      ...tierOpts(lane),
-    }),
+    lane.resumeFrom
+      ? { ...lane.resumeFrom, resumed: true }
+      : agent(developPrompt(lane), {
+          label: `develop:${lane.name}`,
+          phase: 'Develop',
+          schema: DEVELOP_SCHEMA,
+          isolation: 'worktree',
+          ...tierOpts(lane),
+        }),
   reviewLoop,
 )
 
@@ -1116,8 +1168,8 @@ return {
   passed,
   halted,
   unanswered: lanes.length - settled.length,
-  // Every lens runs on the session model; each lane's `tool` names the family that answered.
-  vendorDiversity: 'not implemented: every review lens ran on the session model family',
+  vendorDiversity:
+    "a lane's review lenses run on the session model and may share one family, named in each lane's `tool`; the vendor diversity the review gate requires is paid at the plan and merged-whole review points (→ conventions/20-review-gate.md)",
   escalations: halted
     .filter((r) => r.escalation === 'human')
     .map((r) => ({ lane: r.lane, outcome: r.outcome, note: r.note, awaiting: r.awaiting, unverified: r.unverified })),

@@ -346,7 +346,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Mark every finding in three states, not two: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran. A refutation is reported as a result. A reproduction that will not run — a gate the change added rejects the input, a state that can no longer be constructed — is a finding about the procedure and never evidence of a fix.
 - Severity carries an action: blocker blocks the merge and is re-reviewed by the lane that raised it, major is fixed in the same work, minor becomes a follow-up, nit may be ignored. A finding with no concrete failing scenario is a nit.
 - Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
-- Run at least one lane on a different vendor's family, and don't pin model ids in the docs — resolve them at use time and pick by role. A gate that passes is not evidence the gate works; confirm once that it fails when it should.
+- Vendor diversity is paid at the plan and merged-whole points; a unit's own lanes may share one family, recorded in its row. Don't pin model ids in the docs — resolve them at use time and pick by role. A gate that passes is not evidence the gate works; confirm once that it fails when it should.
 
 ### Doc Tracking ([15](conventions/15-doc-tracking.md))
 

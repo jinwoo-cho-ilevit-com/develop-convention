@@ -31,7 +31,7 @@ The lane brief carries one row per criterion and nothing else:
 
 A human reading this looks at the non-`PASS` rows and stops. That is the entire intended cost of verification for the reader.
 
-The `red` column records how the check was seen failing — `observed` at the base commit, `sabotage` after the change, `guard` for a standing invariant — and is empty for a `[human]` row; its output is kept beside the row's command output (→ [06-testing-verification.md](06-testing-verification.md) §3). A check that could not run at the base commit has no red yet, not a red.
+The `red` column records which of the red checks in [06-testing-verification.md](06-testing-verification.md) §3 established the row — `observed`, `sabotage` or `guard` — with its output kept beside the row's command output, and `—` for a `[human]` row.
 
 The whole-project claim is the union of the lane tables, each re-run on the merged head, plus the end-to-end condition from the plan (→ [21-development-loop.md](21-development-loop.md)). Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
 

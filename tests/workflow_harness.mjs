@@ -45,8 +45,11 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
   let round = 0
   let lensInRound = 0
   let measureCalls = 0
-  // What each lane's develop reported, so the recheck stub answers about the same criteria.
+  // What each lane's develop reported, and the head last measured for it, so the stubs after
+  // it answer about the same criteria and the same commit.
   const devs = {}
+  const heads = {}
+  const ranOn = (label, lane) => (over.ranOn ? over.ranOn(label, heads[lane]) : heads[lane])
   const findingsNow = () => rounds[Math.min(round, rounds.length - 1)] ?? []
 
   return async (prompt, opts = {}) => {
@@ -66,6 +69,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       return {
         missing: over.missingFrozen ?? [],
         head: over.frozenHead ?? 'f00dbabe',
+        base: over.frozenBase ?? over.frozenHead ?? 'f00dbabe',
         // An answer missing the field outright — schema-invalid, and it must not read as passing.
         ...(over.omitFreezeTool ? {} : { tool: over.freezeTool ?? { exit: 0, output: 'check-jsonschema, version 0.38.0' } }),
         checked: over.freezeChecked ?? schemaBoundaries.map((b) => ({ boundary: b.name, exit: 0, output: 'ok' })),
@@ -106,8 +110,10 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
         : over.fixTouchedSeq
           ? (over.fixTouchedSeq[n - 1] ?? over.fixTouchedSeq[over.fixTouchedSeq.length - 1])
           : (over.fixTouched ?? ['src/a.py'])
-      const m = { head: `m${n}`, base: 'b4se', trackedChanges: [], untracked: [], ownershipDiff: [], causationDiff: causation }
-      return over.measure ? over.measure(label, m) : m
+      const m = { head: `m${n}`, branchTip: `m${n}`, base: 'b4se', trackedChanges: [], untracked: [], ownershipDiff: [], causationDiff: causation }
+      const answer = over.measure ? over.measure(label, m) : m
+      heads[laneOf] = answer.head
+      return answer
     }
     if (label.startsWith('verify:') || label.startsWith('reverify:')) {
       if (over.verifierDies) return null
@@ -130,7 +136,7 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
         round++
         lensInRound = 0
       }
-      return { verdicts }
+      return { head: ranOn(label, laneOf), verdicts }
     }
     if (label.startsWith('review:')) {
       if (over.reviewerDies) throw new Error('reviewer died')
@@ -139,14 +145,16 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
         ? (over.commandsRunSeq[lensInRound] ?? 0)
         : (over.commandsRun ?? 3)
       lensInRound++
-      return { commandsRun: ran, tool: 'Claude', findings: findingsNow() }
+      return { head: ranOn(label, laneOf), commandsRun: ran, tool: 'Claude', findings: findingsNow() }
     }
     // Re-runs what develop reported and reads the same criteria back as the brief.
     if (label.startsWith('recheck:')) {
       if (over.recheckDies) return null
-      const criteria = devs[laneOf]?.criteria ?? []
+      // A resumed lane has no develop report; its brief holds the default criterion.
+      const criteria = devs[laneOf]?.criteria ?? [CRIT]
       const r = {
-        results: criteria.filter((c) => c.command).map((c) => ({ criterion: c.criterion, exit: 0, output: 'ok' })),
+        head: ranOn(label, laneOf),
+        results: criteria.filter((c) => c.command && c.command !== '[human]').map((c) => ({ criterion: c.criterion, exit: 0, output: 'ok' })),
         brief: criteria.map((c) => ({ id: c.criterion, sentence: `the ${c.criterion} sentence`, command: c.command || '[human]' })),
       }
       return over.recheck ? over.recheck(label, r) : r
@@ -240,6 +248,8 @@ const SHAPE_ROWS = [
   ['a boundary with no name is refused', 'args.boundaries[0]', { lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /declares no name/],
   // Sabotage: accept any string as a tier.
   ['a lane tier outside light, mid, top is refused', 'args.lanes[0].tier', { name: 'a', owns: ['src/a/'], security: false, tier: 'opus' }, /must be one of light, mid, top/],
+  // Sabotage: accept any object as `resumeFrom`.
+  ['a resumeFrom without a branch is refused', 'args.lanes[0].resumeFrom', { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt' } }, /must be an object \{ worktree, branch \}/],
   ['a lane effort outside the effort values is refused', 'args.lanes[0].effort', { name: 'a', owns: ['src/a/'], security: false, effort: 'extreme' }, /must be one of low, medium/],
 ]
 
@@ -293,7 +303,7 @@ const cases = [
     name: 'a blocker the verifier refutes never reaches the fix agent',
     rounds: [[finding()]],
     over: { refuteBlockers: true },
-    expect: { outcome: 'passed', rounds: 1, noLabel: 'fix:' },
+    expect: { outcome: 'passed', rounds: 1, noLabel: 'fix:', carriedState: [['boom', 'refuted']] },
   },
   {
     // A verifier that answers with nothing cleared nothing: an empty verdict list must not read
@@ -614,7 +624,7 @@ const cases = [
       }),
       missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract, schema or sample files do not exist: \.plans\/contracts\/api\.md/ },
+    expect: { refused: /declared frozen but these contract, schema, sample or plan files do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
     // Declaring the freeze is not doing it, and the lanes are told the contract files exist on
@@ -625,7 +635,7 @@ const cases = [
       boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
       missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract, schema or sample files do not exist: \.plans\/contracts\/api\.md/ },
+    expect: { refused: /declared frozen but these contract, schema, sample or plan files do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
     // The sample is as much a frozen path as the contract — dropping it from `frozenPaths`
@@ -636,7 +646,7 @@ const cases = [
       boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
       missingFrozen: ['tests/fixtures/api.sample.json'],
     },
-    expect: { refused: /declared frozen but these contract, schema or sample files do not exist: tests\/fixtures\/api\.sample\.json/ },
+    expect: { refused: /declared frozen but these contract, schema, sample or plan files do not exist: tests\/fixtures\/api\.sample\.json/ },
   },
   {
     // The same paths, and the sha they were absent at. Without it the refusal names files a
@@ -712,9 +722,10 @@ const cases = [
     expect: { refused: /died \(freeze agent died hard\).*unmeasured declaration is that same declaration/ },
   },
   {
-    name: 'a plan with no boundaries dispatches no freeze check',
+    // Sabotage: drop the brief and PLAN.md paths from `frozenPaths`.
+    name: 'a plan with no boundaries still has its plan and briefs checked at base',
     rounds: [[]],
-    expect: { outcome: 'passed', rounds: 1, noLabel: 'freeze-check' },
+    expect: { outcome: 'passed', rounds: 1, prompt: { 'freeze-check': /- \.plans\/PLAN\.md\n- \.plans\/lane-a\.md/ } },
   },
   {
     // `contract` and `sample` are both required by the shape check, so a boundary missing
@@ -857,7 +868,7 @@ const cases = [
       missingFrozen: ['tests/fixtures/api.sample.json'],
       freezeChecked: [{ boundary: 'api', exit: 1, output: 'boom' }],
     },
-    expect: { refused: /declared frozen but these contract, schema or sample files do not exist/ },
+    expect: { refused: /declared frozen but these contract, schema, sample or plan files do not exist/ },
   },
   {
     // Sabotage: always include `--schemafile` regardless of `b.schema` — this then matches
@@ -943,12 +954,11 @@ const cases = [
     },
   },
   {
-    // Sabotage: revert the note's wording from "contract, schema or sample" back to
-    // "contract or sample" — a missing schema path is still named, but by the old text.
+    // Sabotage: drop "schema" from the missing-files note.
     name: 'a missing schema file is refused by name, alongside contract and sample',
     rounds: [[]],
     over: { boundaries: [SCHEMA_BOUNDARY], missingFrozen: ['.plans/contracts/api.schema.json'] },
-    expect: { refused: /contract, schema or sample files do not exist: \.plans\/contracts\/api\.schema\.json/ },
+    expect: { refused: /contract, schema, sample or plan files do not exist: \.plans\/contracts\/api\.schema\.json/ },
   },
   {
     // Sabotage: drop the `b.producer === lane.name` branch in `boundaryContracts` (always
@@ -1364,10 +1374,10 @@ const cases = [
     expect: { outcome: 'pending-human', rounds: 1, escalation: 'human' },
   },
   {
-    // Sabotage: compare commands without `normalCommand`.
-    name: 'a command differing from the brief only in whitespace is not drift',
+    // Sabotage: compare commands without `.trim()`.
+    name: 'a command differing from the brief only in surrounding whitespace is not drift',
     rounds: [[]],
-    over: { recheck: (label, r) => ({ ...r, brief: r.brief.map((b) => ({ ...b, command: ` uv run   pytest\ttests/a ` })) }) },
+    over: { recheck: (label, r) => ({ ...r, brief: r.brief.map((b) => ({ ...b, command: ` ${b.command}\t` })) }) },
     expect: { outcome: 'passed', rounds: 1 },
   },
   {
@@ -1433,7 +1443,7 @@ const cases = [
       [],
     ],
     over: { measure: (label, m) => (label === 'touched:a#0' ? m : { ...m, ownershipDiff: ['src/a/x.py'], causationDiff: ['src/a/y.py'] }) },
-    expect: { outcome: 'passed', rounds: 3, notOutcome: 'regression-halt', prompt: { 'touched:a#1': /diff --name-only m0\.\.HEAD/ } },
+    expect: { outcome: 'passed', rounds: 3, notOutcome: 'regression-halt', prompt: { 'touched:a#1': /diff --no-renames --name-only m0\.\.HEAD/ } },
   },
   {
     // Sabotage: drop `isolation: 'worktree'` from the review, verify or recheck dispatch.
@@ -1473,24 +1483,185 @@ const cases = [
     expect: { outcome: 'passed', rounds: 2, result: { lenses: ['module'], commandsRun: { module: 6 }, tool: 'Claude', head: 'm1' } },
   },
   {
-    // Sabotage: drop `brief` from `RECHECK_SCHEMA.required`.
-    name: 'the recheck schema requires both results and the brief it read',
+    // Sabotage: drop `head` from `RECHECK_SCHEMA.required` or `base` from `FROZEN_SCHEMA.required`.
+    name: 'the recheck and freeze schemas require the sha they ran on',
     rounds: [[]],
-    expect: { outcome: 'passed', schemaRequired: { 'recheck:a#1': ['results', 'brief'] } },
+    expect: { outcome: 'passed', schemaRequired: { 'recheck:a#1': ['head', 'results', 'brief'], 'freeze-check': ['head', 'base'] } },
   },
   {
     // Sabotage: drop a field from the `required` list of the named schema.
     name: 'the verdict, measurement, recheck and findings schemas require their new fields',
     rounds: [[finding()], []],
+    over: { verdict: (label) => (label.startsWith('verify:') ? { state: 'unverified', commandsRun: 0 } : {}) },
     expect: {
       outcome: 'passed',
       schemaRequired: {
-        'verify:a#1': { at: ['verdicts'], fields: ['key', 'state', 'commandsRun', 'evidence'] },
-        'touched:a#1': ['head', 'base', 'trackedChanges', 'untracked', 'ownershipDiff', 'causationDiff'],
+        'verify:a#1': ['head', 'verdicts'],
+        'reverify:a#1': { at: ['verdicts'], fields: ['key', 'state', 'commandsRun', 'evidence'] },
+        'touched:a#1': ['head', 'branchTip', 'base', 'trackedChanges', 'untracked', 'ownershipDiff', 'causationDiff'],
         'recheck:a#2': { at: ['brief'], fields: ['id', 'sentence', 'command'] },
-        'review:a:module#1': ['findings', 'commandsRun', 'tool'],
+        'review:a:module#1': ['head', 'findings', 'commandsRun', 'tool'],
       },
     },
+  },
+  {
+    // Sabotage: filter `awaiting` to human criteria not reported passed.
+    name: 'a human criterion the lane reported as passed still awaits a verdict',
+    rounds: [[]],
+    over: { develop: devWith([CRIT, { criterion: 'C-02', command: '', passed: true }]) },
+    expect: { outcome: 'pending-human', rounds: 1, escalation: 'human', result: { awaiting: ['C-02'] } },
+  },
+  {
+    // Sabotage: let `failing` treat any non-empty command as a command.
+    name: 'a criterion whose command is the literal [human] is a human criterion',
+    rounds: [[]],
+    over: { develop: devWith([CRIT, { criterion: 'C-02', command: '[human]', passed: false }]) },
+    expect: { outcome: 'pending-human', rounds: 1, escalation: 'human', promptExcludes: { 'recheck:a#1': /C-02: `\[human\]`/ } },
+  },
+  {
+    // Sabotage: collapse internal whitespace before comparing commands.
+    name: 'a command whose quoted whitespace differs from the brief is drift',
+    rounds: [[]],
+    over: {
+      develop: devWith([{ ...CRIT, command: "test 'a  b' = 'a b'" }]),
+      recheck: (label, r) => ({ ...r, brief: [{ id: 'C-01', sentence: 's', command: "test 'a b' = 'a b'" }] }),
+    },
+    expect: { outcome: 'criteria-drift', rounds: 1 },
+  },
+  {
+    // Sabotage: have the recheck read the brief from its own tree instead of `git show <base>:`.
+    name: 'the brief is read at base, so a lane that weakened its own brief drifts',
+    rounds: [[]],
+    over: {
+      develop: devWith([{ ...CRIT, command: 'uv run pytest tests/a -k smoke' }]),
+      recheck: (label, r) => ({ ...r, brief: [{ id: 'C-01', sentence: 's', command: CRIT.command }] }),
+    },
+    expect: { outcome: 'criteria-drift', rounds: 1, prompt: { 'recheck:a#1': /git show b4se:\.plans\/lane-a\.md/ } },
+  },
+  {
+    // Sabotage: drop `guard` from `RED_KINDS`, or its exemption wording from the develop prompt.
+    name: 'a guard red recorded with its exemption reason is accepted',
+    rounds: [[]],
+    over: { develop: devWith([{ ...CRIT, red: 'guard', redOutput: 'standing invariant; passes at base: 3 passed' }]) },
+    expect: { outcome: 'passed', prompt: { 'develop:a': /`guard` for a standing\ninvariant, with the reason it is exempt or its passing output at the base commit/ } },
+  },
+  {
+    // Sabotage: drop `--no-renames` from the ownership diff.
+    name: 'a file moved into owns from outside is an ownership violation',
+    rounds: [[]],
+    over: { measure: (label, m) => ({ ...m, ownershipDiff: ['lib/moved.py', 'src/a/moved.py'] }) },
+    expect: { outcome: 'ownership-violated', rounds: 0, note: /lib\/moved\.py/, prompt: { 'touched:a#0': /diff --no-renames --name-only main\.\.HEAD → ownershipDiff/ } },
+  },
+  {
+    // Sabotage: count any answer in `onHead`, whatever sha it ran on.
+    name: 'a review that ran on another commit counts as no review',
+    rounds: [[]],
+    over: { ranOn: (label, h) => (label.startsWith('review:') ? 'elsewhere' : h) },
+    expect: { outcome: 'review-incomplete', rounds: 1 },
+  },
+  {
+    // Sabotage: drop `answer.head !== ctx.head` from `verifyRound`.
+    name: 'a verification that ran on another commit decides nothing',
+    rounds: [[finding()]],
+    over: { ranOn: (label, h) => (label.startsWith('verify:') ? 'elsewhere' : h) },
+    expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:', note: /ran on elsewhere/ },
+  },
+  {
+    // Sabotage: drop the `re.head !== head` check from `finish`.
+    name: 'a recheck that ran on another commit is incomplete',
+    rounds: [[]],
+    over: { ranOn: (label, h) => (label.startsWith('recheck:') ? 'elsewhere' : h) },
+    expect: { outcome: 'recheck-incomplete', rounds: 1, note: /ran on elsewhere/ },
+  },
+  {
+    // Sabotage: drop the `frozen.head !== frozen.base` refusal.
+    name: 'a freeze check that did not land on base refuses',
+    rounds: [[]],
+    over: { frozenBase: 'b4se' },
+    expect: { refused: /ran on f00dbabe, not on base b4se/, prompt: { 'freeze-check': /git rev-parse main` prints as `base`/ } },
+  },
+  {
+    // Sabotage: drop the `branchTip` check from `measure`.
+    name: 'a branch tip other than the worktree HEAD is a dirty worktree',
+    rounds: [[]],
+    over: { measure: (label, m) => ({ ...m, branchTip: 'ahead' }) },
+    expect: { outcome: 'dirty-worktree', rounds: 0, note: /is not the worktree HEAD/, prompt: { 'touched:a#0': /git rev-parse lane-a → branchTip/ } },
+  },
+  {
+    // Sabotage: dispatch develop whatever `resumeFrom` says.
+    name: 'a resumed lane skips develop, is measured in its worktree, and is rechecked from its brief',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' } } },
+    expect: {
+      outcome: 'passed',
+      rounds: 1,
+      noLabel: 'develop:',
+      hasLabel: ['touched:a#0', 'recheck:a#1'],
+      prompt: { 'touched:a#0': /Measure the worktree \/tmp\/wt2/, 'recheck:a#1': /Run the command of every criterion in that brief/ },
+    },
+  },
+  {
+    // Sabotage: hold a resumed lane to no criteria (`expected = []`).
+    name: "a resumed lane whose brief criterion fails on the recheck fails",
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' } }, recheck: (label, r) => ({ ...r, results: r.results.map((x) => ({ ...x, exit: 1 })) }) },
+    expect: { outcome: 'criteria-failed', rounds: 1 },
+  },
+  {
+    // Sabotage: skip the measurement for a resumed lane.
+    name: 'a resumed lane with uncommitted work halts as a dirty worktree',
+    rounds: [[]],
+    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' } }, measure: (label, m) => ({ ...m, trackedChanges: [' M src/a/x.py'] }) },
+    expect: { outcome: 'dirty-worktree', rounds: 0, noLabel: 'review:' },
+  },
+  {
+    // Sabotage: validate boundary lanes against `lanes` only, ignoring `allLanes`.
+    name: 'a partial re-run may pin a boundary to a lane named only in allLanes',
+    rounds: [[]],
+    over: {
+      rawArgs: JSON.stringify({
+        lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
+        allLanes: ['a', 'b'],
+        boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
+        boundariesFrozen: true,
+      }),
+    },
+    expect: { outcome: 'passed', rounds: 1, hasLabel: 'review:a:absence#1' },
+  },
+  {
+    // Sabotage: drop the lanes-in-allLanes check.
+    name: 'a lane missing from allLanes is refused',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }], allLanes: ['b'], boundariesFrozen: true }) },
+    expect: { refused: /args\.lanes\[0\] is "a", which args\.allLanes omits/ },
+  },
+  {
+    // Sabotage: carry `[refuted]` in the summary, or keep `state` on a merge whose sides disagree.
+    name: 'a refutation stays on its own finding and does not mark another at the same line',
+    rounds: [[finding({ line: 3, summary: 'r' }), finding({ file: 'src/b.py', summary: 'go' })], [finding({ line: 3, severity: 'minor', summary: 'm' })]],
+    over: { verdict: (label, key) => (key === 'src/a.py:3' ? { state: 'refuted' } : {}) },
+    expect: { outcome: 'passed', rounds: 2, carriedState: [['r | m', undefined]] },
+  },
+  {
+    // Sabotage: drop the repeated-id arm of `criteriaDrift`.
+    name: 'a criterion id reported twice is drift',
+    rounds: [[]],
+    over: { develop: devWith([CRIT, { ...CRIT, command: 'uv run pytest tests/b' }]) },
+    expect: { outcome: 'criteria-drift', rounds: 1, note: /C-01 is reported more than once/ },
+  },
+  {
+    // Sabotage: skip the `unverified.size` arm in `clean`.
+    name: 'a blocker left unverified beside a fixed one still halts after the fix',
+    rounds: [[finding({ summary: 'c' }), finding({ summary: 'u' })], []],
+    over: { verdict: (label, key) => (key === 'src/a.py:u' ? { state: 'unverified', commandsRun: 0 } : {}) },
+    expect: { outcome: 'unverified-blocker', rounds: 2, escalation: 'human', hasLabel: 'fix:a#1' },
+  },
+  {
+    // Same sabotage as the develop-time ownership case, on the measurement after a fix.
+    name: 'a fix that reaches outside owns is an ownership violation',
+    rounds: [[finding()]],
+    over: { measure: (label, m) => (label === 'touched:a#1' ? { ...m, ownershipDiff: ['src/other.py'] } : m) },
+    expect: { outcome: 'ownership-violated', rounds: 1, note: /src\/other\.py/ },
   },
 ]
 
@@ -1576,6 +1747,11 @@ for (const c of cases) {
   // Fields of the lane result itself, compared as JSON.
   for (const [k, v] of Object.entries(c.expect.result ?? {})) {
     check(JSON.stringify(got[k]) === JSON.stringify(v), `${k}=${JSON.stringify(got[k])}`)
+  }
+  // [summary, state] pairs: the carried finding with that summary must carry exactly that state.
+  for (const [summary, state] of c.expect.carriedState ?? []) {
+    const f = (got.carried ?? []).find((x) => x.summary === summary)
+    check(f && f.state === state, `carried ${JSON.stringify(summary)}=${JSON.stringify(f)}`)
   }
   if (c.expect.note) check(c.expect.note.test(got.note ?? ''), `note=${got.note}`)
   // `got` reads only one lane; a multi-lane case pins the others by count.
