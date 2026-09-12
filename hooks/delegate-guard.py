@@ -118,13 +118,11 @@ def main():
         binary = False
         blank = True
         with open(path, "rb") as handle:
-            first = True
             for chunk in iter(lambda: handle.read(CHUNK), b""):
-                # Line counts mean nothing for images and other binaries; the head decides.
-                if first and b"\x00" in chunk:
+                # Line counts mean nothing for images and other binaries; a NUL byte decides.
+                if b"\x00" in chunk:
                     binary = True
                     break
-                first = False
                 lines += chunk.count(b"\n")
                 blank = blank and not chunk.replace(b"\n", b"")
     except OSError:

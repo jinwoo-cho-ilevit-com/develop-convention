@@ -268,6 +268,36 @@ def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": "../.plans/x.md"}}) == "deny"
 
 
+def test_a_binary_whose_first_chunk_is_text_is_still_not_metered(tmp_path):
+    """A NUL byte past the first megabyte still marks the file binary: a container whose
+    header is ASCII would otherwise be refused on the line count of its payload.
+    """
+    blob = tmp_path / "clip.mov"
+    blob.write_bytes(b"free\n" * 300_000 + b"\x00\xff" * 16)
+    assert blob.stat().st_size > 1 << 20, "the NUL must sit past the first chunk"
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(blob)}}) == "allow"
+
+
+def test_a_directory_merely_containing_the_plan_spelling_is_not_exempt(tmp_path):
+    """The exemption is the `.plans` segment, not the letters: a directory named `.plansy`
+    would otherwise carry every file under it past the budget.
+    """
+    big = tmp_path / "x.plansy" / "app.js"
+    big.parent.mkdir(parents=True)
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(big)}}) == "deny"
+
+
+def test_a_read_asking_for_exactly_the_budget_is_allowed(tmp_path):
+    """The budget is what a read may cost, so a window of exactly the guard's 500 lines is
+    within it, and one larger is judged by the file.
+    """
+    big = tmp_path / "app.js"
+    big.write_text("x = 1\n" * 900, encoding="utf-8")
+    read = {"tool_name": "Read", "tool_input": {"file_path": str(big), "limit": 500}}
+    assert decision(read) == "allow"
+
+
 def test_the_plan_exemption_does_not_reach_outside_the_plan(tmp_path):
     """`.plans/../src/app.js` contains the exempt segment and resolves outside it, so an
     exemption matching the segment alone makes any guarded path readable by spelling it
