@@ -1,8 +1,11 @@
 """The plugin is the delivery path, and 15 requires the delivery path to be checked.
 
-Reading a manifest only tells you it parses, so the hook checks below execute the guard: one
-that was never observed refusing is indistinguishable from one that never fires
-(→ conventions/20-review-gate.md).
+Reading a manifest only tells you it parses, so the checks below execute the guard, the
+routing hook and the build workflow: one that was never observed refusing is
+indistinguishable from one that never fires (→ conventions/20-review-gate.md).
+
+The plugin's static document invariants — a skill's name, its links, the text it must not
+copy, the convention it routes — moved to `scripts/check-docs.py`.
 """
 
 import json
@@ -13,17 +16,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-from _repo import COMMANDS, CONVENTIONS, MARKETPLACE, PLUGIN, ROOT, SKILLS, load, read
+from _repo import MARKETPLACE, PLUGIN, ROOT, SKILLS, load, read
 
 GUARD = ROOT / "hooks" / "delegate-guard.py"
 SYSTEM_PATH = "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"
-
-
-def front_matter(path: Path) -> str:
-    body = read(path)
-    assert body.startswith("---\n"), f"{path} has no front matter"
-    return body.split("---", 2)[1]
-
 
 # --- manifests ------------------------------------------------------------------------------
 
@@ -94,98 +90,6 @@ def test_the_route_map_carries_each_skill_description():
         if f"- {clause or front['description']} → dev-harness:{front['name']}" not in result.stdout:
             missing.append(path.parent.name)
     assert not missing, f"the routing map does not carry the trigger clause of: {missing}"
-
-
-def test_the_readme_skill_table_names_every_skill():
-    """The map is generated; the README's reader-facing table is the one copy left by hand."""
-    body = read("README.md")
-    table = body[body.index("| Skill | Loads when |") :]
-    table = table[: table.index("\n\n")]
-    unlisted = [p.parent.name for p in SKILLS if f"`{p.parent.name}`" not in table]
-    assert not unlisted, f"README's skill table omits {unlisted}"
-
-
-@pytest.mark.parametrize("path", COMMANDS, ids=lambda p: p.name)
-def test_every_command_declares_a_description(path):
-    """Without one the command is listed with no way to tell what it does."""
-    assert "description:" in front_matter(path), f"{path.name} declares no description"
-
-
-@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
-def test_every_skill_declares_its_directory_as_its_name(path):
-    """The name has to be the directory name: the two disagreeing installs a skill under
-    a name nothing points at. The description is checked where it is used, against the
-    routing map (test_the_route_map_carries_each_skill_description).
-    """
-    front = front_matter(path)
-    assert f"name: {path.parent.name}\n" in front, (
-        f"{path.parent.name} declares a name that is not its directory"
-    )
-
-
-@pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
-def test_every_skill_link_resolves(path):
-    """A skill routes rather than restates, so a dead link is the content gone.
-
-    `mkdocs build --strict` catches this too, but only on a push to main; the routing
-    is worth failing a pull request over.
-    """
-    targets = re.findall(r"\]\(([^)]+)\)", path.read_text(encoding="utf-8"))
-    broken = [
-        target
-        for target in targets
-        if not target.startswith(("http://", "https://", "#"))
-        and not (path.parent / target).exists()
-    ]
-    assert not broken, f"{path.parent.name} links to files that do not exist: {broken}"
-
-
-CONVENTION_TEXT = " ".join(read(p) for p in CONVENTIONS)
-
-
-@pytest.mark.parametrize(
-    "path", SKILLS + COMMANDS, ids=lambda p: p.parent.name if p.name == "SKILL.md" else p.name
-)
-def test_a_skill_or_command_does_not_copy_convention_text(path):
-    """A skill or command routes to a convention the same way; the rule text itself stays there.
-
-    This catches copied sentences, not paraphrase — a short restatement still needs the
-    review lens (CLAUDE.md, verification item 6). A guard, so it holds at the base commit
-    by design (→ conventions/06-testing-verification.md), and a standing invariant kept
-    green by the absence of copied text rather than by an exemption.
-    """
-    copied = [
-        line
-        for raw in read(path).splitlines()
-        if len(line := raw.strip().lstrip("|-*# ").strip()) >= 40 and line in CONVENTION_TEXT
-    ]
-    where = path.parent.name if path.name == "SKILL.md" else path.name
-    assert not copied, f"{where} copies convention text: {copied}"
-
-
-def test_every_convention_is_routed_by_exactly_one_skill():
-    """The skills are how a convention reaches an agent, so one nothing routes to is one
-    nobody loads. Two skills claiming it is the same rule arriving under two triggers.
-
-    00 is the exception by design: it takes precedence over all of them, so every skill
-    points back at it.
-    """
-    routed: dict[str, set[str]] = {}
-    for path in SKILLS:
-        body = path.read_text(encoding="utf-8")
-        for name in re.findall(r"\.\./\.\./conventions/(\d\d-[a-z-]+\.md)", body):
-            routed.setdefault(name, set()).add(path.parent.name)
-
-    everything = {p.name for p in CONVENTIONS} - {"00-principles.md"}
-    orphaned = sorted(everything - set(routed))
-    assert not orphaned, f"no skill routes to {orphaned}"
-
-    contested = sorted(
-        f"{name} claimed by {sorted(owners)}"
-        for name, owners in routed.items()
-        if name in everything and len(owners) > 1
-    )
-    assert not contested, f"more than one skill routes to the same convention: {contested}"
 
 
 # --- the guard, executed --------------------------------------------------------------------

@@ -38,8 +38,13 @@ jobs:
           curl -fsSL https://claude.ai/install.sh | bash -s 2.1.267
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # The repository invariants under tests/ stand in for the checklist in CLAUDE.md,
-      # and drive the plugin's guard and workflow rather than reading them.
+      # CLAUDE.md's verification checklist, run over the documents themselves. Also reached
+      # through pre-commit below; named here so its report is its own step in the log.
+      - name: Document invariants
+        run: uv run python scripts/check-docs.py
+
+      # The repository invariants under tests/ drive the plugin's guard, its routing hook and
+      # its build workflow rather than reading them, and sample-run the checker above.
       - name: Test
         run: uv run --group dev pytest
 

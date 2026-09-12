@@ -15,6 +15,15 @@ repos:
         language: system
         files: \.pyi?$
 
+      # The documents check each other, so one edited file is not a scope: the run reads the
+      # whole tree and takes no file arguments.
+      - id: check-docs
+        name: document invariants
+        entry: uv run python scripts/check-docs.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:

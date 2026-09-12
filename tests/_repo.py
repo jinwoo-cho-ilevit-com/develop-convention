@@ -4,9 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CONVENTIONS = sorted((ROOT / "conventions").glob("*.md"))
 SKILLS = sorted((ROOT / "skills").glob("*/SKILL.md"))
-COMMANDS = sorted((ROOT / "commands").glob("*.md"))
 PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 
