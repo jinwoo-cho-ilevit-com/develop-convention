@@ -89,6 +89,14 @@ def numbered(body: str) -> list[tuple[int, str]]:
     return list(enumerate(body.splitlines(), 1))
 
 
+def matches(body: str, pattern: str) -> Iterator[tuple[int, re.Match[str]]]:
+    """Every match with the line it starts on. Markdown wraps, so a link or a `§n` may
+    straddle a newline; scanning line by line would read past it.
+    """
+    for match in re.finditer(pattern, body, re.DOTALL):
+        yield body.count("\n", 0, match.start()) + 1, match
+
+
 def where(body: str, needle: str) -> int | None:
     """The line a marker sits on, or None when the marker is absent."""
     for number, line in numbered(body):
@@ -166,11 +174,11 @@ def no_tool_call_residue(repo: Path) -> Iterator[Violation]:
 
 
 def doc_map_links_resolve(repo: Path) -> Iterator[Violation]:
-    for number, line in numbered(read(repo / "README.md")):
-        for match in re.finditer(r"\]\((conventions/[^)#]+|templates/[^)#]+)\)", line):
-            target = match.group(1)
-            if not (repo / target).exists():
-                yield Violation("README.md", number, f"links to {target}, which does not exist")
+    body = read(repo / "README.md")
+    for number, match in matches(body, r"\]\((conventions/[^)#]+|templates/[^)#]+)\)"):
+        target = "".join(match.group(1).split())
+        if not (repo / target).exists():
+            yield Violation("README.md", number, f"links to {target}, which does not exist")
 
 
 def every_convention_sits_under_a_doc_map_group(repo: Path) -> Iterator[Violation]:
@@ -202,12 +210,10 @@ def links_inside_a_convention_resolve(repo: Path) -> Iterator[Violation]:
     depend on a docs job that a reader may not run.
     """
     for doc in conventions(repo):
-        for number, line in numbered(read(doc)):
-            for target in re.findall(r"\]\((?!https?:|#)([^)#]+)", line):
-                if not (doc.parent / target).resolve().exists():
-                    yield Violation(
-                        rel(doc, repo), number, f"links to {target}, which does not exist"
-                    )
+        for number, match in matches(read(doc), r"\]\((?!https?:|#)([^)#]+)"):
+            target = "".join(match.group(1).split())
+            if not (doc.parent / target).resolve().exists():
+                yield Violation(rel(doc, repo), number, f"links to {target}, which does not exist")
 
 
 def every_convention_is_sourced_from_the_rule_summary(repo: Path) -> Iterator[Violation]:
@@ -342,12 +348,10 @@ def every_skill_declares_its_directory_as_its_name(repo: Path) -> Iterator[Viola
 def every_skill_link_resolves(repo: Path) -> Iterator[Violation]:
     """A skill routes rather than restates, so a dead link is the content gone."""
     for path in skills(repo):
-        for number, line in numbered(read(path)):
-            for target in re.findall(r"\]\((?!https?:|#)([^)#]+)", line):
-                if not (path.parent / target).exists():
-                    yield Violation(
-                        rel(path, repo), number, f"links to {target}, which does not exist"
-                    )
+        for number, match in matches(read(path), r"\]\((?!https?:|#)([^)#]+)"):
+            target = "".join(match.group(1).split())
+            if not (path.parent / target).exists():
+                yield Violation(rel(path, repo), number, f"links to {target}, which does not exist")
 
 
 def no_skill_or_command_copies_convention_text(repo: Path) -> Iterator[Violation]:
@@ -404,12 +408,10 @@ def section_cross_references_resolve(repo: Path) -> Iterator[Violation]:
     """A `§n` pointing past the target document's last section sends a reader nowhere."""
     by_name = {doc.name: doc for doc in conventions(repo)}
     for doc in conventions(repo):
-        for number, line in numbered(read(doc)):
-            for target, wanted in CROSS_REF.findall(line):
-                if target in by_name and int(wanted) not in sections_of(by_name[target]):
-                    yield Violation(
-                        rel(doc, repo), number, f"{target} has no §{wanted} to point at"
-                    )
+        for number, match in matches(read(doc), CROSS_REF.pattern):
+            target, wanted = match.group(1), match.group(2)
+            if target in by_name and int(wanted) not in sections_of(by_name[target]):
+                yield Violation(rel(doc, repo), number, f"{target} has no §{wanted} to point at")
 
 
 def section_numbering_is_contiguous(repo: Path) -> Iterator[Violation]:

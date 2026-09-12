@@ -142,6 +142,28 @@ SABOTAGE = [
         ],
     ),
     (
+        "doc map links resolve across a line break",
+        "README.md",
+        "## Document Map",
+        "## Document Map\n\nA [wrapped](conventions/\n99-missing.md) link is still one link.\n",
+        [("README.md", "links to conventions/99-missing.md, which does not exist")],
+    ),
+    (
+        "a convention link wrapped over two lines still resolves",
+        "conventions/02-config.md",
+        "## Details",
+        "## Details\n\nA [wrapped](\n99-missing.md) link is still one link.\n",
+        [("conventions/02-config.md", "links to 99-missing.md, which does not exist")],
+    ),
+    (
+        "a section reference wrapped over two lines still resolves",
+        "conventions/02-config.md",
+        "# 02. Central Config + Ablation",
+        "# 02. Central Config + Ablation\n\nSee [18-work-contract.md](18-work-contract.md)\n"
+        "§55 here.\n",
+        [("conventions/02-config.md", "18-work-contract.md has no §55 to point at")],
+    ),
+    (
         "section cross references resolve",
         "conventions/06-testing-verification.md",
         "[18-work-contract.md](18-work-contract.md) §5, and its sample",
