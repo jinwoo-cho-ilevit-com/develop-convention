@@ -37,10 +37,9 @@ def pinned_version(pyproject: Path, package: str) -> str | None:
 
 
 def test_ruff_pin_matches_the_hook_rev_in_the_template():
-    """The template's own comment: keep `rev` in step with the pin — and there was none.
-
-    pre-commit installs its own copy, so two versions format differently and the hook
-    rewrites what the local check just called clean.
+    """The template's own comment asks for `rev` in step with the pin. pre-commit installs its
+    own copy, so two versions format differently and the hook rewrites what the local check
+    just called clean.
     """
     pinned = pinned_version(TEMPLATES / "pyproject.toml", "ruff")
     assert pinned, "templates/pyproject.toml does not pin ruff"
@@ -70,11 +69,9 @@ def test_the_shared_hook_revs_match_between_the_repository_and_the_template():
 
 
 def test_agents_template_carries_no_convention_excerpt():
-    """An excerpt is a copy, and 15 requires a copy to carry its source and be checked.
-
-    This template carried thirty lines of rules with neither, so it drifted from the
-    documents it quoted while being loaded in every project that took it. The harness reads
-    `conventions/` directly, which removes the need and therefore the excerpt.
+    """An excerpt is a copy, and 15 requires a copy to carry its source and be checked. An
+    excerpt here would be loaded in every project that takes the template and drift from the
+    documents it quotes; the harness reads `conventions/` directly, so it needs none.
     """
     body = read(TEMPLATES / "AGENTS.md")
     assert "CONVENTION_PATH" not in body, "the template still asks for a path the plugin knows"

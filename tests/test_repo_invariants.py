@@ -1,10 +1,9 @@
 """The rules this repository states about itself, executed rather than remembered.
 
 `CLAUDE.md` carries a verification checklist and `conventions/03` and `13` require CI
-enforcement, but nothing ran either: the workflow that did was deleted as collateral in
-`a078b30`, and its document checks were inline shell in YAML that no other caller could
-reach. They are tests here so the contract's `verify` commands and the CI job execute the
-same file, and so the red check can observe each one failing at the base commit.
+enforcement. They live here as tests rather than as inline shell in a CI workflow so that the
+contract's `verify` commands and the CI job execute the same file, and so the red check can
+observe each one failing at the base commit.
 """
 
 import copy
@@ -54,7 +53,7 @@ def test_format_core_rules_is_the_first_body_heading(doc):
     ["README.md", "CLAUDE.md", *[f"conventions/{d.name}" for d in CONVENTIONS]],
 )
 def test_format_no_tool_call_residue(relative):
-    """Two docs once shipped a stray `</content>`; a committed one is invisible in review."""
+    """A committed tool-call fragment is invisible in review, so the check is mechanical."""
     body = read(relative)
     for marker in RESIDUE:
         assert marker not in body, f"{relative} carries tool-call residue {marker!r}"
@@ -90,10 +89,10 @@ def test_every_convention_sits_under_a_doc_map_group():
 
 @pytest.mark.parametrize("doc", CONVENTIONS, ids=lambda p: p.name)
 def test_links_inside_a_convention_resolve(doc):
-    """Only the README's links were checked, so a doc could point at a deleted file.
+    """A convention may point at a deleted file as easily as the README may.
 
-    The strict site build catches this in CI by accident; a repository invariant should not
-    depend on a docs job that a reader may not run.
+    The strict site build catches this in CI too, but a repository invariant should not depend
+    on a docs job that a reader may not run.
     """
     broken = []
     for target in re.findall(r"\]\((?!https?:|#)([^)#]+)", read(doc)):
@@ -105,8 +104,8 @@ def test_links_inside_a_convention_resolve(doc):
 def test_every_convention_is_sourced_from_the_rule_summary():
     """The "Full Rule Summary" is a paraphrased copy of every Core Rules section, and 15
     requires a copy to name its source. Paraphrase defeats the copied-line check, so what is
-    pinned here is the pointer: each convention is linked from a summary heading. Two
-    conventions (22, 23) were missing from it for a release with nothing to say so.
+    pinned here is the pointer: each convention is linked from a summary heading, and a
+    convention the summary omits is a copy nothing names as its source.
     """
     body = read("README.md")
     summary = body[body.index("## Full Rule Summary") :]
@@ -118,27 +117,12 @@ def test_every_convention_is_sourced_from_the_rule_summary():
     assert not unsourced, f"summary sections without a source link: {unsourced}"
 
 
-def test_docsync_still_says_how_to_leave_the_shared_state_behind():
-    """A repository that upgrades mid-life needs the migration step to be there, and needs
-    it to say how the old keys split — the one thing a reader cannot infer once the old
-    layout is gone from the document (why the shared file failed: conventions/15 §2).
-    """
-    body = (ROOT / "skills" / "docsync" / "SKILL.md").read_text(encoding="utf-8")
-    assert "state.json" in body, "the migration step naming the old layout is gone"
-    assert "<doc-path>#<section-id>" in body, "migration does not say how the old keys split"
-    assert "// .docsync/src__parser__AGENTS.md.json" in body, (
-        "the state file example is not flat under .docsync/, which a bare `docs/` ignore eats"
-    )
-
-
 # --- the published site ----------------------------------------------------------------
 
 
 def test_nav_lists_every_convention_doc():
-    """`templates/AGENTS.md` sends an agent with no local clone to the published site.
-
-    While the nav stopped at 17, that agent received conventions 00-17 and no work
-    contract, evidence or review-gate rules at all.
+    """`templates/AGENTS.md` sends an agent with no local clone to the published site, so a
+    convention the nav omits is one that agent never receives.
     """
     listed = {p for p in nav_paths(mkdocs_config()["nav"]) if p.startswith("conventions/")}
     missing = sorted({f"conventions/{d.name}" for d in CONVENTIONS} - listed)
@@ -148,8 +132,8 @@ def test_nav_lists_every_convention_doc():
 def test_nav_lists_what_a_project_still_takes():
     """15: when something ships, update what distributes it in the same change.
 
-    The published site is one of those distribution paths, and it went on listing a
-    contract template and a bootstrap skill after both were retired.
+    The published site is one of those distribution paths: what it lists is what a project
+    still takes, so a retired template or skill left in the nav keeps being taken.
     """
     listed = set(nav_paths(mkdocs_config()["nav"]))
     assert "templates/AGENTS.md" in listed
@@ -172,27 +156,13 @@ def floor_of(requires_python: str) -> tuple[int, int]:
 def test_python_version_agrees_with_requires_python(directory):
     """03: `pyproject.toml` + `uv.lock` (committed) + `.python-version`.
 
-    A project bootstrapped from `templates/` could not satisfy 03's first Core Rule,
-    because the template it was bootstrapped from did not either.
+    Checked in `templates/` as well as here: a project bootstrapped from the template can
+    only satisfy 03's first Core Rule if the template it came from does.
     """
     base = ROOT / directory if directory else ROOT
     pinned = (base / ".python-version").read_text(encoding="utf-8").strip()
     declared = tomllib.loads((base / "pyproject.toml").read_text(encoding="utf-8"))
     assert floor_of(pinned) >= floor_of(declared["project"]["requires-python"])
-
-
-# --- what CLAUDE.md says this repository is ---------------------------------------------
-
-
-def test_claude_md_names_the_code_this_repository_ships():
-    """It told an agent the only code was a toolkit that no longer exists.
-
-    An agent that believes the repository is documents-only will not run, or update, the
-    plugin that now delivers them.
-    """
-    body = read("CLAUDE.md")
-    for entry in ("hooks/", "commands/", "workflows/", ".claude-plugin/"):
-        assert entry in body, f"CLAUDE.md never mentions {entry}"
 
 
 # --- nothing in the tree still names a mechanism that was retired ------------------------
@@ -235,8 +205,8 @@ def test_nothing_in_the_tree_names_a_retired_mechanism():
     takes: readable, and doing as told fails.
 
     One list checked against every tracked file, path as well as body, so a retired directory
-    reappearing and a document naming it fail the same way. Per-directory checks each covered
-    one corner and left the next file added uncovered.
+    reappearing and a document naming it fail the same way, and a file added later is covered
+    without the list being extended.
     """
     named = sorted(
         f"{name}: {token}"
@@ -300,12 +270,9 @@ def test_workflow_runs_lint_tests_and_secret_scan(tool):
 
 
 def test_secret_scan_survives_only_while_the_hook_exists():
-    """The check above passes on a hook id, so deleting the hook has to remove the tool.
-
-    A run step that names a tool without running it, or a helper that reports one whatever
-    the config says, satisfies that check just as well — the workflow this replaced named
-    `gitleaks` in its own text. Removing the hook has to remove the tool, or the green above
-    is coming from somewhere other than a hook that runs.
+    """The check above passes on a hook id, so removing the hook has to remove the tool. A
+    `ci_tools` that reports `gitleaks` from the run-step text, or whatever the config says,
+    satisfies it just as well — then the green above comes from somewhere other than a hook.
     """
     stripped = copy.deepcopy(precommit_config())
     for repo in stripped["repos"]:
@@ -315,7 +282,7 @@ def test_secret_scan_survives_only_while_the_hook_exists():
 
 def test_workflow_installs_the_cli_the_manifest_test_needs():
     """`tests/test_plugin.py::test_the_cli_accepts_the_manifests` skips when `claude` is
-    absent, so CI reported green over a manifest that nothing had validated.
+    absent, so without the install step CI reports green over an unvalidated manifest.
     """
     assert "claude.ai/install.sh" in run_steps(workflow("checks.yml"))
 

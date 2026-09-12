@@ -129,7 +129,8 @@ def main():
                 blank = blank and not chunk.replace(b"\n", b"")
     except OSError:
         allow()
-    # A file that is empty or only newlines has nothing to meter.
+    # A file that is empty or only newlines has nothing to meter, so it is allowed however many
+    # lines or bytes it holds — there is no context to burn on blank lines.
     if binary or blank:
         allow()
     # A minified bundle is one line and still costs the context the limit exists to protect.

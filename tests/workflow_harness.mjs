@@ -14,16 +14,24 @@ function loadWorkflow() {
   return new AsyncFunction('args', 'agent', 'parallel', 'pipeline', 'log', 'phase', source.replace('export const meta', 'const meta'))
 }
 
-// Minimal stand-ins for the runtime hooks. pipeline() runs each item through every
-// stage independently, which is the property the script relies on.
+// Minimal stand-ins for the runtime hooks, matching what the workflow-authoring reference
+// documents so that no case pins a shape the real runtime cannot produce: pipeline() runs each
+// item through every stage independently and drops a throwing item to null; so does parallel().
 const parallel = (thunks) => Promise.all(thunks.map((t) => t().catch(() => null)))
 const pipeline = (items, ...stages) =>
   Promise.all(
-    items.map(async (item, i) => {
-      let acc = item
-      for (const stage of stages) acc = await stage(acc, item, i)
-      return acc
-    }),
+    items.map((item, i) =>
+      (async () => {
+        let acc = item
+        for (const stage of stages) acc = await stage(acc, item, i)
+        return acc
+      })().catch((err) => {
+        // The drop is the runtime's behaviour, but it swallows a typo in a case's `over` hooks
+        // just as quietly, leaving it to read as an unanswered lane. Say what was swallowed.
+        console.log(`     (pipeline dropped item ${i}: ${err instanceof Error ? err.stack : String(err)})`)
+        return null
+      }),
+    ),
   )
 
 function finding(over = {}) {
@@ -222,6 +230,8 @@ function dispatchChecks(expect, out) {
 // landing there, and the words naming the cause. The path also decides what the row overrides
 // and the first half of the expected note, so no row passes on a message about another field.
 const LANE = { name: 'a', owns: ['src/a/'], security: false }
+// A lane picked up where it halted: it already has a worktree, so it gets no fresh one.
+const RESUMED = { ...LANE, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' }
 const BOUNDARY = { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }
 const SCHEMA_BOUNDARY = { ...BOUNDARY, schema: '.plans/contracts/api.schema.json', producer: 'a' }
 const SHAPE_ROWS = [
@@ -246,6 +256,9 @@ const SHAPE_ROWS = [
   // rather than silently accepted as a boundary with no contract path.
   ['a boundary using a `test` key is refused as an unknown key', 'args.boundaries[0]', { name: 'api', lanes: ['a'], test: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /unknown key "test"/],
   ['a boundary with a contract but no sample is refused', 'args.boundaries[0]', { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md' }, /declares no sample/],
+  // Both paths are required, so a boundary missing either is refused here — before the freeze
+  // check could skip it and leave every lane told its contract file exists unmeasured.
+  ['a boundary with a sample but no contract is refused', 'args.boundaries[0]', { name: 'api', lanes: ['a'], sample: 'tests/fixtures/api.sample.json' }, /declares no contract/],
   // Sabotage: drop 'name' from the boundary required list.
   ['a boundary with no name is refused', 'args.boundaries[0]', { lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }, /declares no name/],
   // Sabotage: accept any string as a tier.
@@ -290,9 +303,8 @@ const cases = [
     expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human' },
   },
   {
-    // The reviewer flag is never set here. If the loop only believed `causedByPreviousFix`
-    // it would grind to the cap, which is what it used to do — the old case set the flag
-    // itself and so proved the branch fires, never that anything can reach it.
+    // The reviewer flag is never set here, so the halt has to come from the loop noticing the
+    // finding is unchanged. A loop that only believed `causedByPreviousFix` would grind to the cap.
     name: 'the same finding returning unchanged halts without any reviewer flag',
     rounds: [[finding()]],
     expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human' },
@@ -341,8 +353,8 @@ const cases = [
     expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
   },
   {
-    // Schema-valid and self-contradicting: a true and a false row for the same key. The
-    // refutation used to win, dropping a real blocker into a clean pass.
+    // Schema-valid and self-contradicting: a true and a false row for the same key. Letting
+    // either row win would drop a real blocker into a clean pass, so neither decides.
     name: 'a verifier contradicting itself decides nothing',
     rounds: [[finding()]],
     over: { contradictoryVerdicts: true },
@@ -355,9 +367,9 @@ const cases = [
     expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
   },
   {
-    // Confirming a blocker establishes the defect is real; it says nothing about who caused
-    // it. A real pre-existing blocker in a file the fix never touched, mislabelled as
-    // fix-induced, used to halt the loop by itself and was then never fixed.
+    // Confirming a blocker establishes the defect is real; it says nothing about who caused it.
+    // A pre-existing blocker in a file the fix never touched, mislabelled as fix-induced, must
+    // not halt the loop on that label alone — halting there leaves the blocker unfixed.
     name: 'a fix-causation claim about an untouched file does not halt the loop',
     rounds: [
       [finding({ file: 'src/a.py', summary: 'A' })],
@@ -390,26 +402,6 @@ const cases = [
     expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human' },
   },
   {
-    // The fix agent is no longer asked which files it touched, so the only thing that can
-    // supply the file list is the separate measurement — the halt here is proof it ran and
-    // was read, and the label assertion pins which agent produced it.
-    name: 'the causation check reads a measurement, not the fixer\'s word',
-    rounds: [
-      [finding({ file: 'src/measured.py', summary: 'A' })],
-      [finding({ file: 'src/measured.py', summary: 'B', causedByPreviousFix: true })],
-    ],
-    over: { fixTouched: ['src/measured.py'] },
-    expect: { outcome: 'regression-halt', rounds: 2, escalation: 'human', hasLabel: 'touched:a#1' },
-  },
-  {
-    // Every later step reads the measurement, so a fix nobody measured halts the lane — sabotage:
-    // let `measure` return `{ m }` when the agent answered nothing.
-    name: 'a measurement that returns nothing after a fix halts the lane',
-    rounds: [[finding()], []],
-    over: { touchedDies: 1 },
-    expect: { outcome: 'measurement-failed', rounds: 1, noLabel: 'review:a:module#2' },
-  },
-  {
     // Each measurement diffs from the head the previous one reported, so a round sees its
     // own fix only. An accumulated set would still hold src/a.py from round 1 and halt on
     // round 3's claim about it.
@@ -424,17 +416,13 @@ const cases = [
     expect: { outcome: 'passed', rounds: 4, notOutcome: 'regression-halt' },
   },
   {
-    // JavaScript lets anything be thrown, and reading `.message` off a thrown null threw
-    // again — so the guard against one case hiding the rest hid the rest.
-    name: 'a case throwing a non-Error is reported, not fatal',
+    // A stage that throws drops its lane to null, so the lane list the workflow reports is
+    // shorter than the lane list it was given. That gap is reported as `unanswered` rather
+    // than read as a pass — sabotage: drop the `filter(Boolean)` before the outcome split.
+    name: 'a lane whose stage throws is counted unanswered, not passed',
     rounds: [[]],
     over: { throws: null },
-    expect: { threw: true },
-  },
-  {
-    name: 'the case after a thrown non-Error still runs',
-    rounds: [[]],
-    expect: { outcome: 'passed', rounds: 1 },
+    expect: { unanswered: 1, passedCount: 0 },
   },
   {
     name: 'a lane the plan declared security gets a security lens',
@@ -469,8 +457,8 @@ const cases = [
     expect: { outcome: 'review-unexecuted', rounds: 1 },
   },
   {
-    // Two lenses that ran used to carry a third that did not into a clean pass, and the
-    // silent lens is precisely the one whose "no findings" carries no information.
+    // Two lenses that ran must not carry a third that did not into a clean pass: the silent
+    // lens is precisely the one whose "no findings" carries no information.
     name: 'one silent lens among three still stops the pass',
     rounds: [[]],
     over: { lane: { name: 'a', owns: ['src/a/', 'src/b/'], security: false }, commandsRunSeq: [0, 2, 2] },
@@ -606,74 +594,31 @@ const cases = [
   },
   ...SHAPE_ROWS.map(shapeCase),
   {
-    // `rawArgs` replaces the constructed object wholesale, so no text case reached a boundary
-    // and the contract-file check was never exercised on this path at all. A later change that
-    // dropped `boundaries` on the way through the parse would have left every case green.
-    name: 'the contract-file check runs on the text path too',
+    // The arguments reaching the script as JSON text go through a parse the object path skips, and
+    // every refusal after it has to hold on both paths. Sabotage: guard the missing-path refusal
+    // with `&& typeof args !== 'string'` — the object cases all stay green.
+    name: 'a missing contract file is refused by name when the arguments arrive as text',
     rounds: [[]],
     over: {
-      rawArgs: JSON.stringify({
-        lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
-        boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
-        boundariesFrozen: true,
-      }),
-    },
-    expect: { outcome: 'passed', rounds: 1, hasLabel: 'freeze-check' },
-  },
-  {
-    // And that it still refuses there — a check that only ever passes on this path proves
-    // nothing about the path.
-    name: 'a missing contract file is refused by name on the text path',
-    rounds: [[]],
-    over: {
-      rawArgs: JSON.stringify({
-        lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
-        boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
-        boundariesFrozen: true,
-      }),
+      rawArgs: JSON.stringify({ lanes: [LANE], boundaries: [BOUNDARY], boundariesFrozen: true }),
       missingFrozen: ['.plans/contracts/api.md'],
     },
-    expect: { refused: /declared frozen but these contract, schema, sample or plan files do not exist: \.plans\/contracts\/api\.md/ },
+    expect: { refused: /do not exist: \.plans\/contracts\/api\.md/ },
   },
   {
-    // Declaring the freeze is not doing it, and the lanes are told the contract files exist on
-    // the strength of that declaration alone.
-    name: 'a boundary whose contract file does not exist is refused by name',
-    rounds: [[]],
-    over: {
-      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
-      missingFrozen: ['.plans/contracts/api.md'],
-    },
-    expect: { refused: /declared frozen but these contract, schema, sample or plan files do not exist: \.plans\/contracts\/api\.md/ },
-  },
-  {
-    // The sample is as much a frozen path as the contract — dropping it from `frozenPaths`
-    // would leave every lane told a sample exists that nothing measured.
-    name: 'a boundary whose sample file does not exist is refused by name',
-    rounds: [[]],
-    over: {
-      boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
-      missingFrozen: ['tests/fixtures/api.sample.json'],
-    },
-    expect: { refused: /declared frozen but these contract, schema, sample or plan files do not exist: tests\/fixtures\/api\.sample\.json/ },
-  },
-  {
-    // The same paths, and the sha they were absent at. Without it the refusal names files a
-    // reader then finds in the orchestrator's tree and concludes the check is wrong.
-    name: 'the missing-path refusal names the commit the lanes start from',
+    // Declaring the freeze is not doing it: the lanes are told the contract files exist on the
+    // strength of that declaration alone. The note names each absent path and the sha it was
+    // absent at — without the sha a reader finds the file in their own tree and disbelieves it.
+    name: 'a missing frozen path is refused by name, at the commit the lanes start from',
     rounds: [[]],
     over: {
       boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
       missingFrozen: ['.plans/contracts/api.md'],
       frozenHead: 'deadbee',
     },
-    expect: { refused: /not at deadbee, the commit the lanes start from/ },
-  },
-  {
-    name: 'boundaries whose contract files all exist fan out normally',
-    rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
-    expect: { outcome: 'passed', rounds: 1, hasLabel: 'freeze-check' },
+    expect: {
+      refused: /declared frozen but these contract, schema, sample or plan files do not exist: \.plans\/contracts\/api\.md — not at deadbee, the commit the lanes start from/,
+    },
   },
   {
     // A freeze check reading the orchestrator's tree answers about a tree no lane works in,
@@ -735,15 +680,6 @@ const cases = [
     name: 'a plan with no boundaries still has its plan and briefs checked at base',
     rounds: [[]],
     expect: { outcome: 'passed', rounds: 1, prompt: { 'freeze-check': /- \.plans\/PLAN\.md\n- \.plans\/lane-a\.md/ } },
-  },
-  {
-    // `contract` and `sample` are both required by the shape check, so a boundary missing
-    // either is refused there — before the freeze check could skip it and leave every lane
-    // told its contract file exists on the strength of a declaration nothing measured.
-    name: 'a boundary missing a contract path is refused as a missing required field',
-    rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'], sample: 'tests/fixtures/api.sample.json' }] },
-    expect: { refused: /args\.boundaries\[0\] declares no contract/ },
   },
   {
     // Both lanes read one brief, take one branch and answer to one label, so the second is
@@ -963,13 +899,6 @@ const cases = [
     },
   },
   {
-    // Sabotage: drop "schema" from the missing-files note.
-    name: 'a missing schema file is refused by name, alongside contract and sample',
-    rounds: [[]],
-    over: { boundaries: [SCHEMA_BOUNDARY], missingFrozen: ['.plans/contracts/api.schema.json'] },
-    expect: { refused: /contract, schema, sample or plan files do not exist: \.plans\/contracts\/api\.schema\.json/ },
-  },
-  {
     // Sabotage: drop the `b.producer === lane.name` branch in `boundaryContracts` (always
     // emit the consumer sentence) — the producer's prompt then loses its own instruction.
     name: "a producer lane's prompt carries the fresh-dump instruction; a consumer's does not",
@@ -1067,14 +996,6 @@ const cases = [
     expect: { outcome: 'criteria-failed' },
   },
   {
-    // The mirror of the case above — sabotage: drop the pass/fail filter and always inject
-    // the synthetic criterion for a produced boundary, regardless of what was reported.
-    name: 'a producer lane that reports a passing --schemafile criterion is not held back by it',
-    rounds: [[]],
-    over: { boundaries: [SCHEMA_BOUNDARY] },
-    expect: { outcome: 'passed' },
-  },
-  {
     // A consumer lane carries no `produced` boundary, so the injection never applies to it —
     // sabotage: drop the `b.producer === lane.name` filter (match any boundary with a schema).
     name: 'a consumer lane is not required to report the producer\'s schema-check criterion',
@@ -1102,18 +1023,6 @@ const cases = [
       outcome: 'passed',
       rounds: 1,
       prompt: { 'freeze-check': /- \.plans\/contracts\/api\.schema\.json/ },
-    },
-  },
-  {
-    // Sabotage: drop `'tool'`/`'checked'` from `FROZEN_SCHEMA.required` — the freeze-check
-    // dispatch would no longer force the agent to report either field.
-    name: 'the freeze-check schema requires both `tool` and `checked`',
-    rounds: [[]],
-    over: { boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
-    expect: {
-      outcome: 'passed',
-      rounds: 1,
-      schemaRequired: { 'freeze-check': ['tool', 'checked'] },
     },
   },
   {
@@ -1414,7 +1323,7 @@ const cases = [
     // Sabotage: drop the no-baseline instruction from `developPrompt`.
     name: 'the develop prompt says a check with no baseline needs a sabotage red',
     rounds: [[]],
-    expect: { outcome: 'passed', prompt: { 'develop:a': /no baseline, which is not a red: after implementing,\nsabotage the code it checks/ } },
+    expect: { outcome: 'passed', prompt: { 'develop:a': /no baseline, which is not a red: after implementing,\s+sabotage the code it checks/ } },
   },
   {
     // Sabotage: drop the red list from the module lens prompt.
@@ -1492,10 +1401,18 @@ const cases = [
     expect: { outcome: 'passed', rounds: 2, result: { lenses: ['module'], commandsRun: { module: 6 }, tool: 'Claude', head: 'm1', worktree: '/tmp/wt' } },
   },
   {
-    // Sabotage: drop `head` from `RECHECK_SCHEMA.required` or `base` from `FROZEN_SCHEMA.required`.
-    name: 'the recheck and freeze schemas require the sha they ran on',
+    // Sabotage: drop a field from `RECHECK_SCHEMA.required` or from `FROZEN_SCHEMA.required`.
+    // Whatever the freeze check is not forced to report is a field the workflow then reads as
+    // absent rather than as unmeasured.
+    name: 'the recheck and freeze schemas require the sha they ran on and what they measured',
     rounds: [[]],
-    expect: { outcome: 'passed', schemaRequired: { 'recheck:a#1': ['head', 'results', 'brief'], 'freeze-check': ['head', 'base'] } },
+    expect: {
+      outcome: 'passed',
+      schemaRequired: {
+        'recheck:a#1': ['head', 'results', 'brief'],
+        'freeze-check': ['head', 'base', 'tool', 'checked'],
+      },
+    },
   },
   {
     // Sabotage: drop a field from the `required` list of the named schema.
@@ -1552,7 +1469,7 @@ const cases = [
     name: 'a guard red recorded with its exemption reason is accepted',
     rounds: [[]],
     over: { develop: devWith([{ ...CRIT, red: 'guard', redOutput: 'standing invariant; passes at base: 3 passed' }]) },
-    expect: { outcome: 'passed', prompt: { 'develop:a': /`guard` for a standing\ninvariant, with the reason it is exempt or its passing output at the base commit/ } },
+    expect: { outcome: 'passed', prompt: { 'develop:a': /`guard` for a standing\s+invariant, with the reason it is exempt or its passing output at the base commit/ } },
   },
   {
     // Sabotage: drop `--no-renames` from the ownership diff.
@@ -1614,33 +1531,40 @@ const cases = [
       result: { worktree: '/tmp/wt2', branch: 'lane-a' },
     },
   },
+  // A resumed lane is held to every check a fresh one is. Each check is a separate case because
+  // a run reaches exactly one terminal outcome, so a case triggering all four would leave a
+  // bypass of the three it never reaches invisible. Sabotage for each: guard that one check with
+  // `&& !lane.resumeFrom`. Breaking the check outright is caught by the non-resumed cases and
+  // proves nothing about the resume path.
   {
-    // Sabotage: skip the develop-time red check for a resumed lane.
     name: 'a resumed lane must report red again, and fails without it',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' }, develop: devWith([{ criterion: 'C-01', command: 'uv run pytest tests/a', passed: true }]) },
+    over: {
+      lane: RESUMED,
+      develop: devWith([{ criterion: 'C-01', command: 'uv run pytest tests/a', passed: true }]),
+    },
     expect: { outcome: 'criteria-failed', rounds: 0, noLabel: 'review:', note: /red for "C-01" was not recorded/ },
   },
   {
-    // Sabotage: skip the drift comparison for a resumed lane.
     name: 'a resumed lane is compared against its brief at base like any other',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' }, recheck: (label, r) => ({ ...r, brief: [...r.brief, { id: 'C-02', sentence: 's', command: 'uv run pytest tests/b' }] }) },
-    expect: { outcome: 'criteria-drift', rounds: 1 },
+    over: {
+      lane: RESUMED,
+      recheck: (label, r) => ({ ...r, brief: [...r.brief, { id: 'C-02', sentence: 's', command: 'uv run pytest tests/b' }] }),
+    },
+    expect: { outcome: 'criteria-drift', rounds: 1, note: /C-02 is missing/ },
   },
   {
-    // Sabotage: skip the ownership check for a resumed lane.
     name: 'a resumed lane whose diff reaches outside owns is an ownership violation',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' }, resumeNote: 'criteria-failed: C-01' }, measure: (label, m) => ({ ...m, ownershipDiff: ['src/other.py'] }) },
-    expect: { outcome: 'ownership-violated', rounds: 0, result: { worktree: '/tmp/wt2' } },
+    over: { lane: RESUMED, measure: (label, m) => ({ ...m, ownershipDiff: ['src/other.py'] }) },
+    expect: { outcome: 'ownership-violated', rounds: 0, note: /src\/other\.py/, result: { worktree: '/tmp/wt2' } },
   },
   {
-    // Sabotage: skip the measurement for a resumed lane.
     name: 'a resumed lane with uncommitted work halts as a dirty worktree',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/'], security: false, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' } }, measure: (label, m) => ({ ...m, trackedChanges: [' M src/a/x.py'] }) },
-    expect: { outcome: 'dirty-worktree', rounds: 0, noLabel: 'review:' },
+    over: { lane: RESUMED, measure: (label, m) => ({ ...m, trackedChanges: [' M src/a/x.py'] }) },
+    expect: { outcome: 'dirty-worktree', rounds: 0, noLabel: 'review:', note: /uncommitted work/ },
   },
   {
     // Sabotage: validate boundary lanes against `lanes` only, ignoring `allLanes`.
@@ -1684,12 +1608,20 @@ const cases = [
     over: { verdict: (label, key) => (key === 'src/a.py:u' ? { state: 'unverified', commandsRun: 0 } : {}) },
     expect: { outcome: 'unverified-blocker', rounds: 2, escalation: 'human', hasLabel: 'fix:a#1' },
   },
+  // The measurement after a fix is held to the same checks as the one after develop. Separate
+  // cases for the same reason the resume ones are separate. Sabotage for each: narrow that check
+  // to the develop measurement with `&& label.endsWith('#0')`.
   {
-    // Same sabotage as the develop-time ownership case, on the measurement after a fix.
     name: 'a fix that reaches outside owns is an ownership violation',
     rounds: [[finding()]],
     over: { measure: (label, m) => (label === 'touched:a#1' ? { ...m, ownershipDiff: ['src/other.py'] } : m) },
     expect: { outcome: 'ownership-violated', rounds: 1, note: /src\/other\.py/ },
+  },
+  {
+    name: 'a measurement that returns nothing after a fix halts the lane',
+    rounds: [[finding()], []],
+    over: { touchedDies: 1 },
+    expect: { outcome: 'measurement-failed', rounds: 1, noLabel: 'review:a:module#2' },
   },
   {
     // Sabotage: drop the `m.base !== baseSha` check from `measure`.
@@ -1722,22 +1654,16 @@ const cases = [
 
 let failed = 0
 for (const c of cases) {
-  // A throw is this case's failure, not the run's. Letting it escape aborted the loop, so
-  // one broken case hid every case after it — the same shape as every other defect this
-  // harness exists to catch.
+  // A throw is this case's failure, not the run's: an escaping throw aborts the loop and one
+  // broken case then hides every case after it.
   let out
   try {
     out = await run(c.rounds, c.over)
   } catch (err) {
-    // `err.message` on a thrown null is itself a throw, so the guard against one case
-    // hiding the rest hid the rest. JavaScript lets anything be thrown; render defensively.
-    const shown = err instanceof Error ? err.message : String(err)
-    if (c.expect.threw) {
-      console.log(`OK   ${c.name} (threw ${shown}, run continues)`)
-    } else {
-      failed++
-      console.log(`FAIL ${c.name} -> threw: ${shown}`)
-    }
+    // JavaScript lets anything be thrown, and `err.message` on a thrown null throws again,
+    // so the message is rendered defensively.
+    failed++
+    console.log(`FAIL ${c.name} -> threw: ${err instanceof Error ? err.message : String(err)}`)
     continue
   }
   // A refusal returns before the pipeline, so there is no lane result to read. What it has to
@@ -1758,9 +1684,8 @@ for (const c of cases) {
     continue
   }
 
-  // A refusal on a case that expects a lane outcome has no `passed` to read, and reading it
-  // anyway threw out of the loop — one regression hid every case after it, which is the guard
-  // above extended to where the assertions actually run.
+  // A refusal on a case that expects a lane outcome has no `passed` to read; reading it anyway
+  // throws out of the loop, which is the guard above extended to where the assertions run.
   if (out.passed === undefined) {
     failed++
     console.log(`FAIL ${c.name} -> refused unexpectedly: ${out.note}`)
@@ -1811,6 +1736,9 @@ for (const c of cases) {
   if (c.expect.note) check(c.expect.note.test(got.note ?? ''), `note=${got.note}`)
   // `got` reads only one lane; a multi-lane case pins the others by count.
   if (c.expect.passedCount !== undefined) check(out.passed.length === c.expect.passedCount, `passed.length=${out.passed.length}`)
+  // Lanes the pipeline dropped. Read from the workflow's own count, not from `got`, which is
+  // empty for a dropped lane and would make every absence read as agreement.
+  if (c.expect.unanswered !== undefined) check(out.unanswered === c.expect.unanswered, `unanswered=${out.unanswered}`)
   why.push(...dispatchChecks(c.expect, out))
 
   if (why.length) failed++

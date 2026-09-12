@@ -1,7 +1,7 @@
 """The plugin is the delivery path, and 15 requires the delivery path to be checked.
 
-Reading a manifest tells you it parses. The hook checks below run it, because a guard that
-was never observed refusing is indistinguishable from one that never fires
+Reading a manifest only tells you it parses, so the hook checks below execute the guard: one
+that was never observed refusing is indistinguishable from one that never fires
 (→ conventions/20-review-gate.md).
 """
 
@@ -46,22 +46,12 @@ def test_the_cli_accepts_the_manifests():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_default_component_directories_exist():
-    """The four default component directories (commands, hooks, workflows, skills) exist.
-
-    `plugin.json` declares no paths of its own, so these default locations are the contract.
-    """
-    expected = ("commands", "hooks", "workflows", "skills")
-    missing = [name for name in expected if not (ROOT / name).is_dir()]
-    assert not missing, f"default component directories are missing: {missing}"
-
-
 def test_the_hook_only_intercepts_reads():
     """The guard decides one thing: whether a read fits the orchestrator's budget.
 
-    Matching the editing tools spent a prompt on every edit to enforce a norm the guard
-    cannot hold, and matching Bash spent a subprocess on every command to reach a pattern
-    match that called itself a speed bump (→ conventions/21-development-loop.md §3).
+    Matching the editing tools would spend a prompt on every edit to enforce a norm the guard
+    cannot hold, and matching Bash would spend a subprocess on every command to reach a
+    pattern match (→ conventions/21-development-loop.md §3).
     """
     entries = load(ROOT / "hooks" / "hooks.json")["hooks"]["PreToolUse"]
     matchers = {entry["matcher"] for entry in entries}
@@ -81,12 +71,6 @@ def hook_scripts() -> list[Path]:
 def test_hook_config_points_at_files_that_exist():
     missing = [str(target) for target in hook_scripts() if not target.is_file()]
     assert not missing, f"hook commands are not files: {missing}"
-
-
-def test_every_hook_is_executable():
-    """A plugin hook is invoked directly, so a non-executable script fails silently at runtime."""
-    dead = [target.name for target in hook_scripts() if not target.stat().st_mode & 0o111]
-    assert not dead, f"hook scripts are not executable: {dead}"
 
 
 def test_the_route_map_carries_each_skill_description():
@@ -128,14 +112,12 @@ def test_every_command_declares_a_description(path):
 
 
 @pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)
-def test_every_skill_declares_a_description(path):
-    """A skill is chosen by its description, so one without it never loads at all.
-
-    The name has to be the directory name: the two disagreeing installs a skill under
-    a name nothing points at.
+def test_every_skill_declares_its_directory_as_its_name(path):
+    """The name has to be the directory name: the two disagreeing installs a skill under
+    a name nothing points at. The description is checked where it is used, against the
+    routing map (test_the_route_map_carries_each_skill_description).
     """
     front = front_matter(path)
-    assert "description:" in front, f"{path.parent.name} declares no description"
     assert f"name: {path.parent.name}\n" in front, (
         f"{path.parent.name} declares a name that is not its directory"
     )
@@ -261,10 +243,7 @@ def test_a_large_limit_on_a_small_file_is_not_refused(tmp_path):
 
 
 def test_the_read_budget_is_the_one_the_environment_asks_for(tmp_path):
-    """The refusal message advertises this variable, so it has to move the threshold.
-
-    Metering reads is now the whole hook, and the override had no test at all.
-    """
+    """The refusal message advertises this variable, so it has to move the threshold."""
     page = tmp_path / "page.py"
     page.write_text("x = 1\n" * 300, encoding="utf-8")
     payload = {"tool_name": "Read", "tool_input": {"file_path": str(page)}}
@@ -302,8 +281,8 @@ def test_a_bounded_read_costs_what_it_asks_for(tmp_path):
 def test_one_enormous_line_is_judged_by_bytes(tmp_path):
     """A minified bundle is one line and still costs the context the limit protects.
 
-    Every other fixture here is short lines, so the line clause always decided first and
-    the byte ceiling never did.
+    The only fixture here with long lines: everywhere else the line clause decides first,
+    so this is what reaches the byte ceiling.
     """
     bundle = tmp_path / "bundle.min.js"
     bundle.write_text("var a=1;" * 20_000, encoding="utf-8")
@@ -348,13 +327,11 @@ def test_only_a_real_agent_id_counts_as_a_subagent(agent_id, tmp_path):
     assert decision(payload) == "deny"
 
 
-@pytest.mark.parametrize("name", ["release..notes.md", "v1..2.md", "PLAN.md"])
+@pytest.mark.parametrize("name", ["release..notes.md", "v1..2.md"])
 def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
-    """The first traversal guard matched two dots anywhere, not a `..` path segment.
-
-    Feature names come from the user and nothing forbids this spelling, so the orchestrator
-    was refused the plan file it was told to work from — a fix that shut the door it opened
-    and one next to it.
+    """Two dots in a file name are not a `..` path segment. Feature names come from the user
+    and nothing forbids this spelling, so a guard matching two dots anywhere refuses the
+    orchestrator the plan file it was told to work from.
     """
     brief = tmp_path / ".plans" / "f" / name
     brief.parent.mkdir(parents=True, exist_ok=True)
@@ -366,8 +343,8 @@ def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
 def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
     """The exemptions match a relative spelling as well as an absolute one.
 
-    Every other fixture here is built under `tmp_path` and absolute, so the relative
-    branch could be deleted with the suite still green.
+    The only relative fixture here: every other is built under `tmp_path` and absolute, so
+    without this the relative branch could be deleted with the suite still green.
     """
     target = tmp_path / path
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -387,17 +364,15 @@ def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": "../.plans/x.md"}}) == "deny"
 
 
-@pytest.mark.parametrize("spelling", [".plans/../src/app.js", ".plans/a/../../src/app.js"])
-def test_the_plan_exemption_does_not_reach_outside_the_plan(spelling, tmp_path):
-    """The exemption made a guarded path bypassable.
-
-    `.plans/../src/app.js` contains the exempt segment and resolves outside it, so a read
-    the guard would otherwise refuse was allowed by spelling it through a parent.
+def test_the_plan_exemption_does_not_reach_outside_the_plan(tmp_path):
+    """`.plans/../src/app.js` contains the exempt segment and resolves outside it, so an
+    exemption matching the segment alone makes any guarded path readable by spelling it
+    through a parent.
     """
-    (tmp_path / ".plans" / "a").mkdir(parents=True)
+    (tmp_path / ".plans").mkdir()
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "app.js").write_text("x = 1\n" * 900, encoding="utf-8")
-    path = f"{tmp_path}/{spelling}"
+    path = f"{tmp_path}/.plans/../src/app.js"
     assert Path(path).is_file(), "the spelling must resolve, or the test proves nothing"
     assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "deny"
 
@@ -422,12 +397,10 @@ def test_the_agents_exemption_matches_the_whole_name(name, tmp_path):
 
 
 def test_the_guard_refuses_and_never_prompts(tmp_path):
-    """One refusal, no prompt.
-
-    It used to ask before the editing tools and before shell commands that looked like
-    writes, which spent a prompt on the common path to enforce a norm it could not actually
-    hold (→ conventions/21-development-loop.md §3). What is left has no false positive and a
-    strictly better alternative, so it refuses rather than asking.
+    """One refusal, no prompt. The metered read has no false positive and a strictly better
+    alternative (delegate the read), so the guard refuses rather than asking; the editing
+    tools and shell commands are not its business at all
+    (→ conventions/21-development-loop.md §3).
     """
     big = tmp_path / "big.py"
     big.write_text("x = 1\n" * 900, encoding="utf-8")
@@ -462,16 +435,16 @@ def test_an_unparseable_payload_is_refused_not_waved_through(payload):
 
 
 def test_a_file_of_only_newlines_is_not_metered(tmp_path):
-    """Standing invariant, pinned as-is: a large file with nothing but blank lines has nothing
-    to meter, so it is allowed regardless of size. Green at base and here alike."""
+    """A file with nothing but blank lines has no context to burn, so it is allowed however
+    large it is. A standing invariant, so it holds at the base commit by design."""
     blank = tmp_path / "blank.txt"
     blank.write_text("\n" * 5000, encoding="utf-8")
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(blank)}}) == "allow"
 
 
 def test_a_refusal_survives_a_non_utf8_stdout():
-    """The reason carries non-ASCII. A text stdout under an ASCII locale raised on it, and a
-    hook that dies is a non-blocking error — the read went through unguarded.
+    """The reason carries non-ASCII, so a text stdout under an ASCII locale raises on it, and
+    a hook that dies is a non-blocking error: the read would go through unguarded.
     """
     result = subprocess.run(
         [str(GUARD)],

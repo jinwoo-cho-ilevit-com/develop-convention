@@ -2,9 +2,9 @@
 
 Claude Code resolves a plugin's version from `plugin.json` first and skips the update when
 that string has not moved (→ https://code.claude.com/docs/en/plugin-marketplaces, "Version
-resolution and release channels"). `0.1.0` therefore survived thirteen commits to the hook,
-the commands and the workflow, and `/plugin update dev-harness` printed nothing at all —
-indistinguishable from success while the installed copy stayed at the state before them.
+resolution and release channels"). A shipped change under an unmoved version therefore makes
+`/plugin update dev-harness` print nothing at all — indistinguishable from success while the
+installed copy stays at the state before it.
 """
 
 import shutil
@@ -17,7 +17,7 @@ from _repo import MARKETPLACE, PLUGIN, ROOT, load, read
 # the user can only receive through a new version. `conventions` belongs here for the same
 # reason the rest do, and by the count is the most load-bearing of them: the commands and
 # skills resolve `${CLAUDE_PLUGIN_ROOT}/conventions` seventeen times, against one for
-# `workflows`. Omitted, a conventions-only edit shipped nothing and no check said so.
+# `workflows`. Omitted, a conventions-only edit would ship nothing with no check saying so.
 # `templates` because `setup` reads its AGENTS.md skeleton from there.
 SHIPPED = ("hooks", "commands", "workflows", "skills", "conventions", "templates", ".claude-plugin")
 
@@ -33,7 +33,7 @@ def test_the_marketplace_declares_no_version_of_its_own():
     """`plugin.json` always wins and nothing warns, so a marketplace `version` is at best a
     copy and at worst a stale one. Omitting it is the documented way to keep one source of
     truth (→ https://code.claude.com/docs/en/plugin-marketplaces, "Version resolution and
-    release channels"); it was hand-moved at every release from 0.2.4 to 0.28.4 before.
+    release channels"), and it spares a release from hand-moving a second literal.
     """
     market = load(MARKETPLACE)
     entry = next(e for e in market["plugins"] if e["name"] == load(PLUGIN)["name"])

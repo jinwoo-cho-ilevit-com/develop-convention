@@ -1,23 +1,30 @@
 """Invariants for the shipped explainer HTML templates.
 
 These lock in the checks the review lanes ran by hand: self-containment,
-snippet-marker pairing, the static-number-vs-embedded-data contract, the
-figure accessibility contract, and the shared CSS/JS being generated from
-`shared/` rather than copied. They read the files; they do not execute JS,
-so anything requiring a browser (tooltip behavior, contrast) stays with the
-review lanes.
+snippet-marker pairing, the static-number-vs-embedded-data contract, and the
+figure accessibility contract. The shared CSS/JS being generated from `shared/`
+rather than copied is decided by the sample run — `render-explainer.py --check`,
+the command CLAUDE.md's verification item 8 names — with the marker edges that
+command cannot reach checked against `render()` directly. Everything here reads
+the files; nothing executes JS, so anything requiring a browser (tooltip
+behavior, contrast) stays with the review lanes.
 """
 
 import importlib.util
 import json
 import re
+import shutil
+import subprocess
+import sys
 from collections import Counter
+from pathlib import Path
 
 import pytest
 from _repo import ROOT as REPO
 
-SKELETON = REPO / "skills" / "explainer-docs" / "explainer-skeleton.html"
-GALLERY = REPO / "skills" / "explainer-docs" / "explainer-gallery.html"
+SKILL_DIR = Path("skills") / "explainer-docs"
+SKELETON = REPO / SKILL_DIR / "explainer-skeleton.html"
+GALLERY = REPO / SKILL_DIR / "explainer-gallery.html"
 TEMPLATES = {"skeleton": SKELETON, "gallery": GALLERY}
 
 spec = importlib.util.spec_from_file_location(
@@ -83,11 +90,6 @@ def test_no_embedded_font_data(template):
     )
 
 
-def test_the_embedded_data_block_parses(template):
-    name, path, text = template
-    _data_block(text, path)
-
-
 def test_every_static_number_matches_its_source_field(template):
     """The Core Rule contract: a .num[data-src] element's static text must
     agree with the embedded data block at the precision it displays."""
@@ -125,16 +127,40 @@ def test_every_static_number_matches_its_source_field(template):
         )
 
 
-def test_the_shared_blocks_are_what_shared_renders():
-    """The shared stylesheet and helper script are generated, not copied: each
-    template must be byte-identical to what scripts/render-explainer.py writes
-    from skills/explainer-docs/shared/."""
-    fragments = rx.load_fragments(REPO)
-    for path in TEMPLATES.values():
-        current = path.read_text(encoding="utf-8")
-        assert rx.render(current, fragments, path.name) == current, (
-            f"{path.name}: stale against shared/ — run scripts/render-explainer.py"
-        )
+def render_cli(repo, *argv):
+    return subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "render-explainer.py"), "--repo", str(repo), *argv],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_the_check_run_passes_on_the_shipped_templates():
+    """The sample run: `--check` is what CLAUDE.md's verification item 8 and the review lanes
+    call, so it is the entry point that decides whether the shared blocks are current. Each
+    template must be byte-identical to what the script writes from `shared/`.
+    """
+    result = render_cli(REPO, "--check")
+    assert result.returncode == 0, result.stdout + result.stderr
+    # The count, not just the phrase: a template dropped from the script's own list is then a
+    # template nothing checks, and the run would still report a clean match over the rest.
+    assert f"OK: {len(TEMPLATES)} template(s) match" in result.stdout, result.stdout
+
+
+def test_the_check_run_fails_on_a_template_stale_against_shared(tmp_path):
+    """The other half: a check that only ever passes says nothing about the tree it read. An
+    edited fragment has to come back as a non-zero exit naming the template it no longer matches.
+    """
+    shutil.copytree(REPO / SKILL_DIR, tmp_path / SKILL_DIR)
+    css = tmp_path / SKILL_DIR / "shared" / "explainer.css"
+    css.write_text(css.read_text(encoding="utf-8") + ".sabotaged{color:red}\n", encoding="utf-8")
+    result = render_cli(tmp_path, "--check")
+    assert result.returncode == 1, result.stdout
+    assert "stale" in result.stderr
+    # Both templates carry the fragment, so both are stale. Naming only one leaves the other as
+    # a template the run no longer reads at all.
+    for name in (SKELETON.name, GALLERY.name):
+        assert name in result.stderr, result.stderr
 
 
 def test_rendering_replaces_a_stale_block_and_settles():
