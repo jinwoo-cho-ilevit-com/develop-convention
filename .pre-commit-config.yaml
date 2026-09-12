@@ -19,7 +19,7 @@ repos:
       # whole tree and takes no file arguments.
       - id: check-docs
         name: document invariants
-        entry: uv run python scripts/check-docs.py
+        entry: uv run --group dev python scripts/check-docs.py
         language: system
         pass_filenames: false
         always_run: true

@@ -112,12 +112,12 @@ SABOTAGE = [
     (
         "every skill link resolves",
         "skills/commit/SKILL.md",
-        "](../../conventions/17-commit-protocol.md)",
-        "](../../conventions/17-commit-protocol.mdx)",
+        "](../code-and-config/SKILL.md)",
+        "](../code-and-config/SKILL-gone.md)",
         [
             (
                 "skills/commit/SKILL.md",
-                "links to ../../conventions/17-commit-protocol.mdx, which does not exist",
+                "links to ../code-and-config/SKILL-gone.md, which does not exist",
             )
         ],
     ),

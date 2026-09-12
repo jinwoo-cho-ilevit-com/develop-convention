@@ -53,7 +53,7 @@ STAMP_MONTHS = 3
 STAMP = re.compile(r"\(?as of:? (\d{4})-(\d{2})\)?", re.I)
 SECTION = re.compile(r"^### (\d+)\.")
 CROSS_REF = re.compile(r"\[([0-9]{2}-[a-z-]+\.md)\]\([^)]*\)\s*§\s*(\d+)")
-CONVENTION_LINK = re.compile(r"\.\./\.\./conventions/(\d\d-[a-z-]+\.md)")
+CONVENTION_LINK = re.compile(r"\.\./\.\./conventions/(\d\d-[a-z-]+\.md)(?=[)#\s])")
 
 
 class Violation(NamedTuple):
@@ -89,12 +89,12 @@ def numbered(body: str) -> list[tuple[int, str]]:
     return list(enumerate(body.splitlines(), 1))
 
 
-def where(body: str, needle: str) -> int:
-    """The line a marker sits on, for a violation about something that is absent."""
+def where(body: str, needle: str) -> int | None:
+    """The line a marker sits on, or None when the marker is absent."""
     for number, line in numbered(body):
         if line.startswith(needle):
             return number
-    return 1
+    return None
 
 
 def section(body: str, opening: str, closing: str) -> tuple[str, int] | None:
@@ -103,9 +103,9 @@ def section(body: str, opening: str, closing: str) -> tuple[str, int] | None:
     start = next((i for i, line in enumerate(lines) if line.startswith(opening)), None)
     if start is None:
         return None
-    end = next(
-        (i for i, line in enumerate(lines) if i > start and line.startswith(closing)), len(lines)
-    )
+    end = next((i for i, line in enumerate(lines) if i > start and line.startswith(closing)), None)
+    if end is None:
+        return None
     return "\n".join(lines[start:end]), start + 1
 
 
@@ -126,7 +126,8 @@ def tracked_text(repo: Path) -> list[tuple[str, str]]:
         try:
             body = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
-            continue
+            # A path is checkable whether or not its bytes decode.
+            body = ""
         if "\0" not in body:
             files.append((name, body))
     return files
@@ -217,7 +218,7 @@ def every_convention_is_sourced_from_the_rule_summary(repo: Path) -> Iterator[Vi
     """
     body = read(repo / "README.md")
     at = where(body, "## Full Rule Summary")
-    if at == 1:
+    if at is None:
         yield Violation("README.md", 1, "no `## Full Rule Summary` section")
         return
     headings = [(n, line) for n, line in numbered(body) if n > at and line.startswith("### ")]
@@ -302,7 +303,7 @@ def readme_skill_table_names_every_skill(repo: Path) -> Iterator[Violation]:
     """The routing map is generated; the README's reader-facing table is the copy left by hand."""
     body = read(repo / "README.md")
     at = where(body, "| Skill | Loads when |")
-    if at == 1:
+    if at is None:
         yield Violation("README.md", 1, "no skill table to check")
         return
     rows = "\n".join(body.splitlines()[at:]).split("\n\n")[0]
@@ -342,9 +343,7 @@ def every_skill_link_resolves(repo: Path) -> Iterator[Violation]:
     """A skill routes rather than restates, so a dead link is the content gone."""
     for path in skills(repo):
         for number, line in numbered(read(path)):
-            for target in re.findall(r"\]\(([^)]+)\)", line):
-                if target.startswith(("http://", "https://", "#")):
-                    continue
+            for target in re.findall(r"\]\((?!https?:|#)([^)#]+)", line):
                 if not (path.parent / target).exists():
                     yield Violation(
                         rel(path, repo), number, f"links to {target}, which does not exist"

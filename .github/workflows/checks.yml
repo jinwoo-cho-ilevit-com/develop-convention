@@ -41,7 +41,7 @@ jobs:
       # CLAUDE.md's verification checklist, run over the documents themselves. Also reached
       # through pre-commit below; named here so its report is its own step in the log.
       - name: Document invariants
-        run: uv run python scripts/check-docs.py
+        run: uv run --group dev python scripts/check-docs.py
 
       # The repository invariants under tests/ drive the plugin's guard, its routing hook and
       # its build workflow rather than reading them, and sample-run the checker above.
