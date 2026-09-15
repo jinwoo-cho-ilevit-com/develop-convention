@@ -36,6 +36,8 @@ and a lazy unindented third line.
 - Fourth rule that also mentions naming in passing.
 - Fifth rule with a section link ([details](02-config.md#run-naming)) and a
   [mail](mailto:user@example.com) address.
+- Sixth rule ending on a bare self reference (§7).
+- Seventh rule pointing into [02-config.md](02-config.md) §2, and at §4.1 of a paper.
 
 ## Details
 
@@ -217,3 +219,43 @@ def test_broken_markers_abort(repo):
         fx.render('<!-- excerpt(conventions/99-sample.md): "First rule" -->\n', repo, "t", "s")
     with pytest.raises(fx.FillError, match="without an opening"):
         fx.render("<!-- /excerpt -->\n", repo, "t", "s")
+
+
+def test_a_bare_section_reference_is_given_its_source_document(repo):
+    """`(§7)` names its own document where it was written. Excerpted into a rules file built
+    from several conventions, an unnamed §n points at nothing a reader can open.
+    """
+    out = fx.render(skeleton('"bare self reference"'), repo, "t", "s")
+    assert f"({fx.CLONE_HINT}/conventions/99-sample.md §7)" in out
+
+
+def test_a_section_reference_behind_a_link_keeps_that_links_target(repo):
+    """The §n belongs to the link before it, not to the document the bullet came from — and
+    `§4.1` numbers a subsection of a paper, not a convention.
+    """
+    out = fx.render(skeleton('"Seventh rule"'), repo, "t", "s")
+    assert "§2" in out and f"{fx.CLONE_HINT}/conventions/99-sample.md §2" not in out
+    assert "at §4.1 of a paper" in out
+
+
+def test_a_missing_file_reports_one_error_not_a_traceback(tmp_path):
+    """`bootstrap.sh --sync` names the files, so a path typo is the likely failure. A stack
+    trace there says nothing a person can act on.
+    """
+    result = cli("--check", str(tmp_path / "absent.md"))
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr, result.stderr
+    assert "ERROR:" in result.stderr
+
+
+def test_a_lost_closing_marker_does_not_swallow_the_next_block(repo):
+    """Without this guard the second marker becomes the first block's body: it is dropped
+    whole, its anchors never checked, and the run exits 0 having deployed a rule short.
+    """
+    text = (
+        '<!-- excerpt(conventions/99-sample.md): "First rule" -->\n'
+        '<!-- excerpt(conventions/99-sample.md): "NO-SUCH-ANCHOR" -->\n'
+        "<!-- /excerpt -->\n"
+    )
+    with pytest.raises(fx.FillError, match="still open when conventions/99-sample.md opens"):
+        fx.render(text, repo, "t", "s")

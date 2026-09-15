@@ -31,6 +31,15 @@ BEGIN_RE = re.compile(r"<!--\s*excerpt\(([^)]+)\):\s*(.+?)\s*-->\s*$")
 END_MARKER = "<!-- /excerpt -->"
 ANCHOR_RE = re.compile(r'"([^"]+)"')
 LINK_RE = re.compile(r"\[([^\]]+)\]\((?![a-zA-Z][a-zA-Z0-9+.-]*:|#)([^)#]+)(#[^)]*)?\)")
+# `§4.1` numbers a subsection of an external source; `§5.` ends a sentence.
+SECTION_REF = re.compile(r"§\s*\d+(?!\d)(?!\.\d)")
+MD_LINK = re.compile(r"\[[^\]]*\]\([^)]*\)", re.DOTALL)
+CODE_SPAN = re.compile(r"`[^`]*`", re.DOTALL)
+# What may sit between a link and a `§n` that still points into that link's target. These
+# three and the rule below decide the same thing as `section_references` in
+# scripts/check-docs.py: the two must stay in step, or the checker there stops being able to
+# flag a bare `§n` this one leaves unnamed.
+ATTACHED = re.compile(r"^[\s(→]*(?:§\s*\d+[\s,;]*(?:and\s+)?)*$")
 CLONE_HINT = "~/Codes/develop-convention"
 
 
@@ -60,6 +69,33 @@ def core_rules_bullets(doc_text: str, doc: str) -> list[str]:
     return bullets
 
 
+def name_self_sections(bullet: str, doc: str) -> str:
+    """Name the source document on a bare `§n`, which means "this document" where the bullet
+    was written and nothing at all once it is excerpted into a file assembled from several.
+
+    Runs before rewrite_links, while links are still markdown. Only an unambiguous self
+    reference is named: one sitting right after a link points into that link's target, one
+    whose sentence holds an earlier link is ambiguous, and one inside a code span or a link's
+    own text (`RFC 8259 §7`, `` `§3` ``) is quoted or external. Each is left as written.
+    """
+    links = [(m.start(), m.end(), m.end()) for m in MD_LINK.finditer(bullet)]
+    spans = [(m.start(), m.end()) for m in CODE_SPAN.finditer(bullet)]
+
+    def repl(m: re.Match) -> str:
+        at = m.start()
+        if any(s <= at < e for s, e in spans) or any(s <= at < e for s, e, _ in links):
+            return m.group(0)
+        prior = [end for _, end, _ in links if end <= at]
+        if prior and ATTACHED.match(bullet[prior[-1] : at]):
+            return m.group(0)
+        start = max(bullet.rfind(". ", 0, at) + 2, bullet.rfind("\n", 0, at) + 1)
+        if prior and prior[-1] > start:
+            return m.group(0)
+        return f"{CLONE_HINT}/{doc} {m.group(0)}"
+
+    return SECTION_REF.sub(repl, bullet)
+
+
 def rewrite_links(bullet: str, doc: str) -> str:
     doc_dir = posixpath.dirname(doc)
 
@@ -71,6 +107,18 @@ def rewrite_links(bullet: str, doc: str) -> str:
         return f"{m.group(1)} ({CLONE_HINT}/{target}{fragment})"
 
     return LINK_RE.sub(repl, bullet)
+
+
+def _closing(lines: list[str], start: int, doc: str, label: str) -> int:
+    # A lost '/excerpt' line would otherwise make the next marker's block the body of this
+    # one: it is dropped whole, anchors unchecked, and the run still exits 0.
+    for j in range(start + 1, len(lines)):
+        m = BEGIN_RE.match(lines[j])
+        if m:
+            raise FillError(f"{label}: marker for {doc} still open when {m.group(1).strip()} opens")
+        if lines[j].strip() == END_MARKER:
+            return j
+    raise FillError(f"{label}: marker for {doc} is never closed with '{END_MARKER}'")
 
 
 def pick(bullets: list[str], anchor: str, doc: str) -> str:
@@ -98,18 +146,16 @@ def render(text: str, repo: Path, label: str, sha: str) -> str:
         anchors = ANCHOR_RE.findall(anchor_src)
         if not anchors:
             raise FillError(f"{label}: marker for {doc} declares no quoted anchors")
-        try:
-            end = next(j for j in range(i + 1, len(lines)) if lines[j].strip() == END_MARKER)
-        except StopIteration:
-            msg = f"{label}: marker for {doc} is never closed with '{END_MARKER}'"
-            raise FillError(msg) from None
+        end = _closing(lines, i, doc, label)
         doc_path = repo / doc
         if not doc_path.is_file():
             raise FillError(f"{label}: {doc} not found under {repo}")
         bullets = core_rules_bullets(doc_path.read_text(encoding="utf-8"), doc)
         out.append(line)
         out.append(f"<!-- filled from {doc} @ {sha} -->")
-        out.extend(rewrite_links(pick(bullets, a, doc), doc) for a in anchors)
+        out.extend(
+            rewrite_links(name_self_sections(pick(bullets, a, doc), doc), doc) for a in anchors
+        )
         out.append(END_MARKER)
         i = end + 1
         filled += 1
@@ -151,7 +197,7 @@ def main(argv: list[str]) -> int:
             rendered = render(src.read_text(encoding="utf-8"), args.repo, str(src), sha)
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_text(rendered, encoding="utf-8")
-    except FillError as e:
+    except (FillError, OSError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
     return 0
