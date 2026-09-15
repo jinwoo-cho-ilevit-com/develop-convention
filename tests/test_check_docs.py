@@ -6,6 +6,7 @@ else. The sabotage table is what keeps a check from quietly becoming an assertio
 fail — a check that stops firing shows up here as a missing row, not as a still-green run.
 """
 
+import importlib.util
 import subprocess
 import sys
 
@@ -13,6 +14,10 @@ import pytest
 from _repo import ROOT
 
 CLI = ROOT / "scripts" / "check-docs.py"
+
+spec = importlib.util.spec_from_file_location("check_docs", CLI)
+cd = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(cd)
 
 # (the check, file, text to replace, replacement, the (file, message) pairs the run must
 # report). The replacement is applied to the first occurrence, so `old` need not be unique.
@@ -176,6 +181,33 @@ SABOTAGE = [
         ],
     ),
     (
+        "every §n of a run is checked, not only the first",
+        "conventions/21-development-loop.md",
+        "[06-testing-verification.md](06-testing-verification.md) §1, §7",
+        "[06-testing-verification.md](06-testing-verification.md) §1, §77",
+        [("conventions/21-development-loop.md", "06-testing-verification.md has no §77")],
+    ),
+    (
+        "the target is read from the link URL, not the link text",
+        "conventions/11-llm-api-providers.md",
+        "(→ [10](10-llm-api-inference.md) §5)",
+        "(→ [10](10-llm-api-inference.md) §55)",
+        [
+            (
+                "conventions/11-llm-api-providers.md",
+                # gitleaks:allow — a document name beside the word "api", not a key
+                "10-llm-api-inference.md has no §55",
+            )
+        ],
+    ),
+    (
+        "a §n with no link before it points inside its own document",
+        "conventions/05-performance.md",
+        "the conditions in §5.",
+        "the conditions in §55.",
+        [("conventions/05-performance.md", "no §55 in this document to point at")],
+    ),
+    (
         "section numbering is contiguous",
         "conventions/05-performance.md",
         "### 5.",
@@ -188,6 +220,13 @@ SABOTAGE = [
         "## Details",
         "## Details\n\nA claim last checked long ago (as of: 2024-01).",
         [("conventions/02-config.md", "the stamp 2024-01 is older than 3 months")],
+    ),
+    (
+        "an as-of stamp names a real month",
+        "conventions/02-config.md",
+        "## Details",
+        "## Details\n\nA claim stamped with a typo (as of: 2026-13).",
+        [("conventions/02-config.md", "the stamp 2026-13 is not a real month")],
     ),
 ]
 
@@ -203,6 +242,73 @@ def test_the_repository_passes_every_document_check():
     result = run(ROOT)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "document checks clean" in result.stdout
+
+
+ATTRIBUTION = [
+    ("a §n right after a link", "see [x](06-a.md) §3", ["06-a.md"]),
+    ("every member of a run", "see [x](06-a.md) §1, §3", ["06-a.md", "06-a.md"]),
+    (
+        "the URL as written, path and all",
+        "see [x](../conventions/06-a.md) §3",
+        ["../conventions/06-a.md"],
+    ),
+    ("a §n with no link at all", "the rule in §3 says", [None]),
+    ("a §n after an unrelated link earlier on the line", "[a](b.md) is one. Now §3 here", [None]),
+]
+
+
+@pytest.mark.parametrize(
+    ("shape", "body", "expected"), ATTRIBUTION, ids=[s[0] for s in ATTRIBUTION]
+)
+def test_a_section_reference_is_attributed_to_what_precedes_it(shape, body, expected):
+    """A reference belongs to the link it hangs off, or to its own document when none does.
+    Scoping that to the whole line lets one unrelated link silence every §n after it.
+    """
+    assert [url for _, url in cd.section_references(body)] == expected, shape
+
+
+UNDECIDABLE = [
+    ("a §n inside a link's own text", "[RFC 8259 §7 — Strings](https://rfc.example/x)"),
+    ("a §n after prose following a link", "[x](06-a.md) told us, so now it is §5 instead"),
+    ("an external subsection number", "the paper's §4.1 covers it"),
+]
+
+
+@pytest.mark.parametrize(("shape", "body"), UNDECIDABLE, ids=[s[0] for s in UNDECIDABLE])
+def test_an_undecidable_section_reference_is_skipped_not_guessed(shape, body):
+    """Reporting one of these means asserting something the document does not settle — a
+    reader cannot tell either, so the check says nothing rather than something wrong.
+    """
+    assert list(cd.section_references(body)) == [], shape
+
+
+def test_a_non_path_url_scheme_is_not_a_missing_file(tmp_path):
+    """A link carrying any URL scheme names no path, so it is not a file that can be missing.
+    Excluding only http(s) leaves every other scheme reported as a file that does not exist.
+    """
+    (tmp_path / "doc.md").write_text("[write](mailto:a@b.c) and [get](ftp://h/f).\n")
+    assert list(cd.broken_links(cd.read(tmp_path / "doc.md"), tmp_path)) == []
+
+
+def test_an_unreadable_repository_reports_one_error_not_a_traceback(tmp_path):
+    """An environment failure is not a document violation. Raising through would take the
+    other checks' results down with it and print a stack trace where a reason belongs.
+    """
+    result = run(tmp_path)
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr, result.stderr
+    assert result.stderr.startswith("ERROR:")
+
+
+def test_the_unreadable_repository_guards_name_what_is_wrong(tmp_path):
+    """Reached directly, because which check fires first on a bare directory is incidental.
+    An error line has to name its cause for the reason to be actionable.
+    """
+    with pytest.raises(cd.CheckError, match="cannot list tracked files"):
+        cd.tracked_text(tmp_path)
+    (tmp_path / "mkdocs.yml").write_text("site_name: x\n")
+    with pytest.raises(cd.CheckError, match="declares no nav:"):
+        cd.mkdocs_nav(tmp_path)
 
 
 @pytest.fixture(scope="module")

@@ -52,8 +52,26 @@ RETIRED = (
 STAMP_MONTHS = 3
 STAMP = re.compile(r"\(?as of:? (\d{4})-(\d{2})\)?", re.I)
 SECTION = re.compile(r"^### (\d+)\.")
-CROSS_REF = re.compile(r"\[([0-9]{2}-[a-z-]+\.md)\]\([^)]*\)\s*§\s*(\d+)")
+# `§4.1` numbers a subsection of an external source, not a section of a convention. Only a
+# digit after the dot marks that shape: `§5.` is a reference ending a sentence.
+SECTION_NUMBER = re.compile(r"§\s*(\d+)(?!\d)(?!\.\d)")
+MD_LINK = re.compile(r"\[[^\]]*\]\(([^)]*)\)", re.DOTALL)
+# The document a link names, taken from the URL so a path prefix still resolves.
+LINKED_DOC = re.compile(r"(?:^|/)(\d\d-[a-z-]+\.md)$")
+# What may sit between a link and a `§n` that still points into that link's target: spacing,
+# an arrow, an opening bracket, and the earlier members of a run (`§1, §7`). Prose may not —
+# that `§n` refers to the document it sits in.
+ATTACHED = re.compile(r"^[\s(→]*(?:§\s*\d+[\s,;]*(?:and\s+)?)*$")
+# A local link, excluding every URL scheme rather than only http(s) — `mailto:` and `ftp:`
+# targets are not paths, and treating them as missing files is a false violation.
+LOCAL_LINK = r"\]\((?![a-zA-Z][a-zA-Z0-9+.-]*:|#)([^)#]+)"
 CONVENTION_LINK = re.compile(r"\.\./\.\./conventions/(\d\d-[a-z-]+\.md)(?=[)#\s])")
+
+
+class CheckError(Exception):
+    """The repository could not be read at all — not a document violation, so it is reported
+    as one error line rather than as a check that found nothing.
+    """
 
 
 class Violation(NamedTuple):
@@ -97,6 +115,14 @@ def matches(body: str, pattern: str) -> Iterator[tuple[int, re.Match[str]]]:
         yield body.count("\n", 0, match.start()) + 1, match
 
 
+def broken_links(body: str, base: Path) -> Iterator[tuple[int, str]]:
+    """Local link targets that do not resolve, relative to the linking file's directory."""
+    for number, match in matches(body, LOCAL_LINK):
+        target = "".join(match.group(1).split())
+        if not (base / target).resolve().exists():
+            yield number, target
+
+
 def where(body: str, needle: str) -> int | None:
     """The line a marker sits on, or None when the marker is absent."""
     for number, line in numbered(body):
@@ -123,9 +149,12 @@ def tracked_text(repo: Path) -> list[tuple[str, str]]:
     `tests/` and this script are left out: they spell the retired tokens themselves, and a
     tombstone list cannot be its own violation.
     """
-    listed = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=repo, capture_output=True, text=True, check=True
-    ).stdout.split("\0")
+    try:
+        listed = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.split("\0")
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise CheckError(f"cannot list tracked files under {repo}: {e}") from None
     files = []
     for name in filter(None, listed):
         path = repo / name
@@ -210,10 +239,8 @@ def links_inside_a_convention_resolve(repo: Path) -> Iterator[Violation]:
     depend on a docs job that a reader may not run.
     """
     for doc in conventions(repo):
-        for number, match in matches(read(doc), r"\]\((?!https?:|#)([^)#]+)"):
-            target = "".join(match.group(1).split())
-            if not (doc.parent / target).resolve().exists():
-                yield Violation(rel(doc, repo), number, f"links to {target}, which does not exist")
+        for number, target in broken_links(read(doc), doc.parent):
+            yield Violation(rel(doc, repo), number, f"links to {target}, which does not exist")
 
 
 def every_convention_is_sourced_from_the_rule_summary(repo: Path) -> Iterator[Violation]:
@@ -251,7 +278,10 @@ def mkdocs_nav(repo: Path) -> list[str]:
             return [p for item in node for p in walk(item)]
         return []
 
-    return walk(yaml.safe_load(read(repo / "mkdocs.yml"))["nav"])
+    nav = yaml.safe_load(read(repo / "mkdocs.yml"))
+    if not isinstance(nav, dict) or "nav" not in nav:
+        raise CheckError("mkdocs.yml declares no nav: — the published site lists nothing")
+    return walk(nav["nav"])
 
 
 def nav_lists_every_convention_doc(repo: Path) -> Iterator[Violation]:
@@ -348,10 +378,8 @@ def every_skill_declares_its_directory_as_its_name(repo: Path) -> Iterator[Viola
 def every_skill_link_resolves(repo: Path) -> Iterator[Violation]:
     """A skill routes rather than restates, so a dead link is the content gone."""
     for path in skills(repo):
-        for number, match in matches(read(path), r"\]\((?!https?:|#)([^)#]+)"):
-            target = "".join(match.group(1).split())
-            if not (path.parent / target).exists():
-                yield Violation(rel(path, repo), number, f"links to {target}, which does not exist")
+        for number, target in broken_links(read(path), path.parent):
+            yield Violation(rel(path, repo), number, f"links to {target}, which does not exist")
 
 
 def no_skill_or_command_copies_convention_text(repo: Path) -> Iterator[Violation]:
@@ -404,14 +432,55 @@ def sections_of(doc: Path) -> frozenset[int]:
     return frozenset(int(m.group(1)) for m in found if m)
 
 
+def sentence_start(body: str, at: int) -> int:
+    """Where the sentence holding `at` begins — the sentence, not the line, because these
+    documents run several sentences to a line and a reference belongs to only one of them.
+    """
+    return max(body.rfind(". ", 0, at) + 2, body.rfind("\n", 0, at) + 1)
+
+
+def section_references(body: str) -> Iterator[tuple[re.Match[str], str | None]]:
+    """Each `§n` with the URL it points into, or None when it points inside its own document.
+
+    Three outcomes, because only two of them are decidable. A `§n` sitting right after a link
+    points into that link's target. One with no link before it in its sentence points inside
+    its own document. One whose sentence holds an earlier link but not an adjacent one is
+    ambiguous — `§2; that this is how the frameworks test themselves is §5` reads either way —
+    so it is skipped rather than guessed at. A `§n` inside a link's own text
+    (`[RFC 8259 §7 — Strings](https://…)`) belongs to that link's external target and is
+    skipped too, since nothing here can read its sections.
+    """
+    links = [(m.start(), m.end(), m.group(1)) for m in MD_LINK.finditer(body)]
+    for match in SECTION_NUMBER.finditer(body):
+        at = match.start()
+        if any(start <= at < end for start, end, _ in links):
+            continue
+        prior = [(end, url) for start, end, url in links if end <= at]
+        if prior and ATTACHED.match(body[prior[-1][0] : at]):
+            yield match, prior[-1][1]
+        elif not (prior and prior[-1][0] > sentence_start(body, at)):
+            yield match, None
+
+
 def section_cross_references_resolve(repo: Path) -> Iterator[Violation]:
     """A `§n` pointing past the target document's last section sends a reader nowhere."""
     by_name = {doc.name: doc for doc in conventions(repo)}
     for doc in conventions(repo):
-        for number, match in matches(read(doc), CROSS_REF.pattern):
-            target, wanted = match.group(1), match.group(2)
-            if target in by_name and int(wanted) not in sections_of(by_name[target]):
-                yield Violation(rel(doc, repo), number, f"{target} has no §{wanted} to point at")
+        body = read(doc)
+        for match, url in section_references(body):
+            wanted, line = int(match.group(1)), body.count("\n", 0, match.start()) + 1
+            if url is None:
+                if wanted not in sections_of(doc):
+                    yield Violation(
+                        rel(doc, repo), line, f"no §{wanted} in this document to point at"
+                    )
+                continue
+            named = LINKED_DOC.search(url.split("#")[0])
+            if named and named.group(1) in by_name:
+                if wanted not in sections_of(by_name[named.group(1)]):
+                    yield Violation(
+                        rel(doc, repo), line, f"{named.group(1)} has no §{wanted} to point at"
+                    )
 
 
 def section_numbering_is_contiguous(repo: Path) -> Iterator[Violation]:
@@ -432,7 +501,16 @@ def as_of_stamps_are_inside_the_reverification_window(repo: Path) -> Iterator[Vi
     for doc in conventions(repo):
         for number, line in numbered(read(doc)):
             for year, month in STAMP.findall(line):
-                if dt.date(int(year), int(month), 1) < cutoff:
+                try:
+                    stamped = dt.date(int(year), int(month), 1)
+                except ValueError:
+                    # A typo has to surface as this check's own violation: raising here
+                    # would take the other checks' results down with it.
+                    yield Violation(
+                        rel(doc, repo), number, f"the stamp {year}-{month} is not a real month"
+                    )
+                    continue
+                if stamped < cutoff:
                     yield Violation(
                         rel(doc, repo),
                         number,
@@ -469,7 +547,11 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     repo = args.repo.resolve()
 
-    violations = sorted(v for check in CHECKS for v in check(repo))
+    try:
+        violations = sorted(v for check in CHECKS for v in check(repo))
+    except (CheckError, OSError, yaml.YAMLError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
     for violation in violations:
         print(f"{violation.path}:{violation.line}: {violation.message}")
     if violations:
