@@ -160,7 +160,7 @@ The main session orchestrates: it plans, splits and judges, and sends the editin
 | Cursor | Co-author of the AGENTS.md standard — reads it natively. Promote only the few rules that must always be enforced to `.cursor/rules/` if needed |
 | Other (Gemini CLI, Windsurf, Aider, etc.) | Tools that read the AGENTS.md standard behave the same way. For unsupported tools only, add one line in that tool's instruction file pointing to AGENTS.md |
 
-**Note for cloud-executed agents**: in isolated sandboxes (Codex cloud, Cursor background agents, Claude Code web), read the published docs at <https://jinwoo-cho-ilevit-com.github.io/develop-convention/>, or add this repo as a git submodule so a local path resolves there too.
+**Note for cloud-executed agents**: with the plugin installed, `conventions/` travels inside it (see the table above) and its skills read from there — no clone and no path needed. In isolated sandboxes without the plugin (Codex cloud, Cursor background agents, Claude Code web), read the published docs at <https://jinwoo-cho-ilevit-com.github.io/develop-convention/>, or add this repo as a git submodule so a local path resolves there too.
 
 ### How to Instruct the AI
 
