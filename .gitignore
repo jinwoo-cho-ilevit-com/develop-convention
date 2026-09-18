@@ -4,6 +4,7 @@
 .claude/
 .omx/
 .code-review-graph/
+.zvec-grep/
 docs/
 site/
 
