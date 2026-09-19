@@ -2,7 +2,7 @@
 
 A completion claim is only as good as what backs it. This document fixes the format of that backing so the same three questions — did every criterion pass, what actually ran, who approved the parts a machine cannot judge — are answered the same way every time.
 
-Evidence is produced by execution, not by writing. A file the model composed to look like output is not evidence.
+Evidence is produced by execution, not by writing. A file the model composed to look like output is not evidence. The principle underneath — completion claimed only with executable evidence, and the author separated from the verifier — is [00-principles.md](00-principles.md); this document is its record format.
 
 ## Core Rules
 
@@ -31,7 +31,7 @@ The lane brief carries one row per criterion and nothing else:
 
 A human reading this looks at the non-`PASS` rows and stops. That is the entire intended cost of verification for the reader.
 
-The `red` column records which of the red checks in [06-testing-verification.md](06-testing-verification.md) §3 established the row — `observed`, `sabotage` or `guard` — with its output kept beside the row's command output, and `—` for a `[human]` row.
+The `red` column records which of the red checks in [06-testing-verification.md](06-testing-verification.md) §3 established the row — `observed`, `sabotage` or `guard` — with its output kept beside the row's command output, and `—` for a `[human]` row. A row carrying a command takes one of the three and that output, both: the harness refuses a commanded criterion recording either without the other (`workflows/build.js`). `NO-BASELINE` is a status and not a fourth red kind, so a row that stands at it has no red value to record and the gap its status names is still open.
 
 The final report covers the end-to-end condition ([18-work-contract.md](18-work-contract.md) §1), every run that definition names with its rows. Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
 
@@ -43,11 +43,11 @@ Masking applies to the command line and the environment, not only to the output.
 
 ### 3. Human verdicts
 
-A `[human]` criterion has three states: `PENDING-HUMAN` until someone answers, then `PASS` or a rejection that becomes a blocker. An unanswered one blocks completion at every done level.
+A `[human]` criterion has three states: `PENDING-HUMAN` until someone answers, then `PASS`, or `FAIL` where the answer is a rejection. There is no fourth word for a rejected human verdict, and an unanswered one blocks completion at every done level.
 
 The verdict record carries the verdict, who gave it, when, and an optional note. Recording the author matters more than it looks: a criterion whose verdict has no author is indistinguishable from one the tooling marked passed on its own.
 
-A rejection is not a failed test — the criterion may well pass mechanically while the approach is still wrong. Treat it as a blocker with a stated reason, and resolve it by changing the work or the contract, not by re-running the check.
+That `FAIL` is not a failed test — the criterion may well pass mechanically while the approach is still wrong. Treat it as a blocker with a stated reason, and resolve it by changing the work or the contract, not by re-running the check.
 
 ### 4. Provenance
 

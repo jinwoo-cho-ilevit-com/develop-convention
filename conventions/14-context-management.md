@@ -2,9 +2,8 @@
 
 ## Core Rules
 
-- The main context is the orchestrator. Keep only conclusions, and delegate exploration, search, and large reads to subagents, receiving only summaries back — subagents run in a separate context window and don't pollute the main one (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
-- Don't sweep directories or read through large files in the main context. Before reading directly, ask "can a subagent return just the answer?" — if yes, delegate.
-- Dispatch independent tasks in parallel in a single batch, and run builds/tests in the background to reduce bottlenecks. However, guard against over-parallelization (merge/review overhead) with empirical measurement.
+- The main context is the orchestrator and sends exploration, search, and large reads to subagents ([09-agentic-workflow.md](09-agentic-workflow.md)). What this document adds is the budget reason: a subagent reads in a separate context window, so only its summary lands in the main one (§1).
+- Dispatch independent tasks in parallel in a single batch, and run builds/tests in the background to reduce bottlenecks. How many to run at once, and what a speedup is claimed from, is [09-agentic-workflow.md](09-agentic-workflow.md) §2.
 - Pipeline stages; do not put a barrier between them. A barrier is justified only when the next stage genuinely needs every result of the previous one at once — dedupe across the whole set, or an early exit on the total. "I need to flatten the results first" and "the stages are conceptually separate" are not barriers, and neither is review — when each item's review starts is [20-review-gate.md](20-review-gate.md)'s rule.
 - Keep the single source of truth in files, not in the conversation. Persist plans, decisions, and progress to external files, and treat conversation context as a volatile resource that can be summarized or lost at any time.
 - Put rules and facts that must persist in CLAUDE.md and auto memory (both survive compaction and `/clear`). Don't rely on conversation history to remember rules.
@@ -22,10 +21,10 @@ Sources: [Claude Code — best practices](https://code.claude.com/docs/en/best-p
 
 ### 1. Minimizing the Main Context (Context Firewall)
 
-- **Delegate to subagents**: Investigating a codebase means reading many files, which consumes context. A subagent investigates in a separate context window and returns only a summary, so the main context stays clean. Exploration like "investigate how auth token refresh is handled" should be done by a subagent, not the main context.
+- **Delegate to subagents**: Investigating a codebase means reading many files, which consumes context. A subagent investigates in a separate context window and returns only a summary, so the main context stays clean. Exploration like "investigate how auth token refresh is handled" should be done by a subagent, not the main context. The test before reading directly is "can a subagent return just the answer?" — sweeping a directory or reading through a large file answers yes, and delegating is what keeps the source material out of the budget.
 - **Structured returns**: Receive delegated results as schema-validated, compressed data — file dumps shouldn't accumulate in the main context.
 - **Check usage**: Use `/context` to check what's occupying the context (memory files, MCP tools, skills, conversation). MCP tool definitions are deferred (lazy-loaded) by default, and rarely-used skills can be hidden with `skillOverrides`.
-- **Minimize bottlenecks**: Dispatch tasks with no dependencies in parallel within a single message, and run long-running work (builds, tests) in the background. Prefer pipelining (streaming) over a barrier (waiting for everything).
+- **Minimize bottlenecks**: Run long-running work (builds, tests) in the background, and prefer pipelining (streaming) over a barrier (waiting for everything). How many independent tasks to dispatch at once is [09-agentic-workflow.md](09-agentic-workflow.md) §2.
 - **No re-derivation**: Don't re-read or re-derive facts that have already been established.
 
 Sources: [Claude Code — best practices](https://code.claude.com/docs/en/best-practices), [subagents](https://code.claude.com/docs/en/sub-agents)
