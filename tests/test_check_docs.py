@@ -21,6 +21,8 @@ spec.loader.exec_module(cd)
 
 # (the check, file, text to replace, replacement, the (file, message) pairs the run must
 # report). The replacement is applied to the first occurrence, so `old` need not be unique.
+# `old` of None means the file does not exist yet and `new` is written as its whole content,
+# which is the only way to break a check that reads a path rather than a body.
 SABOTAGE = [
     (
         "core rules is the first body heading",
@@ -92,6 +94,46 @@ SABOTAGE = [
         "# AGENTS.md",
         "# AGENTS.md\n\nBootstrap this project with conv-init.",
         [("templates/AGENTS.md", "names the retired mechanism 'conv-init'")],
+    ),
+    (
+        # The path arm, which no substitution in an existing file can reach: a retired
+        # directory reappearing is the shape this half of the check exists for.
+        "a path naming a retired mechanism",
+        "templates/contract.md",
+        None,
+        "A file whose path alone names a mechanism that no longer exists.\n",
+        [
+            (
+                "templates/contract.md",
+                "the path names the retired mechanism 'templates/contract.md'",
+            )
+        ],
+    ),
+    (
+        # A shipped skill reaches an agent, where a stray fragment is read as markup rather
+        # than as the sentence around it, so the check covers every tracked file and not
+        # only the documents. This row is what holds it to the wider scope.
+        "no tool-call residue in a shipped file",
+        "skills/commit/SKILL.md",
+        "# commit — The Commit Protocol",
+        "# commit — The Commit Protocol\n\n</invoke>",
+        [("skills/commit/SKILL.md", "tool-call residue '</invoke>'")],
+    ),
+    (
+        "the nav lists every skill page",
+        "mkdocs.yml",
+        "      - skills/commit/SKILL.md\n",
+        "",
+        [("mkdocs.yml", "the nav omits skills/commit/SKILL.md")],
+    ),
+    (
+        # The link is what routes, so removing the markup and leaving the name reaches the
+        # unrouted arm without also breaking a link.
+        "a convention no skill routes to",
+        "skills/code-and-config/SKILL.md",
+        "[03-environment.md](../../conventions/03-environment.md)",
+        "03-environment.md",
+        [("conventions/03-environment.md", "no skill routes to this convention")],
     ),
     (
         "the README skill table names every skill",
@@ -300,6 +342,34 @@ def test_an_unreadable_repository_reports_one_error_not_a_traceback(tmp_path):
     assert result.stderr.startswith("ERROR:")
 
 
+def test_a_doc_map_missing_either_heading_names_the_one_that_is_missing(tmp_path):
+    """`section` returns None for either heading, so one diagnostic for both sends a reader
+    looking for a section that is right there.
+
+    Reached directly rather than through the sabotage table: removing the closing heading
+    makes the check return before it reads the groups, which suppresses the violation the
+    grouped-row sabotage expects. One shared copy cannot carry both breaks.
+    """
+    readme = tmp_path / "README.md"
+    check = cd.every_convention_sits_under_a_doc_map_group
+
+    readme.write_text("# x\n\n## How to Apply\n", encoding="utf-8")
+    assert [v.message for v in check(tmp_path)] == [
+        "no `## Document Map` section to read the groups from"
+    ]
+
+    readme.write_text("# x\n\n## Document Map\n\n### Group\n", encoding="utf-8")
+    cd.read.cache_clear()
+    violations = list(check(tmp_path))
+    assert [(v.line, v.message) for v in violations] == [
+        (
+            3,
+            "no `## How to Apply` heading after `## Document Map`, so where the groups end "
+            "is unknown",
+        )
+    ]
+
+
 def test_the_unreadable_repository_guards_name_what_is_wrong(tmp_path):
     """Reached directly, because which check fires first on a bare directory is incidental.
     An error line has to name its cause for the reason to be actionable.
@@ -335,6 +405,11 @@ def broken(tmp_path_factory):
 
     for check, name, old, new, _ in SABOTAGE:
         path = copy / name
+        if old is None:
+            assert not path.exists(), f"the sabotage for {check} no longer creates {name}"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(new, encoding="utf-8")
+            continue
         body = path.read_text(encoding="utf-8")
         assert old in body, f"the sabotage for {check} no longer matches: {old!r}"
         path.write_text(body.replace(old, new, 1), encoding="utf-8")

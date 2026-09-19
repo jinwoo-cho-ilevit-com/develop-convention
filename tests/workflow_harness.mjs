@@ -47,7 +47,11 @@ const keyOf = (f) => (f.line != null ? `${f.file}:${f.line}` : `${f.file}:${f.su
 const CRIT = { criterion: 'C-01', command: 'uv run pytest tests/a', passed: true, red: 'observed', redOutput: '1 failed' }
 const devWith = (criteria) => ({ worktree: '/tmp/wt', branch: 'lane-a', head: 'sha0', criteria })
 
-function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompts: {}, schemas: {}, opts: {} }) {
+// The two fields every real call carries and the workflow requires by name. Spread into each
+// case's arguments so a case is about what it pins, not about re-supplying these.
+const ARGS = { base: 'main', conventionsDir: 'conventions' }
+
+function makeAgent(rounds, over, seen) {
   // The round advances on the first verify call of a round, once all its lenses have answered;
   // counting review calls would hand each lens of one round a different entry from `rounds`.
   let round = 0
@@ -138,6 +142,9 @@ function makeAgent(rounds, over = {}, seen = { labels: [], isolation: {}, prompt
       }))
       if (over.emptyVerdicts) verdicts = []
       if (over.dropOneVerdict) verdicts = verdicts.slice(1)
+      // A verdict on a key nobody submitted: the verifier answered about something else, so
+      // what it says about the blockers it was given is unknown.
+      if (over.unknownVerdict) verdicts = [...verdicts, { key: 'src/ghost.py:1', state: 'confirmed', commandsRun: 2, evidence: 'stub' }]
       // Both a confirmed and a refuted row for the same key — schema-valid, self-contradicting.
       if (over.contradictoryVerdicts && keys.length) {
         verdicts = [...verdicts, { key: keys[0], state: 'refuted', commandsRun: 2, evidence: 'stub' }]
@@ -183,7 +190,7 @@ async function run(rounds, over = {}) {
       ? over.rawArgs
       : {
           planDir: '.plans',
-          base: 'main',
+          ...ARGS,
           lanes: [over.lane ?? { name: 'a', owns: ['src/a/'], security: false }],
           boundaries: over.boundaries ?? [],
           // What `/dev-harness:build` declares after writing the contract files. A case can
@@ -199,6 +206,14 @@ async function run(rounds, over = {}) {
 // the lane results.
 function dispatchChecks(expect, out) {
   const why = []
+  // Every map below is keyed by label, and a label that was never dispatched makes most of
+  // them pass on nothing: an absent prompt is the empty string, an absent isolation is
+  // `undefined`. A case naming a label that does not exist is a typo, not an assertion.
+  for (const map of [expect.isolation, expect.prompt, expect.promptExcludes, expect.schemaRequired, expect.opts]) {
+    for (const label of Object.keys(map ?? {})) {
+      if (!out.labels.includes(label)) why.push(`no call was dispatched with label ${JSON.stringify(label)}`)
+    }
+  }
   for (const [label, want] of Object.entries(expect.isolation ?? {})) {
     if (out.isolation[label] !== want) why.push(`isolation[${label}]=${out.isolation[label]}`)
   }
@@ -235,12 +250,17 @@ const RESUMED = { ...LANE, resumeFrom: { worktree: '/tmp/wt2', branch: 'lane-a' 
 const BOUNDARY = { name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }
 const SCHEMA_BOUNDARY = { ...BOUNDARY, schema: '.plans/contracts/api.schema.json', producer: 'a' }
 const SHAPE_ROWS = [
-  ['a misspelled top-level key is refused rather than defaulted', 'args', { lanes: [LANE], conventionDir: '/abs/conventions', boundariesFrozen: true }, /unknown key "conventionDir"/],
-  ['arguments carrying no lanes at all are refused by name', 'args', { boundariesFrozen: true }, /declares no lanes/],
-  ['lanes arriving as text of its own is refused rather than thrown out of', 'args.lanes', { lanes: JSON.stringify([LANE]), boundaries: [], boundariesFrozen: true }, /must be a list of lane objects/],
-  ['boundaries arriving as text of its own is refused rather than thrown out of', 'args.boundaries', { lanes: [LANE], boundaries: JSON.stringify([BOUNDARY]), boundariesFrozen: true }, /must be a list of boundary objects/],
-  ['a base that is not a string is refused', 'args.base', { lanes: [LANE], base: {}, boundariesFrozen: true }, /is \{\}, and must be a non-empty string/],
-  ['a base present but empty is refused', 'args.base', { lanes: [LANE], base: '', boundariesFrozen: true }, /is "", and must be a non-empty string/],
+  ['a misspelled top-level key is refused rather than defaulted', 'args', { ...ARGS, lanes: [LANE], conventionDir: '/abs/conventions', boundariesFrozen: true }, /unknown key "conventionDir"/],
+  ['arguments carrying no lanes at all are refused by name', 'args', { ...ARGS, boundariesFrozen: true }, /declares no lanes/],
+  // Neither has a value worth guessing at: a lane told to read a bare `conventions/` reads
+  // nothing in the project it runs in, and a lane reset to `main` is not on the frozen
+  // commit. These two rows drop one field each, so each is refused under its own name.
+  ['arguments carrying no conventionsDir are refused by name', 'args', { lanes: [LANE], base: 'main', boundariesFrozen: true }, /declares no conventionsDir/],
+  ['arguments carrying no base are refused by name', 'args', { lanes: [LANE], conventionsDir: 'conventions', boundariesFrozen: true }, /declares no base/],
+  ['lanes arriving as text of its own is refused rather than thrown out of', 'args.lanes', { ...ARGS, lanes: JSON.stringify([LANE]), boundaries: [], boundariesFrozen: true }, /must be a list of lane objects/],
+  ['boundaries arriving as text of its own is refused rather than thrown out of', 'args.boundaries', { ...ARGS, lanes: [LANE], boundaries: JSON.stringify([BOUNDARY]), boundariesFrozen: true }, /must be a list of boundary objects/],
+  ['a base that is not a string is refused', 'args.base', { ...ARGS, lanes: [LANE], base: {}, boundariesFrozen: true }, /is \{\}, and must be a non-empty string/],
+  ['a base present but empty is refused', 'args.base', { ...ARGS, lanes: [LANE], base: '', boundariesFrozen: true }, /is "", and must be a non-empty string/],
   ['a lane that is a name rather than an object is refused', 'args.lanes[0]', 'auth', /is "auth", not an object/],
   ['a lane object with no name is refused', 'args.lanes[0]', { owns: ['src/a/'], security: false }, /declares no name/],
   ['a lane that owns nothing is refused', 'args.lanes[0]', { name: 'a', security: false }, /declares no owns/],
@@ -264,10 +284,10 @@ const SHAPE_ROWS = [
   // Sabotage: accept any string as a tier.
   ['a lane tier outside light, mid, top is refused', 'args.lanes[0].tier', { name: 'a', owns: ['src/a/'], security: false, tier: 'opus' }, /must be one of light, mid, top/],
   // Sabotage: accept any string as `planDir`.
-  ['an absolute planDir is refused', 'args.planDir', { lanes: [LANE], planDir: '/abs/.plans', boundariesFrozen: true }, /is "\/abs\/\.plans", and must be a repository-relative path/],
-  ['a planDir climbing out of the repository is refused', 'args.planDir', { lanes: [LANE], planDir: '../.plans', boundariesFrozen: true }, /must be a repository-relative path/],
+  ['an absolute planDir is refused', 'args.planDir', { ...ARGS, lanes: [LANE], planDir: '/abs/.plans', boundariesFrozen: true }, /is "\/abs\/\.plans", and must be a repository-relative path/],
+  ['a planDir climbing out of the repository is refused', 'args.planDir', { ...ARGS, lanes: [LANE], planDir: '../.plans', boundariesFrozen: true }, /must be a repository-relative path/],
   // Sabotage: skip the shape check on `allLanes` entries.
-  ['an allLanes entry that is a bare name is refused', 'args.allLanes[0]', { lanes: [LANE], allLanes: ['a'], boundariesFrozen: true }, /is "a", not an object/],
+  ['an allLanes entry that is a bare name is refused', 'args.allLanes[0]', { ...ARGS, lanes: [LANE], allLanes: ['a'], boundariesFrozen: true }, /is "a", not an object/],
   // Sabotage: drop the resumeNote-without-resumeFrom check.
   ['a resumeNote with no resumeFrom is refused', 'args.lanes[0]', { ...LANE, resumeNote: 'why' }, /has a resumeNote but no resumeFrom/],
   // Sabotage: accept any object as `resumeFrom`.
@@ -321,10 +341,12 @@ const cases = [
     expect: { outcome: 'round-cap', rounds: 5, escalation: 'human' },
   },
   {
+    // Sabotage: drop `evidence` from the refuted `carried.push` — the downgraded blocker then
+    // leaves the lane as the claim again, with nothing saying what refuted it.
     name: 'a blocker the verifier refutes never reaches the fix agent',
     rounds: [[finding()]],
     over: { refuteBlockers: true },
-    expect: { outcome: 'passed', rounds: 1, noLabel: 'fix:', carriedState: [['boom', 'refuted']] },
+    expect: { outcome: 'passed', rounds: 1, noLabel: 'fix:', carriedState: [['boom', 'refuted', 'stub']] },
   },
   {
     // A verifier that answers with nothing cleared nothing: an empty verdict list must not read
@@ -365,6 +387,15 @@ const cases = [
     rounds: [[finding({ summary: 'b1' }), finding({ summary: 'b2' })]],
     over: { dropOneVerdict: true },
     expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:' },
+  },
+  {
+    // Sabotage: remove the `unknown.length` arm of `verifyRound`'s one-to-one check. A verifier
+    // answering about a key nobody sent it read some other list, and every verdict in that
+    // answer is about that other list.
+    name: 'a verdict on a key nobody submitted stops the round',
+    rounds: [[finding()]],
+    over: { unknownVerdict: true },
+    expect: { outcome: 'verification-incomplete', rounds: 1, escalation: 'human', noLabel: 'fix:', note: /1 unknown keys/ },
   },
   {
     // Confirming a blocker establishes the defect is real; it says nothing about who caused it.
@@ -501,6 +532,7 @@ const cases = [
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
+        ...ARGS,
         lanes: [
           { name: 'a', owns: ['src/a/'], security: false },
           { name: 'b', owns: ['src/b/'], security: false },
@@ -541,7 +573,7 @@ const cases = [
     // call, and the only fix it leaves them is to hardcode the flag.
     name: 'args arriving as JSON text encoding an object is parsed and runs',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }], boundariesFrozen: true }) },
+    over: { rawArgs: JSON.stringify({ ...ARGS, lanes: [{ name: 'a', owns: ['src/a/'], security: false }], boundariesFrozen: true }) },
     expect: { outcome: 'passed', rounds: 1 },
   },
   {
@@ -549,7 +581,7 @@ const cases = [
     // declaration, and text that omits it declares nothing.
     name: 'JSON text that omits the freeze is still refused over the freeze',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }] }) },
+    over: { rawArgs: JSON.stringify({ ...ARGS, lanes: [{ name: 'a', owns: ['src/a/'], security: false }] }) },
     expect: { refused: /boundariesFrozen was not true/ },
   },
   {
@@ -600,7 +632,7 @@ const cases = [
     name: 'a missing contract file is refused by name when the arguments arrive as text',
     rounds: [[]],
     over: {
-      rawArgs: JSON.stringify({ lanes: [LANE], boundaries: [BOUNDARY], boundariesFrozen: true }),
+      rawArgs: JSON.stringify({ ...ARGS, lanes: [LANE], boundaries: [BOUNDARY], boundariesFrozen: true }),
       missingFrozen: ['.plans/contracts/api.md'],
     },
     expect: { refused: /do not exist: \.plans\/contracts\/api\.md/ },
@@ -684,10 +716,19 @@ const cases = [
   {
     // Both lanes read one brief, take one branch and answer to one label, so the second is
     // indistinguishable from the first in the results.
+    // Sabotage: drop the `!lanes.length` return — an empty list then reaches the freeze check
+    // and the run reports a clean build of nothing.
+    name: 'an empty lane list is answered as nothing to build, before any agent runs',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ ...ARGS, lanes: [], boundariesFrozen: true }) },
+    expect: { refused: /no lanes supplied/ },
+  },
+  {
     name: 'two lanes of the same name are refused',
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
+        ...ARGS,
         lanes: [{ name: 'a', owns: ['src/a/'], security: false }, { name: 'a', owns: ['src/b/'], security: false }],
         boundariesFrozen: true,
       }),
@@ -908,6 +949,7 @@ const cases = [
       // stub can derive its own default `checked` rows for the same boundary.
       boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
       rawArgs: JSON.stringify({
+        ...ARGS,
         lanes: [
           { name: 'a', owns: ['src/a/'], security: false },
           { name: 'b', owns: ['src/b/'], security: false },
@@ -934,6 +976,7 @@ const cases = [
     over: {
       boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
       rawArgs: JSON.stringify({
+        ...ARGS,
         lanes: [
           { name: 'a', owns: ['src/a/'], security: false },
           { name: 'b', owns: ['src/b/'], security: false },
@@ -1003,6 +1046,7 @@ const cases = [
     over: {
       boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json', schema: '.plans/contracts/api.schema.json', producer: 'a' }],
       rawArgs: JSON.stringify({
+        ...ARGS,
         lanes: [
           { name: 'a', owns: ['src/a/'], security: false },
           { name: 'b', owns: ['src/b/'], security: false },
@@ -1077,6 +1121,29 @@ const cases = [
     expect: { outcome: 'criteria-failed' },
   },
   {
+    // Sabotage: drop the `&` alternation from the chain condition. `&` backgrounds the step
+    // before it, so the check runs against whatever the dump directory held a moment ago.
+    name: 'a producer criterion chained with a bare `&` does not satisfy the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) => `rm -rf dump & uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+    },
+    expect: { outcome: 'criteria-failed' },
+  },
+  {
+    // The `&` condition's other side — sabotage: match a bare `&` without exempting `2>&1`
+    // and `&>`, and every command that redirects stderr is refused as a chain.
+    name: 'a producer criterion redirecting stderr still satisfies the schema check',
+    rounds: [[]],
+    over: {
+      boundaries: [SCHEMA_BOUNDARY],
+      producerCommand: (b) =>
+        `rm -rf dump && uv run python -m stage --input ${b.sample} --dump dump 2>&1 && uvx check-jsonschema@0.38.0 --schemafile ${b.schema} dump/out.json`,
+    },
+    expect: { outcome: 'passed' },
+  },
+  {
     // Sabotage: compare the instance to the sample without `normalPath`.
     name: 'a producer criterion reaching the sample through `./` does not satisfy the schema check',
     rounds: [[]],
@@ -1119,6 +1186,8 @@ const cases = [
   },
   {
     // Sabotage: drop `&& v.commandsRun > 0` from `stateOf` — a read-only confirmation then reaches the fix.
+    // Sabotage: drop `evidence` where the verdict is read — the escalated blocker then reaches
+    // a person as the claim again, without what was run against it (→ 19-evidence.md).
     name: 'a confirmation that ran nothing is unverified, re-verified once, and halts unfixed',
     rounds: [[finding()]],
     over: { verdict: () => ({ state: 'confirmed', commandsRun: 0 }) },
@@ -1129,6 +1198,7 @@ const cases = [
       noLabel: 'fix:',
       hasLabel: ['reverify:a#1', 'recheck:a#1'],
       prompt: { 'reverify:a#1': /Reproduce each one/ },
+      result: { unverified: [{ file: 'src/a.py', severity: 'blocker', summary: 'boom', causedByPreviousFix: false, evidence: 'stub' }] },
     },
   },
   {
@@ -1180,14 +1250,14 @@ const cases = [
     // Sabotage: remove `ownsOverlap(lanes)` from the `complaint` chain.
     name: 'two lanes whose owns overlap are refused',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a'], security: false }, { name: 'b', owns: ['src/a/b/'], security: false }], boundariesFrozen: true }) },
+    over: { rawArgs: JSON.stringify({ ...ARGS, lanes: [{ name: 'a', owns: ['src/a'], security: false }, { name: 'b', owns: ['src/a/b/'], security: false }], boundariesFrozen: true }) },
     expect: { refused: /lane "b" owns "src\/a\/b\/", which overlaps lane "a"'s "src\/a"/ },
   },
   {
     // Sabotage: compare owns with a bare `startsWith`, without the `/` — sibling prefixes then overlap.
     name: 'lanes owning sibling paths that share a prefix are not an overlap',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }, { name: 'b', owns: ['src/ab/'], security: false }], boundariesFrozen: true }) },
+    over: { rawArgs: JSON.stringify({ ...ARGS, lanes: [{ name: 'a', owns: ['src/a/'], security: false }, { name: 'b', owns: ['src/ab/'], security: false }], boundariesFrozen: true }) },
     expect: { outcome: 'passed', passedCount: 2 },
   },
   {
@@ -1245,6 +1315,15 @@ const cases = [
     rounds: [[]],
     over: { recheck: (label, r) => ({ ...r, results: [...r.results, { ...r.results[0], exit: 1 }] }) },
     expect: { outcome: 'recheck-incomplete', rounds: 1 },
+  },
+  {
+    // Sabotage: drop the `unknown.length` arm of the recheck one-to-one check. A row for a
+    // criterion nobody asked about means the recheck ran a list of its own, and a pass on it
+    // says nothing about the list the lane was held to.
+    name: 'a recheck answering a criterion nobody asked about is incomplete',
+    rounds: [[]],
+    over: { recheck: (label, r) => ({ ...r, results: [...r.results, { criterion: 'a check of its own', exit: 0, output: 'ok' }] }) },
+    expect: { outcome: 'recheck-incomplete', rounds: 1, note: /1 unknown/ },
   },
   {
     // Sabotage: drop the `!re` arm — a dead recheck then throws or passes.
@@ -1377,7 +1456,6 @@ const cases = [
         'review:a:module#2': /git reset --hard m1`[^]*git diff f00dbabe\.\.m1/,
         'recheck:a#2': /git reset --hard m1`/,
       },
-      promptExcludes: { 'review:a:module#1': /cd into/ },
     },
   },
   {
@@ -1425,7 +1503,7 @@ const cases = [
         'verify:a#1': ['head', 'verdicts'],
         'reverify:a#1': { at: ['verdicts'], fields: ['key', 'state', 'commandsRun', 'evidence'] },
         'touched:a#1': ['head', 'branchTip', 'base', 'trackedChanges', 'untracked', 'ownershipDiff', 'causationDiff'],
-        'recheck:a#2': { at: ['brief'], fields: ['id', 'sentence', 'command'] },
+        'recheck:a#2': { at: ['brief'], fields: ['id', 'command'] },
         'review:a:module#1': ['head', 'findings', 'commandsRun', 'tool'],
       },
     },
@@ -1572,6 +1650,7 @@ const cases = [
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
+        ...ARGS,
         lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
         allLanes: [{ name: 'a', owns: ['src/a/'] }, { name: 'b', owns: ['src/b/'] }],
         boundaries: [{ name: 'api', lanes: ['a', 'b'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
@@ -1584,7 +1663,7 @@ const cases = [
     // Sabotage: drop the lanes-in-allLanes check.
     name: 'a lane missing from allLanes is refused',
     rounds: [[]],
-    over: { rawArgs: JSON.stringify({ lanes: [{ name: 'a', owns: ['src/a/'], security: false }], allLanes: [{ name: 'b', owns: ['src/b/'] }], boundariesFrozen: true }) },
+    over: { rawArgs: JSON.stringify({ ...ARGS, lanes: [{ name: 'a', owns: ['src/a/'], security: false }], allLanes: [{ name: 'b', owns: ['src/b/'] }], boundariesFrozen: true }) },
     expect: { refused: /args\.lanes\[0\] is "a", which args\.allLanes omits/ },
   },
   {
@@ -1636,12 +1715,28 @@ const cases = [
     rounds: [[]],
     over: {
       rawArgs: JSON.stringify({
+        ...ARGS,
         lanes: [{ name: 'a', owns: ['src/a/'], security: false }],
         allLanes: [{ name: 'a', owns: ['src/a/'] }, { name: 'b', owns: ['src/a/x/'] }],
         boundariesFrozen: true,
       }),
     },
     expect: { refused: /lane "b" owns "src\/a\/x\/", which overlaps lane "a"'s "src\/a\/"/ },
+  },
+  {
+    // The one shape that reaches `dedupe`'s state-keeping branch: the same key refuted in two
+    // rounds, so both sides agree and the verdict survives the merge. Every other merge case
+    // has sides that disagree, which drops `state` before `evidence` is ever read.
+    // Sabotage: drop `evidence` from the merge expression, and the surviving verdict loses
+    // what it rested on. Sabotage: drop it from the destructure above, and `rest` carries the
+    // losing side's evidence under the winner's state.
+    name: 'a refutation carried through two rounds keeps the evidence it rested on',
+    rounds: [
+      [finding({ line: 3, summary: 'r' }), finding({ file: 'src/b.py', summary: 'go' })],
+      [finding({ line: 3, summary: 'r2' })],
+    ],
+    over: { verdict: (label, key) => (key === 'src/a.py:3' ? { state: 'refuted' } : {}) },
+    expect: { outcome: 'passed', rounds: 2, hasLabel: 'fix:a#1', carriedState: [['r | r2', 'refuted', 'stub']] },
   },
   {
     // Sabotage: keep `state` when any merged member has it, rather than every one.
@@ -1728,10 +1823,14 @@ for (const c of cases) {
   for (const [k, v] of Object.entries(c.expect.result ?? {})) {
     check(JSON.stringify(got[k]) === JSON.stringify(v), `${k}=${JSON.stringify(got[k])}`)
   }
-  // [summary, state] pairs: the carried finding with that summary must carry exactly that state.
-  for (const [summary, state] of c.expect.carriedState ?? []) {
+  // [summary, state] rows: the carried finding with that summary must carry exactly that
+  // state. A third element also pins the evidence the verdict rested on — a state carried
+  // without it hands a person the claim again rather than the run (→ 19-evidence.md).
+  for (const row of c.expect.carriedState ?? []) {
+    const [summary, state] = row
     const f = (got.carried ?? []).find((x) => x.summary === summary)
     check(f && f.state === state, `carried ${JSON.stringify(summary)}=${JSON.stringify(f)}`)
+    if (row.length > 2) check(f && f.evidence === row[2], `carried ${JSON.stringify(summary)}.evidence=${JSON.stringify(f?.evidence)}`)
   }
   if (c.expect.note) check(c.expect.note.test(got.note ?? ''), `note=${got.note}`)
   // `got` reads only one lane; a multi-lane case pins the others by count.

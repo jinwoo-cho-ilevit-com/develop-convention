@@ -1,6 +1,10 @@
+// The command that owns the freeze step. `meta.name` is the workflow's own id and cannot
+// supply it, so the three places that name the entry point read this one constant.
+const COMMAND = '/dev-harness:build'
+
 export const meta = {
   name: 'dev-harness-build',
-  description: 'Lane engine behind /dev-harness:build — not the entry point. Run the command instead; this refuses unless the boundaries were already frozen',
+  description: `Lane engine behind ${COMMAND} — not the entry point. Run the command instead; this refuses unless the boundaries were already frozen`,
   phases: [
     { title: 'Develop', detail: 'one worktree-isolated agent per lane' },
     { title: 'Review', detail: 'review, fix and recheck — per lane, no barrier' },
@@ -25,7 +29,9 @@ const SEVERITY_RANK = { minor: 0, major: 1, blocker: 2 }
 
 const DEVELOP_SCHEMA = {
   type: 'object',
-  required: ['worktree', 'branch', 'head', 'criteria'],
+  // Not `head`: the commit a lane is judged on is the one an independent agent measures, so
+  // the sha the lane reports is asked for but never read.
+  required: ['worktree', 'branch', 'criteria'],
   additionalProperties: false,
   properties: {
     worktree: { type: 'string', description: 'absolute path of the worktree you worked in' },
@@ -193,7 +199,8 @@ const RECHECK_SCHEMA = {
       description: "every completion criterion the lane brief lists, copied verbatim",
       items: {
         type: 'object',
-        required: ['id', 'sentence', 'command'],
+        // Not `sentence`: drift is decided on the id, the kind and the command.
+        required: ['id', 'command'],
         additionalProperties: false,
         properties: {
           id: { type: 'string', description: 'its id (e.g. C-01), or its sentence verbatim when it has none' },
@@ -236,14 +243,15 @@ function dedupe(findings) {
       continue
     }
     const top = SEVERITY_RANK[f.severity] > SEVERITY_RANK[prev.severity] ? f : prev
-    const { state, ...rest } = top
+    const { state, evidence, ...rest } = top
     byKey.set(keyOf(f), {
       ...rest,
       summary: joinDistinct(prev.summary, f.summary),
       failureScenario: joinDistinct(prev.failureScenario, f.failureScenario),
       causedByPreviousFix: Boolean(prev.causedByPreviousFix || f.causedByPreviousFix),
       // A refutation covers only the finding it was made on, not another at the same line.
-      ...(state && prev.state === f.state ? { state } : {}),
+      // Its evidence is part of that verdict and leaves with it.
+      ...(state && prev.state === f.state ? { state, evidence } : {}),
     })
   }
   return [...byKey.values()]
@@ -254,7 +262,13 @@ function dedupe(findings) {
 // first. Returns null when satisfied, or the failing condition's name.
 function producerCheckIssue(c, b) {
   const pinned = `${SCHEMA_CHECK} --schemafile ${b.schema}`
-  if (/[;\n\r]|\|\||(^|[^|])\|([^|]|$)/.test(c.command)) return 'chains steps with something other than `&&`, so a failed step does not stop the check'
+  // A redirection is not a chain, so `2>&1`, `>&2` and `&>file` are taken out before the
+  // separators are looked for. Quotes are not parsed, here or for `|`: a separator inside a
+  // quoted argument reads as one, so a URL query string or a `--flag=a&b` argument is
+  // refused as a chain. That is the fail-closed side, and the criterion is rewritten
+  // without it; letting one through would pass a check that ran against a stale dump.
+  const chained = c.command.replace(/\d*>&[\d-]*|&>>?/g, ' ')
+  if (/[;\n\r]|\|\||(^|[^|])\|([^|]|$)|(^|[^&])&([^&]|$)/.test(chained)) return 'chains steps with something other than `&&`, so a failed step does not stop the check'
   const at = c.command.indexOf(pinned)
   const instances = c.command.slice(at + pinned.length).split('&&')[0].trim().split(/\s+/).filter(Boolean).map(normalPath)
   const wiped = [...c.command.slice(0, at).matchAll(/rm -rf\s+(\S+)/g)].map((m) => normalPath(m[1]))
@@ -401,11 +415,12 @@ if (typeof input === 'string') {
 if (typeof input === 'string' && input.trim() === '') input = undefined
 
 const planDir = input?.planDir ?? '.plans'
-// The conventions travel with the plugin, not with the project the lanes run in.
-const conventionsDir = input?.conventionsDir ?? 'conventions'
+// The conventions travel with the plugin, not with the project the lanes run in, so there is
+// no default worth guessing: both of these are required below.
+const conventionsDir = input?.conventionsDir
 // What every lane resets to and every range starts from; a worktree is cut from
 // `origin/main`, so nothing else puts a lane on this commit.
-const base = input?.base ?? 'main'
+const base = input?.base
 const lanes = input?.lanes ?? []
 const boundaries = input?.boundaries ?? []
 const allLanes = input?.allLanes
@@ -430,7 +445,7 @@ if (input !== undefined && !isPlainObject(input)) {
 // the top level, so every level below is checked here rather than where it is used.
 const complaint =
   // An argument-less call has no shape to be wrong; the freeze gate below answers it.
-  (input === undefined ? null : checkShape(input, 'args', ARG_FIELDS, ['lanes'])) ??
+  (input === undefined ? null : checkShape(input, 'args', ARG_FIELDS, ['lanes', 'conventionsDir', 'base'])) ??
   lanes.map((l, i) => checkShape(l, `args.lanes[${i}]`, LANE_FIELDS, ['name', 'owns', 'security'])).find(Boolean) ??
   boundaries.map((b, i) => checkShape(b, `args.boundaries[${i}]`, BOUNDARY_FIELDS, ['name', 'lanes', 'contract', 'sample'])).find(Boolean) ??
   // Two lanes of one name share a brief, a branch and every label.
@@ -491,10 +506,10 @@ log(`base ${base}, plans in ${planDir}, conventions in ${conventionsDir}, ${lane
 // Invoking this workflow directly skips the freeze that holds the interfaces still while every
 // lane edits at once, so the caller has to declare it happened.
 if (input?.boundariesFrozen !== true) {
-  log('Boundaries are not frozen. Run /dev-harness:build instead of invoking this workflow.')
+  log(`Boundaries are not frozen. Run ${COMMAND} instead of invoking this workflow.`)
   return {
     lanes: [],
-    note: 'refused: boundariesFrozen was not true. /dev-harness:build writes one contract file and sample per boundary, owned by no lane, before fanning out; invoking this workflow directly skips that and lets the lanes move the interfaces they are working against.',
+    note: `refused: boundariesFrozen was not true. ${COMMAND} writes one contract file and sample per boundary, owned by no lane, before fanning out; invoking this workflow directly skips that and lets the lanes move the interfaces they are working against.`,
   }
 }
 
@@ -720,7 +735,7 @@ function recheckPrompt(lane, commandCriteria) {
     '',
     `Read the lane brief as the base commit holds it, with \`${brief}\` — not the copy in your tree, which`,
     'the lane may have changed. Report every completion criterion it lists as `brief`: its id (or its sentence',
-    'verbatim when it has none), its sentence, and its command verbatim — `[human]` for a criterion a person decides.',
+    'verbatim when it has none) and its command verbatim — `[human]` for a criterion a person decides.',
     '',
     'Run each of these commands exactly as written and report one `results` row per criterion: its',
     'name exactly as given, the exit code, and the output verbatim. Copy the brief; do not reconcile it with this list.',
@@ -866,8 +881,10 @@ async function reviewLoop(dev, lane) {
             : `Verification did not cover the blockers one to one: ${missing.length} missing, ${duplicated.length} duplicated, ${unknown.length} unknown keys.`,
       }
     }
+    // The verdict's evidence travels with its state: 19 asks for what was run, and a blocker
+    // escalated or downgraded without it hands a person the claim again rather than the run.
     const stateOf = (v) => (['confirmed', 'refuted'].includes(v.state) && v.commandsRun > 0 ? v.state : 'unverified')
-    return { states: new Map(submitted.map((k) => [k, stateOf(byKey.get(k)[0])])) }
+    return { states: new Map(submitted.map((k) => [k, { state: stateOf(byKey.get(k)[0]), evidence: byKey.get(k)[0].evidence }])) }
   }
 
   // Every clean exit re-runs the criteria on the measured head first, by an agent that is not the fixer.
@@ -984,19 +1001,19 @@ async function reviewLoop(dev, lane) {
     const first = await verifyRound(rawBlockers, round, false)
     if (first.incomplete) return result('verification-incomplete', round, { criteria, blockers: rawBlockers, escalation: 'human', note: first.incomplete })
     const states = first.states
-    const pending = rawBlockers.filter((f) => states.get(keyOf(f)) === 'unverified')
+    const pending = rawBlockers.filter((f) => states.get(keyOf(f)).state === 'unverified')
     if (pending.length) {
       const again = await verifyRound(pending, round, true)
       if (again.incomplete) return result('verification-incomplete', round, { criteria, blockers: pending, escalation: 'human', note: again.incomplete })
       again.states.forEach((s, k) => states.set(k, s))
     }
     for (const f of rawBlockers) {
-      const s = states.get(keyOf(f))
-      if (s === 'unverified') unverified.set(keyOf(f), f)
+      const { state, evidence } = states.get(keyOf(f))
+      if (state === 'unverified') unverified.set(keyOf(f), { ...f, evidence })
       else unverified.delete(keyOf(f))
-      if (s === 'refuted') carried.push({ ...f, severity: 'minor', state: 'refuted' })
+      if (state === 'refuted') carried.push({ ...f, severity: 'minor', state: 'refuted', evidence })
     }
-    const blockers = rawBlockers.filter((f) => states.get(keyOf(f)) === 'confirmed')
+    const blockers = rawBlockers.filter((f) => states.get(keyOf(f)).state === 'confirmed')
     if (!blockers.length) return finish(round)
 
     // Two signals that another round will not converge (→ 20 §3): a blocker repeating by key,
@@ -1010,12 +1027,13 @@ async function reviewLoop(dev, lane) {
       log(`lane ${lane.name} round ${round}: ${misattributed.length} finding(s) claimed the previous fix caused them in files it never touched`)
     }
     const stuckKeys = new Set([...repeated, ...fromFix].map(keyOf))
-    if (round > 1 && stuckKeys.size * 2 > blockers.length) {
+    // Round 1 has no previous round, so both sets are empty and this cannot fire there.
+    if (stuckKeys.size * 2 > blockers.length) {
       return result('regression-halt', round, {
         criteria,
         blockers,
         escalation: 'human',
-        note: `${stuckKeys.size} of ${blockers.length} confirmed blockers are unchanged from the previous round (${repeated.length}) or introduced by its fix (${fromFix.length}). Change the approach rather than running another round.`,
+        note: `${stuckKeys.size} of ${blockers.length} confirmed blockers are unchanged from the previous round or introduced by its fix (${repeated.length} unchanged, ${fromFix.length} from the fix; one blocker can be both). Change the approach rather than running another round.`,
       })
     }
     previousKeys = new Set(blockers.map(keyOf))

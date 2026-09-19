@@ -146,8 +146,10 @@ def section(body: str, opening: str, closing: str) -> tuple[str, int] | None:
 def tracked_text(repo: Path) -> list[tuple[str, str]]:
     """Every tracked text file as (path, body).
 
-    `tests/` and this script are left out: they spell the retired tokens themselves, and a
-    tombstone list cannot be its own violation.
+    `tests/` and this script are left out because both spell out what the checks reading this
+    look for: the retired tokens and the tool-call markers are written here as the lists to
+    match, and in `tests/` as the sabotage rows that prove each check still fires. A list of
+    what is forbidden cannot be its own violation.
     """
     try:
         listed = subprocess.run(
@@ -194,12 +196,14 @@ def core_rules_is_the_first_body_heading(repo: Path) -> Iterator[Violation]:
 
 
 def no_tool_call_residue(repo: Path) -> Iterator[Violation]:
-    docs = [repo / "README.md", repo / "CLAUDE.md", *conventions(repo)]
-    for doc in docs:
-        for number, line in numbered(read(doc)):
+    """Every tracked file, not only the documents: a fragment in a shipped skill or command
+    reaches an agent, where it is read as markup rather than as the text around it.
+    """
+    for name, body in tracked_text(repo):
+        for number, line in numbered(body):
             for marker in RESIDUE:
                 if marker in line:
-                    yield Violation(rel(doc, repo), number, f"tool-call residue {marker!r}")
+                    yield Violation(name, number, f"tool-call residue {marker!r}")
 
 
 def doc_map_links_resolve(repo: Path) -> Iterator[Violation]:
@@ -217,9 +221,20 @@ def every_convention_sits_under_a_doc_map_group(repo: Path) -> Iterator[Violatio
     so a doc outside every group is unreachable by the only ordering a reader is given.
     """
     body = read(repo / "README.md")
+    opens = where(body, "## Document Map")
+    if opens is None:
+        yield Violation("README.md", 1, "no `## Document Map` section to read the groups from")
+        return
     found = section(body, "## Document Map", "## How to Apply")
     if found is None:
-        yield Violation("README.md", 1, "no `## Document Map` section to read the groups from")
+        # `section` returns None for either heading, and naming the wrong one sends a reader
+        # to a section that is right there.
+        yield Violation(
+            "README.md",
+            opens,
+            "no `## How to Apply` heading after `## Document Map`, so where the groups end "
+            "is unknown",
+        )
         return
     doc_map, at = found
     grouped: set[str] = set()

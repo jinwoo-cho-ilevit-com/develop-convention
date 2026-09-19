@@ -420,12 +420,36 @@ def test_the_bypass_is_recorded_not_silent(tmp_path):
 # --- the build workflow ----------------------------------------------------------------------
 
 
+# A bullet in the outcome list opens with its outcome names in backticks, one or two of them
+# (`develop-failed` / `fix-failed` share a line), before the em dash that starts the prose.
+OUTCOME_BULLET = re.compile(r"^ +- ((?:`[a-z-]+`(?: / )?)+) —", re.M)
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="the harness needs node")
 def test_the_review_loop_exits_are_observed():
-    """Every exit commands/build.md lists is driven by tests/workflow_harness.mjs against
-    scripted review rounds, because the exits are the part of workflows/build.js that a
-    reader cannot confirm by reading.
+    """The exits are the part of workflows/build.js a reader cannot confirm by reading, so
+    two things hold them: `commands/build.md` names every one a caller has to handle, and
+    tests/workflow_harness.mjs drives them against scripted review rounds.
+
+    An exit the workflow can take and the command does not describe leaves a caller with an
+    outcome string and no instruction; one the command describes and the workflow cannot take
+    sends them to handle something that never arrives.
     """
+    js = read(ROOT / "workflows" / "build.js")
+    # Both places an outcome is minted: `result('…')` and the three `measure` returns that
+    # `result(developed.outcome, …)` passes through.
+    taken = set(re.findall(r"result\('([a-z-]+)'", js))
+    taken |= set(re.findall(r"outcome: '([a-z-]+)'", js))
+    documented = {
+        name
+        for m in OUTCOME_BULLET.finditer(read(ROOT / "commands" / "build.md"))
+        for name in re.findall(r"`([a-z-]+)`", m.group(1))
+    }
+    # `passed` is the clean exit, handled by the merge steps rather than by the halt list.
+    assert documented == taken - {"passed"}, (
+        f"commands/build.md documents {sorted(documented)}, build.js takes {sorted(taken)}"
+    )
+
     result = subprocess.run(
         ["node", str(ROOT / "tests" / "workflow_harness.mjs")], capture_output=True, text=True
     )

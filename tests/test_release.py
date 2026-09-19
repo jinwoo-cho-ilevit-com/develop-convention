@@ -16,7 +16,7 @@ from _repo import MARKETPLACE, PLUGIN, ROOT, load, read
 # What `/plugin install` puts on a user's machine. A change under any of these is a change
 # the user can only receive through a new version. `conventions` belongs here for the same
 # reason the rest do, and by the count is the most load-bearing of them: the commands and
-# skills resolve `${CLAUDE_PLUGIN_ROOT}/conventions` seventeen times, against one for
+# skills resolve `${CLAUDE_PLUGIN_ROOT}/conventions` 27 times, against one for
 # `workflows`. Omitted, a conventions-only edit would ship nothing with no check saying so.
 # `templates` because `setup` reads its AGENTS.md skeleton from there.
 SHIPPED = ("hooks", "commands", "workflows", "skills", "conventions", "templates", ".claude-plugin")
