@@ -45,10 +45,10 @@ When starting work related to a provider, fetch the URL in the corresponding row
 - structured-output · thinking · models · troubleshooting
 
 **DeepSeek** — https://api-docs.deepseek.com/
-- guides/json_mode · guides/thinking_mode · guides/tool_calls · quick_start/pricing
+- guides/json_mode · guides/thinking_mode · quick_start/pricing
 
 **OpenRouter** — https://openrouter.ai/docs/
-- guides/features/structured-outputs · guides/overview/auth/byok · api_reference/limits
+- guides/features/structured-outputs · guides/overview/auth/byok · limits
 
 For the ML/training stack (torch, TRL, vLLM, etc.), the source links in [08-llm-development.md](08-llm-development.md) are the seed. When a new library is adopted, leaving its official docs URL as a source in the corresponding convention document is itself the registry entry.
 
@@ -58,7 +58,7 @@ Agent Skills is an open standard — a folder holding a `SKILL.md` (with `name` 
 
 | Provider | Official skill | Install |
 |---|---|---|
-| Google | `gemini-api-dev` (general development), `gemini-live-api-dev` (real-time), `gemini-interactions-api`, `gemini-omni-flash-api` | `npx skills add google-gemini/gemini-skills --skill <name> --global` or ctx7 |
+| Google | `gemini-api-dev` (general development), `gemini-live-api-dev` (real-time), `gemini-interactions-api`, `gemini-omni-flash-api` | `npx skills add google-gemini/gemini-skills --skill <name>` or ctx7 (the flags the README documents are `--list` and `--skill`; no `--global` appears, checked 2026-09-19) |
 | Anthropic | Claude Code ships a bundled `claude-api` skill. Use `/claude-api prompt-audit` to audit prompts and tool descriptions for patterns written for older models (Claude Code 2.1.221) and `/claude-api cost-optimize` to profile a project's Claude API spend and work through the cost levers (caching, token hygiene, batch, effort, model choice) one measured change at a time (2.1.247). Also see the anthropics/skills marketplace (`document-skills`, `example-skills`). A `hillclimb` subcommand is not in the changelog (unverified — needs research). | Built in to Claude Code; marketplace skills: `/plugin marketplace add anthropics/skills` then `/plugin install` |
 | OpenAI | Dedicated API-development skill **(unverified — needs research)**. Codex itself reads the standard from `.agents/skills`, but the `openai/skills` catalog repo is deprecated in favor of `openai/plugins` (author new ones as skill-only plugins) | — Use the Tier 1/2 path, re-check periodically |
 | DeepSeek / OpenRouter | **(unverified — needs research)** | — Use the Tier 1/2 path, re-check periodically |
