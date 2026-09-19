@@ -17,6 +17,7 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 | What naming a methodology obliges the author to explain | 24 |
 | When a concept needs an example, and of which kind | 24 |
 | Which visual form fits what is being shown, in which medium | 24 |
+| What an HTML figure's role and label contract must be | 24 |
 | How long is long enough, and what gets cut | 24 |
 | What an HTML deliverable must carry to stand alone | 24 |
 
@@ -24,7 +25,7 @@ Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you 
 
 0. **Explain in the conversation before drafting.** Give the reader the explanation as a reply first — the opening sentence of each mechanism and the one analogy the document will carry — and only once that reply is understood is it turned into the document. The document is written from the explanation that worked, not the other way round; 24 names what the explanation must contain.
 1. **24 before drafting.** The layer structure is a decision made before the first paragraph, not a repair after it.
-2. **24 again when a visual is considered.** The trigger decides whether it exists; the medium decides its form.
+2. **24 again when a visual is considered.** The trigger decides whether it exists, the medium decides its form, and an HTML figure carries the accessibility contract 24 sets.
 3. **20 before shipping — run the lane, do not imagine it.** Hand the finished document, and nothing else, to a reviewer with no author context (a fresh subagent, or a colleague) with the intended reader named, and ask for the re-explanations and the unglossed-term list 20 specifies; fix what comes back and republish once. [verify-and-review](../verify-and-review/SKILL.md) routes the lane.
 
 ## Boundaries with other skills

@@ -20,9 +20,9 @@ Execution procedure for convention [15-doc-tracking.md](../../conventions/15-doc
 
 | Command | Behavior |
 |---|---|
-| `/docsync` | Syncs each module whose directory changed since that module's own last verified commit. With no state files at all (first run), every module = bootstrap |
-| `/docsync <path>` | Scoped run for that module only |
-| `/docsync --audit` | Audit mode: dead-man check + blind rebuild + global consistency |
+| `/dev-harness:docsync` | Syncs each module whose directory changed since that module's own last verified commit. With no state files at all (first run), every module = bootstrap |
+| `/dev-harness:docsync <path>` | Scoped run for that module only |
+| `/dev-harness:docsync --audit` | Audit mode: dead-man check + blind rebuild + global consistency |
 
 ## State Files
 
