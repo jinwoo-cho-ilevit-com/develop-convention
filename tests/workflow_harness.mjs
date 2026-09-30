@@ -160,7 +160,7 @@ function makeAgent(rounds, over, seen) {
       // A per-lens sequence, so a round where only one lens stayed silent is expressible.
       const ran = over.commandsRunSeq
         ? (over.commandsRunSeq[lensInRound] ?? 0)
-        : (over.commandsRun ?? 3)
+        : (over.commandsRunByRound?.[round] ?? over.commandsRun ?? 3)
       lensInRound++
       return { head: ranOn(label, laneOf), commandsRun: ran, tool: 'Claude', findings: findingsNow() }
     }
@@ -510,6 +510,13 @@ const cases = [
     rounds: [[]],
     over: { commandsRun: 0 },
     expect: { outcome: 'passed', rounds: 1, hasLabel: 'recheck:a#1', result: { reviewEvidence: { comprehensive: 'reading-only' } } },
+  },
+  {
+    // Sabotage: derive `reviewEvidence` from the summed `commandsRun`.
+    name: 'a lens that ran commands only in an earlier round closes as reading-only',
+    rounds: [[finding()], []],
+    over: { commandsRunByRound: [3, 0] },
+    expect: { outcome: 'passed', rounds: 2, result: { commandsRun: { comprehensive: 3 }, reviewEvidence: { comprehensive: 'reading-only' } } },
   },
   {
     // A reading-only lens reports zero commands; the independent criteria recheck still runs.

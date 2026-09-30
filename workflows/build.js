@@ -801,6 +801,8 @@ async function reviewLoop(dev, lane) {
   const lenses = lensesFor(lane)
   const carried = []
   const commandsRun = {}
+  // The closing verdict is the last round's, so its label reads that round alone.
+  let lastRoundRun = {}
   const tools = new Set()
   // Blockers no verifier could decide by running anything, keyed; a later verdict removes one.
   const unverified = new Map()
@@ -818,7 +820,7 @@ async function reviewLoop(dev, lane) {
     head,
     lenses: lenses.map((l) => l.key),
     commandsRun,
-    ...(round ? { reviewEvidence: Object.fromEntries(lenses.map((l) => [l.key, (commandsRun[l.key] ?? 0) === 0 ? 'reading-only' : 'commands-executed'])) } : {}),
+    ...(round ? { reviewEvidence: Object.fromEntries(lenses.map((l) => [l.key, (lastRoundRun[l.key] ?? 0) === 0 ? 'reading-only' : 'commands-executed'])) } : {}),
     tool: [...tools].join(' + '),
     carried: dedupe(carried),
     ...(unverified.size ? { unverified: [...unverified.values()] } : {}),
@@ -973,9 +975,11 @@ async function reviewLoop(dev, lane) {
     )
     // An answer from another commit reviewed other code, so it counts as no answer.
     const onHead = (r) => r?.head === head
+    lastRoundRun = {}
     answers.forEach((r, i) => {
       if (!onHead(r)) return
-      commandsRun[lenses[i].key] = (commandsRun[lenses[i].key] ?? 0) + (r.commandsRun ?? 0)
+      lastRoundRun[lenses[i].key] = r.commandsRun ?? 0
+      commandsRun[lenses[i].key] = (commandsRun[lenses[i].key] ?? 0) + lastRoundRun[lenses[i].key]
       if (isText(r.tool)) tools.add(r.tool)
     })
     const reviews = answers.filter(onHead)
