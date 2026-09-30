@@ -13,7 +13,7 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 ## Document format (must follow when editing/adding docs)
 
 - Every `conventions/*.md` must have `## Core Rules` as its first body heading: a list of imperative rules excerptable verbatim into agent instruction files. It is followed by `## Details` (human-oriented explanation + source links).
-- Body in English; code/identifiers/tool names in English. Exception: the commit body template and examples in `conventions/17-commit-protocol.md` are intentionally Korean (commit-message policy: English header, Korean body).
+- Body in English; code/identifiers/tool names in English. Exception: the commit examples in `conventions/17-commit-protocol.md` follow its policy of English type/scope with Korean summary and body.
 - Specific factual claims (a tool's deprecated status, research numbers, comparison results) must carry a source URL in that section. Numbers/claims not verified by research are omitted or marked "unverified". General engineering advice needs no source.
 - When editing a doc, check that README.md's doc map and full rules summary do not contradict it, and update them together.
 - New docs follow the `NN-topic.md` numbering scheme and are added to the README doc map.
@@ -28,5 +28,5 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 
 ## Commits
 
-- Commit messages: Conventional Commits header (English type/scope) + Korean body (`## Why/What/How/Result`) — see `conventions/17-commit-protocol.md`. Doc changes use the `docs(conventions): ...` form.
+- Commit messages: Conventional Commits header (English type/scope, Korean summary) + Korean body (`## Why/What/How/Result`) — see `conventions/17-commit-protocol.md`. Doc changes use the `docs(conventions): ...` form.
 - `.omc/` and `.claude/` are gitignored operational artifacts — never commit them.
