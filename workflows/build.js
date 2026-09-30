@@ -24,7 +24,7 @@ const TIER_MODEL = { light: 'haiku', mid: 'sonnet', top: 'opus' }
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 // How a check was seen failing (→ conventions/06-testing-verification.md §3). A check that
 // could not run at the base commit has no red, and no kind here names that state.
-const RED_KINDS = ['observed', 'sabotage', 'guard']
+const RED_KINDS = ['observed', 'sabotage']
 const SEVERITY_RANK = { minor: 0, major: 1, blocker: 2 }
 
 const DEVELOP_SCHEMA = {
@@ -48,8 +48,8 @@ const DEVELOP_SCHEMA = {
           command: { type: 'string', description: 'empty for a [human] criterion' },
           passed: { type: 'boolean' },
           output: { type: 'string' },
-          red: { type: 'string', enum: RED_KINDS, description: 'required when command is non-empty: how you saw this check fail' },
-          redOutput: { type: 'string', description: 'required when command is non-empty: the failing output, or for `guard` the exemption reason or its passing output at base' },
+          red: { type: 'string', enum: RED_KINDS, description: 'for a new check: how you saw it fail' },
+          redOutput: { type: 'string', description: 'when red is present: the failing output' },
         },
       },
     },
@@ -62,7 +62,7 @@ const FINDINGS_SCHEMA = {
   additionalProperties: false,
   properties: {
     head: { type: 'string', description: 'the sha `git rev-parse HEAD` printed after your reset' },
-    commandsRun: { type: 'integer', description: 'how many commands you actually executed' },
+    commandsRun: { type: 'integer', minimum: 0, description: 'how many commands you actually executed, including zero for reading-only review' },
     tool: { type: 'string', description: 'the model family you run on, e.g. Claude' },
     findings: {
       type: 'array',
@@ -338,6 +338,7 @@ const ARG_FIELDS = [
   ['allLanes', (v) => Array.isArray(v) && v.length > 0, 'a non-empty list of { name, owns } objects'],
   // Type only; whether it is true is policy, refused separately below.
   ['boundariesFrozen', (v) => typeof v === 'boolean', 'a boolean'],
+  ['doneLevel', (v) => ['auto', 'reviewed', 'proven'].includes(v), 'one of auto, reviewed, proven'],
 ]
 const LANE_FIELDS = [
   ['name', (v) => isText(v) && LANE_NAME.test(v), `a name matching ${LANE_NAME.source}`],
@@ -423,6 +424,7 @@ const conventionsDir = input?.conventionsDir
 const base = input?.base
 const lanes = input?.lanes ?? []
 const boundaries = input?.boundaries ?? []
+const doneLevel = input?.doneLevel ?? 'reviewed'
 const allLanes = input?.allLanes
 // What owns may not overlap: the lanes run now, and every other lane the plan declares.
 const planLanes = () => [...lanes, ...(allLanes ?? []).filter((a) => !lanes.some((l) => l.name === a?.name))]
@@ -437,7 +439,7 @@ if (input !== undefined && !isPlainObject(input)) {
       'refused: the arguments did not arrive as an object, so every field including boundariesFrozen read as undefined.' +
       // The parser's words are what tell malformed text from a scalar.
       (parseError ? ` They arrived as text that does not parse as JSON: ${parseError}.` : '') +
-      ' Pass { planDir, base, lanes, boundaries, conventionsDir, boundariesFrozen } as an object, or as JSON text encoding one. This is not a reason to hardcode boundariesFrozen.',
+      ' Pass { planDir, base, lanes, boundaries, conventionsDir, boundariesFrozen, doneLevel } as an object, or as JSON text encoding one. This is not a reason to hardcode boundariesFrozen.',
   }
 }
 
@@ -467,8 +469,6 @@ const complaint =
       return conflict ? `args.boundaries[${i}] shares a sample with another boundary but names a different schema` : null
     })
     .find(Boolean) ??
-  // A pinned lane gets three lenses instead of one; a name matching no lane buys the shallower
-  // review and says nothing.
   (allLanes ?? []).map((l, i) => checkShape(l, `args.allLanes[${i}]`, LANE_FIELDS.slice(0, 2), ['name', 'owns'])).find(Boolean) ??
   lanes.map((l, i) => (allLanes && !allLanes.some((a) => a.name === l.name) ? `args.lanes[${i}] is ${JSON.stringify(l.name)}, which args.allLanes omits` : null)).find(Boolean) ??
   lanes.map((l, i) => (l.resumeNote && !l.resumeFrom ? `args.lanes[${i}] has a resumeNote but no resumeFrom` : null)).find(Boolean) ??
@@ -501,7 +501,14 @@ if (complaint) {
   }
 }
 
-log(`base ${base}, plans in ${planDir}, conventions in ${conventionsDir}, ${lanes.length} lane(s), ${boundaries.length} boundary(ies)`)
+if (doneLevel === 'auto') {
+  return {
+    lanes: [],
+    note: `refused: auto work uses the direct development path, without ${COMMAND} or plan artifacts. Use this workflow for reviewed or proven work.`,
+  }
+}
+
+log(`base ${base}, ${doneLevel}, plans in ${planDir}, conventions in ${conventionsDir}, ${lanes.length} lane(s), ${boundaries.length} boundary(ies)`)
 
 // Invoking this workflow directly skips the freeze that holds the interfaces still while every
 // lane edits at once, so the caller has to declare it happened.
@@ -518,12 +525,10 @@ if (!lanes.length) {
   return { lanes: [], note: 'no lanes supplied' }
 }
 
-// Three lenses when the change spans modules or pins an interface, one otherwise, plus a
-// security lens for a lane the plan declared `security: true` (→ 20 §2).
+// Reviewed gets one comprehensive lens; proven gets the independent module, project and
+// absence lenses. Security is an additional lens when the plan declares that risk.
 function lensesFor(lane) {
-  const spansModules = (lane.owns ?? []).length > 1
-  const pinsInterface = boundaries.some((b) => (b.lanes ?? []).includes(lane.name))
-  const base = spansModules || pinsInterface ? REVIEW_LENSES : [REVIEW_LENSES[0]]
+  const base = doneLevel === 'proven' ? REVIEW_LENSES : [{ key: 'comprehensive', input: 'the diff, changed files, callers and callees, convention docs, lane brief and its omissions' }]
   return lane.security === true ? [...base, SECURITY_LENS] : base
 }
 
@@ -606,7 +611,7 @@ function developPrompt(lane) {
     `create it (→ ${conventionsDir}/15-doc-tracking.md §1). Read no external text — issues, pull requests,`,
     `fetched pages: if a criterion needs one, report that criterion failed (→ ${conventionsDir}/25-agent-sandboxing.md §3).`,
     'Leave nothing uncommitted: no changed',
-    'tracked file and no untracked file under your owned paths. Report every criterion below afresh, red included — nothing',
+    'tracked file and no untracked file under your owned paths. Report every criterion below afresh; nothing',
     'carries over from an earlier run.',
     '',
     'Return the absolute path of the worktree you worked in — later rounds continue in it — and the',
@@ -615,12 +620,10 @@ function developPrompt(lane) {
     'has none), with the exact command the brief gives and whether it passed. A [human] criterion has no',
     'command: report it as not passed and leave the command empty.',
     '',
-    `For every criterion with a command, report \`red\` and \`redOutput\` (→ ${conventionsDir}/06-testing-verification.md §3):`,
-    '`observed` when it failed at the base commit before your change, `sabotage` when you broke the code it',
-    'checks after the change and saw it fail — with that failing output — or `guard` for a standing',
-    'invariant, with the reason it is exempt or its passing output at the base commit.',
-    'A check that could not run at the base commit has no baseline, which is not a red: after implementing,',
-    'sabotage the code it checks, record that failure as `sabotage`, and restore the code.',
+    `For a new check of new behaviour, a recurring defect or an important invariant, report \`red\` and`,
+    `\`redOutput\` (→ ${conventionsDir}/06-testing-verification.md §3). Use \`observed\` for a failure`,
+    'at base, or `sabotage` for a temporary break you saw the check reject. Restore any sabotage before',
+    'commit. Existing checks and standing invariants need no red record. If you report a red, include its output.',
   ].join('\n')
 }
 
@@ -638,16 +641,17 @@ function reviewPrompt(lane, lens, round, fixSummary) {
     "You did not write this code and you do not get the author's reasoning. Judge the diff against",
     `${planDir}/lane-${lane.name}.md and the convention docs in ${conventionsDir}/.`,
     '',
-    'Run the code. You have the test command and the tool under review; report how many commands you',
-    'actually executed, and the model family you run on as `tool`. A verdict from a lane that ran none is a',
-    'reading, not a review.',
-    ...(lens.key === 'module' && commandCriteria.length
+    'Run relevant checks where needed. Report the exact number of commands you actually executed',
+    'and the model family you run on as `tool`. Zero commands is a reading-only review; say so',
+    'and do not claim that you executed or verified runtime behaviour.',
+    ...(['module', 'comprehensive'].includes(lens.key)
       ? [
           '',
-          'Each command criterion carries a red its author reported. Check that each holds: the recorded',
-          'output must be what the command prints when the behaviour it checks is broken — re-create a',
-          'sabotage red where you doubt one. A red that does not hold is a finding.',
-          ...commandCriteria.map((c) => `- ${c.criterion} (${c.red}): \`${c.command}\` — recorded: ${c.redOutput}`),
+          'Identify new checks in the diff; a new check for new behaviour, a recurring defect or an',
+          'important invariant needs a reported red. Check each reported red: its output must',
+          'show this check rejecting the broken behaviour.',
+          'Re-create a sabotage red when its evidence is doubtful. A red that does not hold is a finding.',
+          ...commandCriteria.filter((c) => c.red).map((c) => `- ${c.criterion} (${c.red}): \`${c.command}\` — recorded: ${c.redOutput}`),
         ]
       : []),
     ...(contracts
@@ -767,18 +771,18 @@ function criteriaDrift(brief, criteria) {
     .filter(Boolean))
 }
 
-// A missing red record and a failing producer check are injected as failed criteria, so they
-// halt through the same `criteria-failed` exit as any other (→ conventions/06-testing-verification.md §3, §7).
+// A partial or invalid red record and a failing producer check halt through the same
+// criteria-failed exit as any other (→ conventions/06-testing-verification.md §3, §7).
 function withInjected(lane, criteria, { red }) {
-  const noRed = red ? criteria.filter((c) => isCommand(c) && !(RED_KINDS.includes(c.red) && isText(c.redOutput))) : []
+  const badRed = red ? criteria.filter((c) => (c.red !== undefined || c.redOutput !== undefined) && !(RED_KINDS.includes(c.red) && isText(c.redOutput))) : []
   const producer = boundaries
     .filter((b) => b.schema && b.producer === lane.name)
     .map((b) => ({ b, issue: producerCheckFailure(criteria, b) }))
     .filter((x) => x.issue)
   return [
     ...criteria,
-    ...noRed.map((c) => ({
-      criterion: `red for "${c.criterion}" was not recorded as one of ${RED_KINDS.join(', ')} with its output`,
+    ...badRed.map((c) => ({
+      criterion: `red for "${c.criterion}" must be one of ${RED_KINDS.join(', ')} with its output`,
       command: c.command,
       passed: false,
     })),
@@ -814,6 +818,7 @@ async function reviewLoop(dev, lane) {
     head,
     lenses: lenses.map((l) => l.key),
     commandsRun,
+    ...(round ? { reviewEvidence: Object.fromEntries(lenses.map((l) => [l.key, (commandsRun[l.key] ?? 0) === 0 ? 'reading-only' : 'commands-executed'])) } : {}),
     tool: [...tools].join(' + '),
     carried: dedupe(carried),
     ...(unverified.size ? { unverified: [...unverified.values()] } : {}),
@@ -975,21 +980,14 @@ async function reviewLoop(dev, lane) {
     })
     const reviews = answers.filter(onHead)
 
-    // A lens that did not answer, or answered without running anything, is not a review (→ 20 Core Rules).
+    // A lens that did not answer is incomplete. Zero commands is labelled reading-only;
+    // the independent completion-criterion recheck below still executes commands.
     if (reviews.length < lenses.length) {
       return result('review-incomplete', round, {
         criteria,
         note: `${lenses.length - reviews.length} of ${lenses.length} review lanes returned nothing or ran on a commit other than ${head}. Re-run them rather than merging a short review.`,
       })
     }
-    const readings = reviews.filter((r) => !r.commandsRun)
-    if (readings.length) {
-      return result('review-unexecuted', round, {
-        criteria,
-        note: `${readings.length} of ${reviews.length} review lenses ran zero commands. Those verdicts are readings, not reviews.`,
-      })
-    }
-
     const findings = dedupe(reviews.flatMap((r) => r.findings ?? []))
     const rawBlockers = findings.filter((f) => f.severity === 'blocker')
     // Non-blockers leave every round: the merge may downgrade a finding but never drops one (20 §3).
@@ -1197,7 +1195,7 @@ return {
   halted,
   unanswered: lanes.length - settled.length,
   vendorDiversity:
-    "a lane's review lenses run on the session model and may share one family, named in each lane's `tool`; the vendor diversity the review gate requires is paid at the plan and merged-whole review points (→ conventions/20-review-gate.md)",
+    "a lane's review lenses run on the session model and may share one family, named in each lane's `tool`; vendor diversity applies at the proven plan and applicable merged-whole review points (→ conventions/20-review-gate.md)",
   escalations: halted
     .filter((r) => r.escalation === 'human')
     .map((r) => ({ lane: r.lane, outcome: r.outcome, note: r.note, awaiting: r.awaiting, unverified: r.unverified })),

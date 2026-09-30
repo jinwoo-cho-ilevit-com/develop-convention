@@ -191,6 +191,7 @@ async function run(rounds, over = {}) {
       : {
           planDir: '.plans',
           ...ARGS,
+          ...(over.doneLevel ? { doneLevel: over.doneLevel } : {}),
           lanes: [over.lane ?? { name: 'a', owns: ['src/a/'], security: false }],
           boundaries: over.boundaries ?? [],
           // What `/dev-harness:build` declares after writing the contract files. A case can
@@ -309,6 +310,29 @@ function shapeCase([name, where, value, cause]) {
 }
 
 const cases = [
+  {
+    name: 'an older plan defaults to reviewed and uses one comprehensive lens',
+    rounds: [[]],
+    expect: { outcome: 'passed', hasLabel: 'review:a:comprehensive#1', noLabel: 'review:a:project', result: { lenses: ['comprehensive'] } },
+  },
+  {
+    name: 'an explicit auto plan is refused before any agent runs',
+    rounds: [[]],
+    over: { doneLevel: 'auto' },
+    expect: { refused: /auto work uses the direct development path/ },
+  },
+  {
+    name: 'an unknown done level is refused by name',
+    rounds: [[]],
+    over: { rawArgs: JSON.stringify({ ...ARGS, lanes: [LANE], doneLevel: 'unknown', boundariesFrozen: true }) },
+    expect: { refused: /args\.doneLevel.*one of auto, reviewed, proven/ },
+  },
+  {
+    name: 'proven work gets expanded review even without a boundary',
+    rounds: [[]],
+    over: { doneLevel: 'proven' },
+    expect: { outcome: 'passed', hasLabel: ['review:a:module#1', 'review:a:project#1', 'review:a:absence#1'] },
+  },
   {
     name: 'no blockers ends the loop',
     rounds: [[finding({ severity: 'minor' })]],
@@ -482,25 +506,24 @@ const cases = [
     expect: { outcome: 'review-incomplete', rounds: 1 },
   },
   {
-    name: 'reviewers that ran no commands do not count as a pass',
+    name: 'reviewers that ran no commands are labelled reading-only and criteria still recheck',
     rounds: [[]],
     over: { commandsRun: 0 },
-    expect: { outcome: 'review-unexecuted', rounds: 1 },
+    expect: { outcome: 'passed', rounds: 1, hasLabel: 'recheck:a#1', result: { reviewEvidence: { comprehensive: 'reading-only' } } },
   },
   {
-    // Two lenses that ran must not carry a third that did not into a clean pass: the silent
-    // lens is precisely the one whose "no findings" carries no information.
-    name: 'one silent lens among three still stops the pass',
+    // A reading-only lens reports zero commands; the independent criteria recheck still runs.
+    name: 'one reading-only lens among proven lenses still permits the independent recheck',
     rounds: [[]],
-    over: { lane: { name: 'a', owns: ['src/a/', 'src/b/'], security: false }, commandsRunSeq: [0, 2, 2] },
-    expect: { outcome: 'review-unexecuted', rounds: 1 },
+    over: { doneLevel: 'proven', lane: { name: 'a', owns: ['src/a/', 'src/b/'], security: false }, commandsRunSeq: [0, 2, 2] },
+    expect: { outcome: 'passed', rounds: 1, result: { reviewEvidence: { module: 'reading-only', project: 'commands-executed', absence: 'commands-executed' } } },
   },
   {
-    // A single owned path means spansModules is false, so pinsInterface alone has to be
-    // what still puts the lane through all three lenses (→ 20 §2).
-    name: 'a lane pinned by a boundary gets three lenses even with one owned path',
+    // Done level, rather than owned path count, chooses review depth.
+    name: 'a proven lane gets three lenses even with one owned path',
     rounds: [[]],
     over: {
+      doneLevel: 'proven',
       lane: { name: 'a', owns: ['src/a/'], security: false },
       boundaries: [{ name: 'api', lanes: ['a'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }],
     },
@@ -521,7 +544,7 @@ const cases = [
       outcome: 'passed',
       prompt: {
         'develop:a': /- api: contract \.plans\/contracts\/api\.md, sample tests\/fixtures\/api\.sample\.json/,
-        'review:a:module#1': /- api: contract \.plans\/contracts\/api\.md, sample tests\/fixtures\/api\.sample\.json/,
+        'review:a:comprehensive#1': /- api: contract \.plans\/contracts\/api\.md, sample tests\/fixtures\/api\.sample\.json/,
       },
     },
   },
@@ -744,8 +767,7 @@ const cases = [
     expect: { refused: /boundariesFrozen was not true/ },
   },
   {
-    // A pinned lane gets three lenses instead of one (→ 20 §2). A boundary naming a lane that
-    // does not exist pins nothing, so the lane is reviewed once and no outcome shows why.
+    // A boundary naming a lane that does not exist leaves its contract unchecked.
     name: 'a boundary pinning a lane that does not exist is refused',
     rounds: [[]],
     over: { boundaries: [{ name: 'api', lanes: ['nonexistent'], contract: '.plans/contracts/api.md', sample: 'tests/fixtures/api.sample.json' }] },
@@ -1001,7 +1023,7 @@ const cases = [
     expect: {
       outcome: 'passed',
       prompt: {
-        'review:a:module#1': /Lane "a" carries the schema check for boundary "api"; a brief or report missing it is a finding\./,
+        'review:a:comprehensive#1': /Lane "a" carries the schema check for boundary "api"; a brief or report missing it is a finding\./,
       },
     },
   },
@@ -1378,11 +1400,11 @@ const cases = [
     expect: { outcome: 'passed', rounds: 1 },
   },
   {
-    // Sabotage: pass `{ red: false }` to the develop-time `withInjected`.
-    name: 'a command criterion reported without red fails',
+    // Existing checks need no new red record.
+    name: 'an existing command criterion without red is allowed',
     rounds: [[]],
     over: { develop: devWith([{ criterion: 'C-01', command: 'uv run pytest tests/a', passed: true }]) },
-    expect: { outcome: 'criteria-failed', noLabel: 'review:', note: /red for "C-01" was not recorded/ },
+    expect: { outcome: 'passed', hasLabel: 'recheck:a#1' },
   },
   {
     // Sabotage: accept any non-empty `red` instead of `RED_KINDS` — a no-baseline record then passes.
@@ -1399,16 +1421,16 @@ const cases = [
     expect: { outcome: 'criteria-failed' },
   },
   {
-    // Sabotage: drop the no-baseline instruction from `developPrompt`.
-    name: 'the develop prompt says a check with no baseline needs a sabotage red',
+    // A new check still needs evidence that it catches the intended failure.
+    name: 'the develop prompt asks for red on a new check',
     rounds: [[]],
-    expect: { outcome: 'passed', prompt: { 'develop:a': /no baseline, which is not a red: after implementing,\s+sabotage the code it checks/ } },
+    expect: { outcome: 'passed', prompt: { 'develop:a': /For a new check of new behaviour, a recurring defect or an important invariant, report/ } },
   },
   {
-    // Sabotage: drop the red list from the module lens prompt.
-    name: 'the module lens is handed each criterion red to check',
+    // The comprehensive lens checks the reported red for a new criterion.
+    name: 'the comprehensive lens is handed each reported red to check',
     rounds: [[]],
-    expect: { outcome: 'passed', prompt: { 'review:a:module#1': /- C-01 \(observed\): `uv run pytest tests\/a` — recorded: 1 failed/ } },
+    expect: { outcome: 'passed', prompt: { 'review:a:comprehensive#1': /- C-01 \(observed\): `uv run pytest tests\/a` — recorded: 1 failed/ } },
   },
   {
     // Sabotage: drop `carried` from the base fields of `result` — halts then lose earlier majors.
@@ -1449,11 +1471,11 @@ const cases = [
     expect: {
       outcome: 'passed',
       rounds: 2,
-      isolation: { 'review:a:module#1': 'worktree', 'verify:a#1': 'worktree', 'recheck:a#2': 'worktree', 'fix:a#1': undefined },
+      isolation: { 'review:a:comprehensive#1': 'worktree', 'verify:a#1': 'worktree', 'recheck:a#2': 'worktree', 'fix:a#1': undefined },
       prompt: {
-        'review:a:module#1': /git reset --hard m0`[^]*git diff f00dbabe\.\.m0/,
+        'review:a:comprehensive#1': /git reset --hard m0`[^]*git diff f00dbabe\.\.m0/,
         'verify:a#1': /git reset --hard m0`/,
-        'review:a:module#2': /git reset --hard m1`[^]*git diff f00dbabe\.\.m1/,
+        'review:a:comprehensive#2': /git reset --hard m1`[^]*git diff f00dbabe\.\.m1/,
         'recheck:a#2': /git reset --hard m1`/,
       },
     },
@@ -1468,7 +1490,7 @@ const cases = [
       opts: {
         'develop:a': { model: 'opus', effort: 'high' },
         'fix:a#1': { model: 'opus', effort: 'high' },
-        'review:a:module#1': { model: undefined, effort: undefined },
+        'review:a:comprehensive#1': { model: undefined, effort: undefined },
       },
     },
   },
@@ -1476,7 +1498,7 @@ const cases = [
     // Sabotage: drop `head`, `worktree`, `tool` or the `commandsRun` sum from `result`.
     name: 'the lane result names its lenses, their commands, the model family and the measured head',
     rounds: [[finding()], []],
-    expect: { outcome: 'passed', rounds: 2, result: { lenses: ['module'], commandsRun: { module: 6 }, tool: 'Claude', head: 'm1', worktree: '/tmp/wt' } },
+    expect: { outcome: 'passed', rounds: 2, result: { lenses: ['comprehensive'], commandsRun: { comprehensive: 6 }, tool: 'Claude', head: 'm1', worktree: '/tmp/wt' } },
   },
   {
     // Sabotage: drop a field from `RECHECK_SCHEMA.required` or from `FROZEN_SCHEMA.required`.
@@ -1504,7 +1526,7 @@ const cases = [
         'reverify:a#1': { at: ['verdicts'], fields: ['key', 'state', 'commandsRun', 'evidence'] },
         'touched:a#1': ['head', 'branchTip', 'base', 'trackedChanges', 'untracked', 'ownershipDiff', 'causationDiff'],
         'recheck:a#2': { at: ['brief'], fields: ['id', 'command'] },
-        'review:a:module#1': ['head', 'findings', 'commandsRun', 'tool'],
+        'review:a:comprehensive#1': ['head', 'findings', 'commandsRun', 'tool'],
       },
     },
   },
@@ -1543,11 +1565,18 @@ const cases = [
     expect: { outcome: 'criteria-drift', rounds: 1, prompt: { 'recheck:a#1': /git show f00dbabe:\.plans\/lane-a\.md/ } },
   },
   {
-    // Sabotage: drop `guard` from `RED_KINDS`, or its exemption wording from the develop prompt.
-    name: 'a guard red recorded with its exemption reason is accepted',
+    // A standing invariant records no red (→ 19 §1). Sabotage: add `guard` back to `RED_KINDS`.
+    name: 'a red kind outside observed and sabotage fails the criterion',
     rounds: [[]],
     over: { develop: devWith([{ ...CRIT, red: 'guard', redOutput: 'standing invariant; passes at base: 3 passed' }]) },
-    expect: { outcome: 'passed', prompt: { 'develop:a': /`guard` for a standing\s+invariant, with the reason it is exempt or its passing output at the base commit/ } },
+    expect: { outcome: 'criteria-failed', noLabel: 'review:', note: /red for "C-01" must be one of observed, sabotage with its output/ },
+  },
+  {
+    // Sabotage: gate the whole red block in `reviewPrompt` on a reported red.
+    name: 'the reviewer is asked to find new checks even when no red was reported',
+    rounds: [[]],
+    over: { develop: devWith([{ criterion: 'C-01', command: 'uv run pytest tests/a', passed: true }]) },
+    expect: { outcome: 'passed', prompt: { 'review:a:comprehensive#1': /Identify new checks in the diff/ } },
   },
   {
     // Sabotage: drop `--no-renames` from the ownership diff.
@@ -1609,20 +1638,20 @@ const cases = [
       result: { worktree: '/tmp/wt2', branch: 'lane-a' },
     },
   },
-  // A resumed lane is held to every check a fresh one is. Each check is a separate case because
-  // a run reaches exactly one terminal outcome, so a case triggering all four would leave a
-  // bypass of the three it never reaches invisible. Sabotage for each: guard that one check with
-  // `&& !lane.resumeFrom`. Breaking the check outright is caught by the non-resumed cases and
-  // proves nothing about the resume path.
   {
-    name: 'a resumed lane must report red again, and fails without it',
+    name: 'a resumed lane can reuse an existing check without red',
     rounds: [[]],
     over: {
       lane: RESUMED,
       develop: devWith([{ criterion: 'C-01', command: 'uv run pytest tests/a', passed: true }]),
     },
-    expect: { outcome: 'criteria-failed', rounds: 0, noLabel: 'review:', note: /red for "C-01" was not recorded/ },
+    expect: { outcome: 'passed', rounds: 1, hasLabel: 'recheck:a#1' },
   },
+  // A resumed lane is held to every check a fresh one is. Each check is a separate case because
+  // a run reaches exactly one terminal outcome, so a case triggering all four would leave a
+  // bypass of the three it never reaches invisible. Sabotage for each: guard that one check with
+  // `&& !lane.resumeFrom`. Breaking the check outright is caught by the non-resumed cases and
+  // proves nothing about the resume path.
   {
     name: 'a resumed lane is compared against its brief at base like any other',
     rounds: [[]],
@@ -1657,7 +1686,7 @@ const cases = [
         boundariesFrozen: true,
       }),
     },
-    expect: { outcome: 'passed', rounds: 1, hasLabel: 'review:a:absence#1' },
+    expect: { outcome: 'passed', rounds: 1, hasLabel: 'review:a:comprehensive#1' },
   },
   {
     // Sabotage: drop the lanes-in-allLanes check.
@@ -1700,7 +1729,7 @@ const cases = [
     name: 'a measurement that returns nothing after a fix halts the lane',
     rounds: [[finding()], []],
     over: { touchedDies: 1 },
-    expect: { outcome: 'measurement-failed', rounds: 1, noLabel: 'review:a:module#2' },
+    expect: { outcome: 'measurement-failed', rounds: 1, noLabel: 'review:a:comprehensive#2' },
   },
   {
     // Sabotage: drop the `m.base !== baseSha` check from `measure`.

@@ -5,6 +5,8 @@ argument-hint: '<what you want to build>'
 
 Specify: $ARGUMENTS
 
+First classify the requested change using `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md` §3. If it is `auto` (narrow, reversible, with no external effect or material data, security or shared-interface risk), state the reason and route it to direct development with the relevant existing check. Stop this command before the interview, plan-mode entry, review points or `.plans/` artifacts. Use the rest of this command only for `reviewed` and `proven` work.
+
 Interview first, plan mode second. Sections 1 and 2 run in the ordinary session; call `EnterPlanMode` only once the axes are settled, present the plan there, and write section 3's files after `ExitPlanMode` is approved. Plan mode refuses every write, `.plans/` included, so a plan drafted inside it cannot land — and the interview does not need that block, because sections 1 and 2 do nothing but read and ask.
 
 Nothing mechanical stops a write during the interview: the hook meters reads rather than edits, and anything carrying an `agent_id` is exempt from even that. Interview with read-only agents only, and dispatch nothing that writes until the plan is approved. That is a norm rather than a boundary (→ `${CLAUDE_PLUGIN_ROOT}/conventions/21-development-loop.md` §3).
@@ -38,7 +40,7 @@ One question at a time. For each:
 - **Change the angle per axis.** Running every axis through the same "pick A or B, here's the cost" shape reads as one question asked twice. Frame each from what actually differs about it — a failure scenario for one, a user-visible difference for another, a cost-if-wrong for a third.
 - If the user cannot answer, say what you would choose and why, and record it as an assumption with the cost of being wrong.
 
-Settle the done level in the interview (→ 18 §3); it decides how deep the plan is challenged. The plan presented in plan mode carries the review points table 18 requires. Inside plan mode, before `ExitPlanMode`, run the plan lane with read-only agents at that depth (→ 20 §2) and fix what it finds in the plan text; every pre-approval row's exit is filled before the plan is shown. The plan and merged-whole points run a Claude reviewer lane alongside Codex in parallel rather than one tool (→ 20 §4). Ask for a cursor-agent tier only if Cursor has to substitute for Codex at the plan point, and record it in that row.
+Settle the done level in the interview (→ 18 §3) as `reviewed` or `proven`. The plan presented in plan mode carries only the review points that level requires. For `proven`, challenge the plan with a read-only Claude reviewer lane and Codex in parallel before `ExitPlanMode`, and fill its pre-approval exit before showing the plan (→ 20 §2, §4). `reviewed` needs no separate plan-review round. Ask for a cursor-agent tier only if Cursor substitutes for Codex at an applicable plan point, and record it in that row.
 
 ## 3. Write the artifacts
 
@@ -48,13 +50,13 @@ After `ExitPlanMode` is approved — not before, because plan mode blocks these 
 
 **`lane-<name>.md`** per lane — scope, owned files, completion criteria, out of scope.
 
-Split as far as file ownership allows. `owns` entries are directory prefixes or individually named files, never globs (why: `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`). Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
+Split only where independent work justifies the coordination and integration cost. `owns` entries are directory prefixes or individually named files, never globs (why: `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`). Lock files, migrations and generated files get a single owner. Files belonging to no directory (README, config at the root) go to an integration lane that runs last (→ `${CLAUDE_PLUGIN_ROOT}/conventions/18-work-contract.md`).
 
 List every boundary between lanes with the contract file and sample that will pin it, and — where the payload lands as JSON, YAML or TOML — the schema. The contract file and schema live under `.plans/<feature>/contracts/`, so they share the plan's lifetime; the sample lives under `tests/fixtures/`. Rows sharing a `sample` share a `schema` too, and a row with a `schema` names its `producer` — the lane whose output the schema checks, one of that row's `lanes`. Which boundaries get a schema is set by `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md` §7; for the rest, leave the `schema` and `producer` cells blank and omit both keys from the workflow args, since an empty string is not a path. None of these files is a test, all of them belong to no lane, and all are written before fan-out, which is what freezes the interface — `/dev-harness:build` dispatches a single agent to write them all, so an object reaching two boundaries gets one definition instead of two (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`).
 
 Decide here, not at freeze time, which objects cross more than one boundary, and give those rows the same `sample` value — one sample per object (→ `${CLAUDE_PLUGIN_ROOT}/conventions/06-testing-verification.md`). The freeze cannot repair two paths for one object: `build.js` checks every row's path exists, so merging them there leaves a path it refuses the build over.
 
-Write the boundary table with these exact keys, because `build.js` reads them and a boundary spelled another way silently drops that lane from three review lenses to one:
+Write the boundary table with these exact keys, because `build.js` reads them for freeze and producer checks:
 
 ```markdown
 | name | lanes | contract | schema | producer | sample |
