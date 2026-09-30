@@ -5,7 +5,7 @@ LLM API call-based inference modules (using external provider APIs) follow [10-l
 ## Core Rules
 
 - Follow the use-case routing table for training frameworks. torchtune is no longer actively maintained — do not adopt it for new work.
-- Default to FSDP2 for distributed training and bf16 for mixed precision.
+- For distributed training, select FSDP2 when supported by the chosen framework and workload. Use bf16 only when supported by the model and hardware and when quality and performance checks pass.
 - Use `tokenizer.apply_chat_template` as the single source for chat templates. Pin the formatted-string equality between training and inference with a golden test.
 - Always specify sampling parameters (temperature/top_p/top_k/max_tokens) in config. Do not rely on engine defaults.
 - Record everything for evaluation: harness version, task version, number of few-shot examples, and whether the chat template was applied.
@@ -31,9 +31,9 @@ Sources: [torchtune (maintenance notice)](https://github.com/meta-pytorch/torcht
 
 ### 2. Distributed & Efficient Training
 
-- **Default to FSDP2**. Axolotl's docs state "FSDP1 is deprecated and will be removed in an upcoming release of Axolotl" and that "FSDP2 is recommended for new users" (as of: 2026-08). Use DeepSpeed ZeRO only when CPU/NVMe offload is truly needed; ZeRO 1-2 is appropriate for LoRA, and avoid the LoRA + CPU offload combination.
+- **FSDP2 when appropriate**. Axolotl's docs state "FSDP1 is deprecated and will be removed in an upcoming release of Axolotl" and that "FSDP2 is recommended for new users" (as of: 2026-08). Choose distributed training only when scale or memory requires it. Use DeepSpeed ZeRO when CPU/NVMe offload is needed; ZeRO 1-2 is appropriate for LoRA, and avoid the LoRA + CPU offload combination.
 - **Caution**: injecting a LoRA adapter after `fully_shard` is reported to leave the new parameters outside FSDP management so their gradients never sync — *(unverified — needs research)*. PyTorch's `fully_shard` reference documents only that it converts `model.parameters()` to DTensor in-place and that each group is all-gathered/reduce-scattered as a unit; it does not document post-hoc parameter injection either way. Treat injection order as load-bearing, verify against the official docs of the framework you adopt, and test that gradients actually sync before relying on it.
-- Optimizations to apply by default: bf16 (no loss scaling needed), gradient checkpointing, Flash Attention, sequence packing. Start LoRA rank at 8 and adjust based on quality/memory.
+- Evaluate bf16, gradient checkpointing, Flash Attention, and sequence packing against support, output quality, total training time, and peak memory. Apply only the options that improve a relevant constraint; checkpointing can trade compute for memory, and packing changes batch composition. Choose LoRA rank from quality and memory checks rather than a universal default.
 - Use a single host framework per run — no framework chaining.
 
 Sources: [Axolotl — multi-GPU (FSDP1 deprecation)](https://docs.axolotl.ai/docs/multi-gpu.html), [PyTorch — `fully_shard` reference](https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html), [Anyscale — fine-tuning optimizations](https://docs.anyscale.com/llm/fine-tuning/speed-and-memory-optimizations)

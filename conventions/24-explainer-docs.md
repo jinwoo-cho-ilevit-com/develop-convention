@@ -15,7 +15,7 @@ This document governs deliverables whose product is a person's understanding —
 - Flow body content as one column of readable line length, sections in reading order — no fixed sidebars or navigation panes; the table of contents goes inline at the top. Two small figures may sit side by side.
 - In an HTML explainer, set numeric runs in a monospace face with tabular figures, so digits align vertically across rows; Korean-language labels and table headers stay in the body face.
 - Give every figure in an HTML explainer the same accessibility contract: put no role on `<figure>` and name the drawing on the `<svg role="img" aria-label="short name">` inside instead — putting the role on the `<figure>` itself would cascade it onto every descendant (§5) — and never carry meaning by color alone.
-- Before an explainer ships, run it through the fresh-reader review lane ([20-review-gate.md](20-review-gate.md) §2): a reviewer with no author context reads the document alone.
+- For a `reviewed` or `proven` explainer whose reader must act on unfamiliar mechanisms, use a fresh-reader review lane ([20-review-gate.md](20-review-gate.md) §2): a reviewer with no author context reads the document alone. A short, reversible `auto` edit can be checked by its author.
 - Open every mechanism section with a one-sentence definition: a single sentence saying what the mechanism does, in words the intended reader already has, before any detail or formula. If that sentence cannot be written, the author does not yet understand the mechanism well enough to explain it, and the section waits until it can be.
 - Choose one concrete analogy for the document's central contrast and carry it through every section that touches that contrast — the same characters, the same objects — so later sections build on the picture the reader already holds. A second analogy is added only for a concept the first cannot carry, never as variety.
 
@@ -61,7 +61,7 @@ The gate against decoration is the caption test from the Core Rules: a visual th
 
 "Appropriate length" is not a word count. The document is long enough when the intended reader can re-explain each mechanism in their own words and act without follow-up questions; everything past that point is cut.
 
-The test is run, not imagined: the fresh-reader lane of [20-review-gate.md](20-review-gate.md) §2 gives the document — and nothing else — to a reviewer carrying no author context, and asks for the re-explanations plus a list of terms used without a gloss. The shape is the same as 15's blind rebuild: block out the surrounding context and see what the artifact supports on its own. Handing that lane the code or the author's notes defeats it, because the lane would fill gaps from material the real reader will not have.
+When the Core Rules call for a fresh-reader lane, [20-review-gate.md](20-review-gate.md) §2 gives the document — and nothing else — to a reviewer carrying no author context, and asks for re-explanations plus terms used without a gloss. The shape is the same as 15's blind rebuild: block out surrounding context and see what the artifact supports on its own. Handing that lane the code or author's notes defeats it, because the lane would fill gaps from material the real reader will not have.
 
 ### 5. HTML artifacts
 

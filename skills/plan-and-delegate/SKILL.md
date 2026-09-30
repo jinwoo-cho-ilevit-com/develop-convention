@@ -16,7 +16,8 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | Where am I in the loop, and what does this step owe the next one | 21 |
 | What do I have to ask before a plan exists, and when is the interview over | 21 |
 | How do I split this so two lanes cannot collide | 18 |
-| What does "done" mean here, what command decides it, what needs a person | 18 |
+| Is this small and reversible enough for the direct `auto` path, or does it need a plan | 18 |
+| What does "done" mean for planned work, what command decides it, what needs a person | 18 |
 | What the plan must carry before it is shown | 18 |
 | Subagent, workflow, or inline — and how much isolation | 09 |
 | Which model, and what belongs in the instruction file rather than a skill | 09 |
@@ -25,14 +26,14 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 
 ## Order
 
-1. **21 first.** It holds the order of the loop and the seams between steps, and it points at the rest. Its interview rules are the only ones native to it — everything else there is a pointer, so follow the pointer rather than reading around it.
-2. **18 when the work splits.** Ownership and completion criteria are cheap to settle before anyone writes code and expensive after, because by then the tree already encodes a different answer.
+1. **21 first.** Decide whether the direct `auto` path applies before entering the planned loop. For planned work, it holds the order and the seams between steps.
+2. **18 when the work needs a plan.** Ownership and completion criteria are cheap to settle before anyone writes code and expensive after, because by then the tree already encodes a different answer.
 3. **09 when the work is dispatched.** Decomposition, isolation, and model routing. Also the test for whether something should become a skill at all.
 4. **14 throughout.** This one is a posture, not a step: it governs what you read yourself versus what you send a subagent to read, for the whole session.
 
 ## Boundaries with other skills
 
-Writing the code once the lanes exist is [code-and-config](../code-and-config/SKILL.md). Deciding whether the result is acceptable is [verify-and-review](../verify-and-review/SKILL.md); 18 sets the criteria, 20 runs the gate against them — the pre-approval plan challenge included.
+Writing the code once the lanes exist is [code-and-config](../code-and-config/SKILL.md). Deciding whether the result is acceptable is [verify-and-review](../verify-and-review/SKILL.md); 18 sets the planned work's criteria, and 20 sets the review depth.
 
 ## When two documents disagree
 

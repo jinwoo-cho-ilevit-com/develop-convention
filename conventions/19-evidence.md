@@ -2,14 +2,14 @@
 
 A completion claim is only as good as what backs it. This document fixes the format of that backing so the same three questions — did every criterion pass, what actually ran, who approved the parts a machine cannot judge — are answered the same way every time.
 
-Evidence is produced by execution, not by writing. A file the model composed to look like output is not evidence. The principle underneath — completion claimed only with executable evidence, and the author separated from the verifier — is [00-principles.md](00-principles.md); this document is its record format.
+Execution evidence is produced by running a command, not by composing output that resembles one. Reading-only reviews are evidence of what was inspected, with no claim that behavior was executed. This document records both without conflating them.
 
 ## Core Rules
 
-- Report completion as the criteria table plus the output the commands produced. **No narrative summary.** Prose is where a hallucinated completion hides; a table with a FAIL row cannot hide one.
+- For planned work, report the criteria table with commands, exit status, and decisive output. A short summary may explain the result; it cannot replace a failing or pending row. For `auto`, record the change and the relevant check directly without creating a table or plan file.
 - Fill the table in the lane brief as each criterion turns green, not at the end. By the time the lane finishes, the review material already exists, so there is no gap between "done" and "reviewable".
 - Record status as a word — `PASS`, `FAIL`, `PENDING-HUMAN`, `NO-BASELINE` — never a symbol or emoji, so status survives grep and diff. The four are not interchangeable; `NO-BASELINE` in particular is defined in [06-testing-verification.md](06-testing-verification.md) §3.
-- Paste what the command printed, not a description of it. Where the output is too large, keep it under `artifacts/<feature>/` and cite the path — that directory is gitignored, so nothing there is a commit-size concern.
+- Keep the command, exit status, and decisive output lines. Store full output under `artifacts/<feature>/` only when a failure, high-risk change, or required gate needs it; cite the path and mask sensitive fields before sharing.
 - **Mask secrets before evidence leaves the machine.** Command lines and environment values are recorded verbatim otherwise, and evidence is meant to be shared. The pre-commit scan never sees gitignored artifacts, so pasting a report into a review is the path that leaks (→ [13-secret-management.md](13-secret-management.md)).
 - Block completion on `PENDING-HUMAN` regardless of done level. A `[human]` criterion passes only once a verdict, its author, and its timestamp are recorded — an unanswered human check is a TODO, and TODOs are blockers (§3, → [06-testing-verification.md](06-testing-verification.md)).
 - Name the commit the run was made against and whether the tree was clean. A passing table against an unknown tree proves nothing about the tree that gets merged.
@@ -19,25 +19,25 @@ Evidence is produced by execution, not by writing. A file the model composed to 
 
 ### 1. The criteria table
 
-The lane brief carries one row per criterion and nothing else:
+For planned work, the lane brief carries one row per criterion:
 
 ```
 | id   | status        | verify                                                                    | red      | note |
 |------|---------------|---------------------------------------------------------------------------|----------|------|
 | C-01 | PASS          | uv run pytest tests/test_sample_run_loader.py::test_c01_drops_nan_rows    | observed |      |
-| C-03 | FAIL          | scripts/checks/no_new_deps.sh                                             | guard    | pyproject.toml +1 |
+| C-03 | FAIL          | scripts/checks/no_new_deps.sh                                             | —        | pyproject.toml +1 |
 | C-04 | PENDING-HUMAN | [human]                                                                   | —        | figures/dist.svg |
 ```
 
 A human reading this looks at the non-`PASS` rows and stops. That is the entire intended cost of verification for the reader.
 
-The `red` column records which of the red checks in [06-testing-verification.md](06-testing-verification.md) §3 established the row — `observed`, `sabotage` or `guard` — with its output kept beside the row's command output, and `—` for a `[human]` row. A row carrying a command takes one of the three and that output, both: the harness refuses a commanded criterion recording either without the other (`workflows/build.js`). `NO-BASELINE` is a status and not a fourth red kind, so a row that stands at it has no red value to record and the gap its status names is still open.
+The `red` column applies only when a criterion introduces a justified new test: `observed` or `sabotage` records how that test was shown to detect a failure ([06-testing-verification.md](06-testing-verification.md) §3). Use `—` for an existing check, a standing guard that needs no new test, or a `[human]` row. `NO-BASELINE` means a required new-test check could not run; it is a status, not a red kind.
 
-The final report covers the end-to-end condition ([18-work-contract.md](18-work-contract.md) §1), every run that definition names with its rows. Nothing is summarised on the way up; a lane whose row says FAIL says FAIL in the final report too.
+The final report covers the end-to-end condition ([18-work-contract.md](18-work-contract.md) §1) and every required run. A short summary may accompany the rows; a lane whose row says FAIL says FAIL in the final report too.
 
 ### 2. Execution output
 
-The command and its output travel together. A row saying `PASS` next to a command nobody can see the output of is a claim, not evidence, and the distinction matters most exactly where it is least visible — a test selection that matched nothing is not a pass (→ [06-testing-verification.md](06-testing-verification.md) §3).
+Record the command, exit status, and decisive output together. A `PASS` with no exit status or decisive output is only a claim; a test selection that matched nothing is not a pass (→ [06-testing-verification.md](06-testing-verification.md) §3).
 
 Masking applies to the command line and the environment, not only to the output. A verify command that passes a token as an argument leaks it into the record otherwise.
 

@@ -2,28 +2,28 @@
 
 ## Core Rules
 
-- No hardcoding, ever. Manage hyperparameters, paths, constants, and magic values entirely in central config.
-- Split config into groups along one axis each, so they compose. Build experiment variants (ablation) purely from composition and overrides, without code changes.
+- Put values that vary by run, experiment, deployment, or environment in one resolved configuration. Keep fixed local invariants as named code constants.
+- For experiments with independent axes, compose config groups and overrides so variants need no code changes.
 - Validate config values' types and ranges (Pydantic or a typed dataclass). Invalid values must fail fast before the run starts.
-- Every run automatically saves its full resolved config, as of that point, to the output directory.
+- Persist the resolved config, git commit, and invocation with experiment or data-processing outputs that must be reproduced; make this automatic for those runs.
 - Externalize LLM prompts into dedicated `.md` files instead of inline string literals — prompts should be editable and reviewable without code changes.
 
 ## Details
 
-### 1. Scope of the no-hardcoding rule
+### 1. Scope of configuration
 
-Things that must not be written directly in code: file paths, model names/checkpoint paths, batch size, learning rate, seed, sample count limits, API endpoints, device strings, thresholds. These are all config fields.
+Values that vary between runs or environments belong in config: input/output paths, model and checkpoint choices, batch size, learning rate, seed, sample limits, API endpoints, device choice, and adjustable thresholds. A constant intrinsic to the algorithm or file format stays in code as a named constant. Do not expose a setting merely because a literal appears in code.
 
-Exception: values that are invariant by mathematical definition (e.g., 1000 milliseconds per second) are allowed as named constants in code. "A value that probably won't change for now" is not an exception.
+When uncertain, ask whether changing the value without a code review is a supported use case. If not, keep it close to its use until a real variant exists.
 
 ### 2. What the config layer has to provide
 
 No tool is prescribed here. Pick one per project and use it consistently; what the choice may not trade away is this:
 
-- **composition by axis**: groups like `configs/model/`, `configs/data/`, `configs/train/`, with an experiment being a named combination of them rather than a file per variant.
-- **sweeps from that same composition**: a combinatorial run is one command over the group values. A loop written per variant is the thing composition exists to avoid, and it drifts from the single-run path the moment either is edited.
+- **composition by axis when needed**: for experiments with multiple independent choices, groups like `configs/model/`, `configs/data/`, `configs/train/` allow named combinations without one file per variant. A single-run tool need not have this structure.
+- **sweeps from that same composition**: when running combinations, generate them from the same config path as a single run rather than maintaining variant-specific code.
 - **validation at load**: types and ranges checked while the config is assembled, so `train_size=1.5` fails before the run starts rather than mid-training. Typed dataclasses cover shape; pair them with a constraint validator (Pydantic) for what a type cannot express.
-- **a run snapshot nobody has to remember**: §5 states the requirement. A tool that writes it by default satisfies it; a tool that does not leaves the runner to, which is a step that gets skipped exactly when a run turns out to matter.
+- **a reproducible output snapshot nobody has to remember**: §5 states the requirement for experiments and durable data-processing outputs. A tool that writes it by default satisfies it; otherwise the runner does.
 
 Code-first without YAML: tyro (dataclass-based, strong static type checking) or draccus.
 
@@ -42,6 +42,6 @@ LLM prompts get the same treatment as config: inlining them in code means a one-
 ### 5. Config snapshots and reproducibility
 
 - Name runs identifiably (`{experiment-name}-{key-condition}-{date}`) so a directory listing is readable months later.
-- A run's output directory must retain, at minimum: the full resolved config (after overrides applied), the git commit hash, and the run command.
+- An experiment or durable data-processing output directory must retain, at minimum: the full resolved config (after overrides applied), the git commit hash, and the run command.
 - Where the config tool writes that snapshot by default, leave the default on; where it does not, the runner writes it. Either way it is not the caller's job to remember.
 - Version-control config files alongside code. "That run's settings at that time" must be recoverable from commit history.

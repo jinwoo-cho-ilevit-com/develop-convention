@@ -5,7 +5,7 @@
 - Set all seeds (random/numpy/torch/CUDA/DataLoader worker) at once with a single helper.
 - Training and inference import the same preprocessing code (the same function). Don't duplicate preprocessing logic.
 - Verify train/inference consistency inside the sample run: feed the same stored input through both paths and assert the outputs match element-wise — an assertion in the run, not a separate script (→ [06-testing-verification.md](06-testing-verification.md) §5).
-- Prioritize performance optimization (speed/memory) over adding features. Apply proven optimizations like bf16 and optimized attention by default.
+- Set training speed and memory goals for the workload. Use bf16, optimized attention, or other optimizations when supported and when representative measurements show a benefit without unacceptable quality or correctness changes (→ [05-performance.md](05-performance.md)).
 - Log every run to an experiment tracking tool along with its config + git commit.
 - Checkpoints preserve last-N + best + milestones, and are stored on a network volume or HF Hub rather than temporary pod disk.
 - Assume training can be interrupted at any time and make it resumable (spot pods are the default assumption).
@@ -53,7 +53,7 @@ Sources: [Trackio](https://huggingface.co/blog/trackio)
 
 ### 4. Checkpoints and interruption resilience
 
-- **Saving**: save only from the main process, unwrap DDP/FSDP wrappers, include optimizer state. For large models, use DCP `async_save` (background save) + safetensors (→ [04-pipeline.md](04-pipeline.md)).
+- **Saving**: save only from the main process, unwrap DDP/FSDP wrappers, include optimizer state. For large models, consider DCP `async_save` and safetensors when checkpoint overhead warrants them (→ [04-pipeline.md](04-pipeline.md)).
 - **Retention policy**: `latest` (for resume) + step-based last-N + best-by-metric + major milestones. Set the specific N via the project config.
 - **Storage location**: an ephemeral GPU host's local disk disappears with the host. Store on a network volume or HF Hub/bucket.
 - **Cost optimization**: use spot/interruptible pods for interruption-tolerant work (sweeps, non-urgent experiments) — which is why all training must be resumable. Use reserved only for long-running training that needs guarantees.

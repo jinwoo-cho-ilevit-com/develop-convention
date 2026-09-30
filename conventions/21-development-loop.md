@@ -1,20 +1,20 @@
 # 21. The Development Loop
 
-One loop from "I want to build this" to a merged, verified change. Every step is specified in another document; this one is the order they run in and the seams between them. The `dev-harness` plugin in this repository runs the loop, and running it by hand against the same documents is legitimate.
+The planned loop runs from a work proposal to a merged, verified change. Narrow, reversible `auto` work follows the direct path in [18-work-contract.md](18-work-contract.md) §3 and does not enter `/spec` or `/build`. The `dev-harness` plugin runs the planned loop; running it by hand against the same documents is legitimate.
 
 ## Core Rules
 
-- Run the steps in this order, each governed by the document named beside it. Only the interview rules below belong to this document; the rest are pointers, because a rule written twice drifts.
+- For `reviewed` and `proven` planned work, run the applicable steps in this order, each governed by the document named beside it. `reviewed` requires one independent unit review and a merged-seam review only when multiple lanes merge; `proven` adds the risk-based plan and review depth in [20-review-gate.md](20-review-gate.md).
   - Orchestrate, do not develop: [09-agentic-workflow.md](09-agentic-workflow.md), [14-context-management.md](14-context-management.md).
   - Interview to a plan and one brief per lane: this document.
   - Split by disjoint file ownership: [18-work-contract.md](18-work-contract.md).
   - Write criteria as sentence plus command, `[human]` where no command exists: [18-work-contract.md](18-work-contract.md), [19-evidence.md](19-evidence.md).
   - Choose the done level: [18-work-contract.md](18-work-contract.md) §3.
-  - Challenge the plan before asking for approval: [18-work-contract.md](18-work-contract.md) §3, [20-review-gate.md](20-review-gate.md).
+  - Challenge a `proven` plan before asking for approval: [18-work-contract.md](18-work-contract.md) §3, [20-review-gate.md](20-review-gate.md).
   - Freeze each boundary with a contract file and its sample before the lanes start: [06-testing-verification.md](06-testing-verification.md).
   - Review each lane on its own finish, then fix and re-review: [20-review-gate.md](20-review-gate.md).
   - Merge, integration lane last: [09-agentic-workflow.md](09-agentic-workflow.md).
-  - Review the merged whole, then check the end-to-end condition: [20-review-gate.md](20-review-gate.md), [06-testing-verification.md](06-testing-verification.md).
+  - After multiple lanes merge, review their seams, then check the end-to-end condition: [20-review-gate.md](20-review-gate.md), [06-testing-verification.md](06-testing-verification.md).
 - Specify by interview, not by template. What to ask about is derived from this project — infer the axes from the request and the repository, check once for what recent practice adds, then keep only those that name a way this project could fail. A fixed axis list can only cover what someone already knew to list.
 - Keep the axis list open during the interview. When an answer reveals an axis you did not have, add it. Record every axis and its state — decided, not applicable, still open — because that record is the only account of what was never asked.
 - The interview ends when the person says it ends, and its output is a plan plus one brief per lane, not prose.
@@ -27,12 +27,12 @@ One loop from "I want to build this" to a merged, verified change. Every step is
 |---|---|---|
 | Interview | Axes derived from the project, one question at a time, every proposal sourced | §2 below, [16-research-protocol.md](16-research-protocol.md) |
 | Plan | `PLAN.md` (done level, decisions, rejected alternatives, axis table, boundaries, lanes, review points, end-to-end condition) + `lane-<name>.md` per lane | [18-work-contract.md](18-work-contract.md) |
-| Challenge | The plan lane runs at the done level's depth; the plan is shown for approval only once its exit is recorded | [20-review-gate.md](20-review-gate.md) §2 |
+| Challenge | For `proven`, review the plan against its risks before approval | [20-review-gate.md](20-review-gate.md) §2 |
 | Freeze | One contract file per boundary, plus its sample payload and, where the payload lands as JSON, YAML or TOML, its schema. Owned by no lane | [06-testing-verification.md](06-testing-verification.md) §1, §7 |
 | Fan out | One worktree-isolated agent per lane, disjoint `owns`. An unattended lane reads no untrusted text: what the work needs from outside was fetched at plan time and reaches it as the brief | [09-agentic-workflow.md](09-agentic-workflow.md) §2, [25-agent-sandboxing.md](25-agent-sandboxing.md) §3 |
 | Review | Starts per lane on that lane's finish; lanes defined by input; fix and recheck | [20-review-gate.md](20-review-gate.md) |
 | Merge | Criteria and CI checks pass, review closed on no blocker → merge; integration lane last | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
-| Merged-whole | One lane over the assembled change, pinned to two commits, before any worktree is removed | [20-review-gate.md](20-review-gate.md) §2 |
+| Merged-whole | When multiple lanes merged, one review over the assembled seams, pinned to two commits, before worktrees are removed | [20-review-gate.md](20-review-gate.md) §2 |
 | Verify | End-to-end condition ([18-work-contract.md](18-work-contract.md) §1), `[human]` criteria answered, evidence reported as a criteria table | [19-evidence.md](19-evidence.md) |
 | Clean up | Merged lanes lose worktree and branch; halted lanes keep theirs | [09-agentic-workflow.md](09-agentic-workflow.md) §2 |
 
@@ -54,10 +54,10 @@ A greenfield project has no repository to ground the first step, which is where 
 
 **A barrier is a choice, not a fact.** Lanes finish at different times; when each lane's review starts, and why waiting for all of them costs more than it saves, is [20-review-gate.md](20-review-gate.md) Core Rules.
 
-**Two review points are fixed by time, not by risk.** Every other lane is chosen by what the change touches; the plan review and the merged-whole review are chosen by when they run. Before approval is the last moment a direction can change cheaply, and after the last merge is the first moment the seams between units exist to be read — a unit review passes each piece against itself, and what only appears where pieces meet has no earlier reader.
+**Review points follow risk and assembly.** `proven` work challenges its plan before approval, when direction can still change cheaply. Multi-lane work reviews the assembled seams after the last merge, when both sides can be read together.
 
 **A fix is a change, and changes have defects.** A review loop with no exit but "reviewers stopped finding things" has no fixed point. The signal that ends it is not the count of rounds but the finding that this round's defects came from last round's fix (→ [20-review-gate.md](20-review-gate.md) §3). At that point another round adds defects faster than it removes them.
 
-**Delegation is convention; the guard holds only the context budget.** It refuses a read past that budget, where no false positive exists and the alternative — a narrower read, or a subagent that returns the answer instead of the file — is strictly better. It does not gate the editing tools, and it does not try to recognise a shell command that writes. Both tests have legitimate exceptions, and the shell one cannot be made exact: deciding it needs a shell parser, and a parser that is not the shell's own can disagree with it over one command string — raising where the shell does not, or letting an unquoted operator through unchecked. A prompt on every edit is a standing cost paid on the common path for a rule the hook cannot actually hold, so the rule is stated where rules live and the hook keeps the one judgement it can make exactly. Do not read a passing hook as proof the main session stayed out of the tree — it does not check that.
+**Delegation is a planned-work convention; the guard holds only the context budget.** `auto` follows the direct path. The hook refuses reads beyond its budget and does not gate edits or parse shell commands for writes. A passing hook does not prove who edited the tree.
 
 Sources: this document records the loop this repository runs on itself; each step's evidence is in the document it links to.

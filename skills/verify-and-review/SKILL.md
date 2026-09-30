@@ -15,8 +15,8 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 |---|---|
 | What the sample run checks, and when a test beyond it is warranted | 06 |
 | What a lane boundary's contract file and sample hold, and why one object gets one sample | 06 |
-| Did I watch it fail before it passed, and what if it could not run at all | 06 |
-| How I report what I ran — the table, the words, the real output | 19 |
+| When does a new test need a failing baseline, and what if it could not run at all | 06 |
+| How I report what I ran — the command, verdict, and decisive output | 19 |
 | What to write when a check was skipped, bypassed, or waiting on a person | 19 |
 | Who reviews this, and what input each reviewer gets | 20 |
 | When the review loop stops, and which exits need a human | 20 |
@@ -25,9 +25,9 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 
 ## Order
 
-1. **06 before writing tests.** It sets the default check and the budget. The common failure is not too few tests, it is a suite that grew per-function and now catches nothing.
-2. **20 before reviewing.** Settling who reviews, and against what input, only once the diff exists means settling it inside the author's context — which is the thing the gate exists to prevent.
-3. **19 when reporting either.** A criteria table with real output, not a narrative. This is also where the vocabulary lives for the case that is neither pass nor fail.
+1. **06 before writing tests.** It selects the smallest relevant existing check first and sets the reason for adding a durable test.
+2. **20 before reviewing.** It decides whether an independent review is needed and what the reviewer receives.
+3. **19 when reporting either.** Record the exact command, verdict, and decisive output, including checks that could not run.
 
 ## Boundaries with other skills
 

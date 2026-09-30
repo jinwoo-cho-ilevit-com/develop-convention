@@ -6,9 +6,9 @@
 - Unify lint and format on ruff alone (`ruff check` + `ruff format`).
 - Put development tools in the dev group under `[dependency-groups]`. Do not mix them into runtime `dependencies`.
 - Check lint/format twice: pre-commit (local) + CI (enforced).
-- Code must run identically, without modification, on a local machine (macOS, CPU/MPS) and a remote GPU host (Linux, CUDA).
-- Without a GPU, the code must still be runnable and testable on CPU. Select the device only through a single helper function; inline `.cuda()` calls are forbidden.
-- Route PyTorch installation automatically per platform using uv platform markers or `--torch-backend=auto`.
+- For ML projects that target both local macOS (CPU/MPS) and remote Linux (CUDA), keep source code portable across those targets; allow documented numerical differences.
+- Where CPU fallback is a project requirement, select the device through one helper and avoid inline `.cuda()` calls.
+- For multi-platform PyTorch projects, route installation per platform using uv platform markers or `--torch-backend=auto`.
 
 ## Details
 
@@ -40,7 +40,7 @@ Sources: [uv — projects guide](https://docs.astral.sh/uv/guides/projects/), [r
 
 ### 2. Local ↔ Remote GPU Portability
 
-A single pyproject.toml must cover both environments. PyTorch has no CUDA build for macOS, so platform-specific index routing is required.
+When both environments are supported, one pyproject.toml should cover them. PyTorch has no CUDA build for macOS, so platform-specific index routing is required for that setup.
 
 Method A — automatic routing via platform marker (recommended):
 
@@ -68,7 +68,7 @@ Sources: [uv — PyTorch integration](https://docs.astral.sh/uv/guides/integrati
 
 ### 3. Device Abstraction (CPU Fallback)
 
-Select the device through exactly one helper function per project. Base it on the `torch.accelerator` API (a unified CUDA/MPS/XPU abstraction), but guard it since older torch versions lack this API.
+For projects requiring CPU fallback, select the device through one helper. Base it on the `torch.accelerator` API (a unified CUDA/MPS/XPU abstraction), but guard it since older torch versions lack this API.
 
 ```python
 def get_device() -> torch.device:
@@ -77,8 +77,8 @@ def get_device() -> torch.device:
     return torch.device("cpu")
 ```
 
-- It must be overridable via config (force CPU testing with `device: cpu`).
-- Inline `.cuda()` or `"cuda:0"` strings are forbidden — they are the main culprit that breaks CPU fallback.
+- Make the device overridable via config when users need to force CPU execution (`device: cpu`).
+- Avoid inline `.cuda()` or `"cuda:0"` strings in portable code; they break CPU fallback.
 - How CI exercises GPU code paths without a GPU is [06-testing-verification.md](06-testing-verification.md) §5.
 
 Sources: [PyTorch — accelerator device API](https://docs.pytorch.org/docs/main/accelerator/device.html)

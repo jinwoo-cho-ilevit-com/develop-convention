@@ -4,20 +4,21 @@ The foundation for all convention documents. When it conflicts with another docu
 
 ## Core Rules
 
-- When starting new development, don't rely on the existing project's structure, comments, docs, or memory — start from requirements and behavior (the spec).
+- Start from requirements and observed behavior. Inspect existing code, docs, and interfaces for behavior and compatibility constraints; do not treat their structure as the required design.
+- Add implementation, configuration, abstraction, or process only when a current requirement, observed failure risk, or measured constraint justifies its cost. Prefer the simplest design that meets the acceptance criteria and preserves required behavior.
 - Don't decide from prior knowledge. Verify library/API/model facts against current-point-in-time primary sources before applying them — what counts as one is [16-research-protocol.md](16-research-protocol.md) for factual specs and [12-upstream-docs.md](12-upstream-docs.md) for provider APIs.
-- Perform refactoring, review, and rewrites in a new context (a separate subagent/session) detached from the context that produced the existing code.
-- Only claim completion with executable evidence (test output, run logs, measured values). Separate the author from the verifier.
-- When rewriting, discard the existing structure but preserve existing behavior: pin down existing behavior with characterization tests before the rewrite, then confirm the same tests pass after the rewrite.
+- Use a fresh context for independent review and substantial refactoring or rewrites; apply the review depth required by the work's risk ([20-review-gate.md](20-review-gate.md)).
+- Match completion claims to evidence: use execution results for behavior, measurements for performance, and direct source inspection for static claims. Keep verification independent where the work's risk calls for it.
+- When rewriting, preserve required behavior. Capture it with the smallest suitable existing check, sample run, or characterization test before the rewrite, then compare after it.
 - Measure performance/productivity improvements — don't estimate them. If you didn't measure, write "not measured."
 
 ## Details
 
 ### 1. Independent fresh start
 
-For a new project or a refactor, treat the existing codebase's structure not as a "reference" but only as the origin of the behavioral spec.
+For a new project or a refactor, use the existing codebase to discover required behavior and compatibility boundaries. Choose the new structure from the requirements.
 
-- Take from the existing code: **what it must do** (input/output contracts, behavior, edge cases)
+- Take from the existing code: **what it must do** (input/output contracts, behavior, edge cases, compatibility constraints)
 - Don't take from the existing code: file structure, class hierarchy, naming, explanations embedded in comments, memory of "how it used to be done"
 - Never carry over code, config, or scripts that the existing project doesn't use (→ [01-structure-naming.md](01-structure-naming.md))
 
@@ -29,17 +30,17 @@ Both are single studies (the second an unrefereed preprint). Treat the direction
 
 Application:
 - Code review is done by a fresh reviewer who starts from the diff and the criteria, never the session that wrote the code.
-- When rewriting legacy code, don't start by reading through the entire existing codebase. Write the spec first, implement from the spec alone, and check against existing behavior via tests.
+- When rewriting legacy code, inspect the relevant behavior and interfaces before choosing a structure; avoid reading unrelated areas. Compare the result with the behavior evidence selected for the work.
 
 Sources: [Conflict-Aware Meta-Review Generation via Cognitive Alignment (arXiv 2503.13879)](https://arxiv.org/abs/2503.13879), [Cross-Context Review: Separating Production and Review Sessions (arXiv 2603.12123)](https://arxiv.org/abs/2603.12123), [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
 
 ### 3. Evidence over claims
 
-"Done" means the program terminated, not that the task succeeded.
+"Done" means the acceptance criteria are met, not merely that the program terminated.
 
-- Verify by running: execute with real inputs and check real outputs. Reading code and saying "looks right" isn't verification.
-- The judge must not be the author: whoever decides whether something is complete (tests, review agent, verification script) must be independent from whoever wrote the code.
-- Attach evidence to claims: the command you ran + output/test results/screenshots.
+- Verify behavior with an appropriate execution or sample and inspect its output. Static claims can be checked from source; label them as static findings.
+- Use independent verification or review when the change's risk requires it; the lighter path for small reversible work is in [18-work-contract.md](18-work-contract.md).
+- Attach decisive evidence to claims: the relevant command and result, source location, or measurement.
 
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
 
@@ -55,3 +56,7 @@ Even the effect of using AI tools can run opposite to felt experience versus mea
 Apply the same principle to speed optimization, parallelization, and parallel agent development: to claim an improvement, measure before/after.
 
 Sources: [METR — Early 2025 AI experienced OS dev study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/)
+
+### 6. Proportionate design
+
+Overengineering is complexity whose cost cannot be justified by a current requirement, observed failure risk, or measured constraint. Before adding a layer, option, dependency, or workflow step, identify the acceptance criterion it serves and whether a simpler design meets it. A plausible future use alone is insufficient. Keep protections for data loss, security, and hard-to-reverse changes proportional to their consequences rather than removing them for brevity.

@@ -173,7 +173,8 @@ SABOTAGE = [
         "skills/ml-pipeline/SKILL.md",
         "# ml-pipeline — Stages, Throughput, Experiments, Self-Hosted Models\n",
         "# ml-pipeline — Stages, Throughput, Experiments, Self-Hosted Models\n\n"
-        "CI verifies GPU code paths by running the sample run on CPU, without a GPU.\n",
+        "Where CPU fallback is a project requirement, CI verifies the shared entry path "
+        "with a bounded CPU sample run.\n",
         [("skills/ml-pipeline/SKILL.md", "copies convention text")],
     ),
     (

@@ -2,13 +2,13 @@
 
 ## Core Rules
 
-- The main context is the orchestrator and sends exploration, search, and large reads to subagents ([09-agentic-workflow.md](09-agentic-workflow.md)). What this document adds is the budget reason: a subagent reads in a separate context window, so only its summary lands in the main one (§1).
-- Dispatch independent tasks in parallel in a single batch, and run builds/tests in the background to reduce bottlenecks. How many to run at once, and what a speedup is claimed from, is [09-agentic-workflow.md](09-agentic-workflow.md) §2.
+- Delegate bounded, substantial exploration or independent work when the context saved outweighs coordination overhead ([09-agentic-workflow.md](09-agentic-workflow.md)). Small focused reads can stay in the main context.
+- Dispatch independent tasks in parallel when useful and run long builds/tests in the background when they block other work. Measure any claimed speedup ([09-agentic-workflow.md](09-agentic-workflow.md) §2).
 - Pipeline stages; do not put a barrier between them. A barrier is justified only when the next stage genuinely needs every result of the previous one at once — dedupe across the whole set, or an early exit on the total. "I need to flatten the results first" and "the stages are conceptually separate" are not barriers, and neither is review — when each item's review starts is [20-review-gate.md](20-review-gate.md)'s rule.
 - Keep the single source of truth in files, not in the conversation. Persist plans, decisions, and progress to external files, and treat conversation context as a volatile resource that can be summarized or lost at any time.
 - Put rules and facts that must persist in CLAUDE.md and auto memory (both survive compaction and `/clear`). Don't rely on conversation history to remember rules.
 - Auto memory is a setting and can be turned off — check before relying on it, because a rule written only there does nothing when it is disabled, and does so silently. Where it is off, CLAUDE.md carries the standing rules and a handoff file carries the session's findings; nothing is left to conversation history either way.
-- At every milestone, checkpoint "done / next / key decisions / relevant file paths" into a handoff document. Design work so it can resume as an externalized task.
+- For multi-session or long-running work, checkpoint "done / next / key decisions / relevant file paths" in a handoff document so it can resume.
 - Clear context with `/clear` between unrelated tasks. If two corrections don't fix things, `/clear` the contaminated context and restart with a better prompt.
 - When compaction is imminent, don't wait for it to run automatically — use `/compact <focus>` to specify what to keep, or summarize to a file first. Specify what to preserve in CLAUDE.md's "Compact Instructions".
 - Immediately after resume or compaction, re-check `git status`, cwd, and state artifacts before resuming work (to prevent stale context or working on the wrong branch).
@@ -21,7 +21,7 @@ Sources: [Claude Code — best practices](https://code.claude.com/docs/en/best-p
 
 ### 1. Minimizing the Main Context (Context Firewall)
 
-- **Delegate to subagents**: Investigating a codebase means reading many files, which consumes context. A subagent investigates in a separate context window and returns only a summary, so the main context stays clean. Exploration like "investigate how auth token refresh is handled" should be done by a subagent, not the main context. The test before reading directly is "can a subagent return just the answer?" — sweeping a directory or reading through a large file answers yes, and delegating is what keeps the source material out of the budget.
+- **Delegate selectively**: a subagent can investigate a broad code path in a separate context window and return a summary. Use it when the investigation is bounded and large enough to offset handoff cost. Read a focused file or search result directly when that is simpler.
 - **Structured returns**: Receive delegated results as schema-validated, compressed data — file dumps shouldn't accumulate in the main context.
 - **Check usage**: Use `/context` to check what's occupying the context (memory files, MCP tools, skills, conversation). MCP tool definitions are deferred (lazy-loaded) by default, and rarely-used skills can be hidden with `skillOverrides`.
 - **Minimize bottlenecks**: Run long-running work (builds, tests) in the background, and prefer pipelining (streaming) over a barrier (waiting for everything). How many independent tasks to dispatch at once is [09-agentic-workflow.md](09-agentic-workflow.md) §2.
@@ -45,7 +45,7 @@ faster than this document: [memory](https://code.claude.com/docs/en/memory),
 - **Source material into files**: Record plans, decisions, and progress in `PLAN.md`/`PROGRESS.md`/`DECISIONS.md` or handoff artifacts (e.g., `.omc/handoffs/`). These files aren't automatically loaded into context, but the source material survives compaction and can be read again at any time.
 - **CLAUDE.md**: Loaded at the start of every session and re-injected after compaction. Commit it to git so the team shares it. Keep each file under 200 lines, and split rules by file type into path-scoped `.claude/rules/` so they load only when matched.
 - **auto memory**: Learnings, build commands, and debugging insights that Claude records on its own. Survives both compaction and `/clear`. Split detailed notes into topic files to keep `MEMORY.md` concise.
-- **Checkpointing**: Update state in the handoff document at every milestone. `/rewind` (or pressing Esc twice) can roll back conversation and code state from a snapshot, but this is separate from git — it only tracks changes made through Claude's tools, not changes made via Bash.
+- **Checkpointing**: For work spanning milestones or sessions, update the handoff document when a meaningful decision or state change occurs. `/rewind` (or pressing Esc twice) can roll back conversation and code state from a snapshot, but this is separate from git — it only tracks changes made through Claude's tools, not changes made via Bash.
 - **Re-orientation**: Keep persistent rules in CLAUDE.md, not in conversation history. Immediately after resume or compaction, check `git status`, cwd, and state artifacts first before continuing work.
 
 For an individual, auto memory plus handoff files are sufficient; a team should share persistent rules via the project CLAUDE.md (committed to git), while keeping it distinct from personal, local auto memory.

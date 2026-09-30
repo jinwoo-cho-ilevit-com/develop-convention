@@ -1,20 +1,19 @@
 # 18. Work Contract
 
-A **work contract** fixes three things in the same identifiers before the work starts: what counts as done (**completion criteria**), who may edit what (**ownership**), and how far verification must go (**done level**). Without it, "done" is renegotiated every time and there is no baseline to measure drift against. Its form is the plan and the lane briefs the interview produces (→ [21-development-loop.md](21-development-loop.md)); a contract is a checklist, not a specification, and its minimum is three to five lines.
+A **work contract** fixes what counts as done (**completion criteria**), who may edit what (**ownership**), and how far verification must go (**done level**). For planned work its form is the plan and lane briefs (→ [21-development-loop.md](21-development-loop.md)). Small `auto` work can record its change, check, and result directly with the work; it needs no plan file.
 
 ## Core Rules
 
-- Write the contract before development starts and freeze it during execution. Record any change with its kind; an additive change touching no existing criterion or ownership entry updates only the affected lane.
-- A plan shown for approval carries a `## Review points` table — one row per unit (§1) with the review lanes that ran on it listed in the row, plus one row for each of the pre-approval and post-merge points, with columns unit, lanes, tool, ran (commands the lanes executed), exit. Where the harness ran the unit, its result supplies the lanes, tool, commands run and exit for that row. `exit` is the round's final state only — `no blocker`, `regression-halt`, `round-cap`, or the workflow's own outcome string when a harness ran the lane — and round history goes in a line under the table; an `auto` plan closes its two fixed-point rows as `skipped (auto)`. An empty exit on any pre-approval row blocks approval, on any other row blocks completion. The plan file keeps the table as the record; in the harness that file is `PLAN.md`.
-- Scale the contract to the work. Three to five lines — what is being built, done level, criteria, out of scope — is complete for small work, and that form is not the heavyweight spec [09-agentic-workflow.md](09-agentic-workflow.md) §4 warns against.
+- For `reviewed` and `proven` work, write the contract before development starts and freeze it during execution. Record any change with its kind; an additive change touching no existing criterion or ownership entry updates only the affected lane. For `auto`, record the intended change and its check concisely without a plan file.
+- A planned contract carries a `## Review points` table for the points its done level requires, with columns unit, lanes, tool, ran (exact command count), exit. Where the harness ran the unit, its result supplies the review record. `exit` is the final state — `no blocker`, `regression-halt`, `round-cap`, or the workflow's own outcome string. An empty exit on a required row blocks completion. The plan file keeps the table as the record; in the harness that file is `PLAN.md`.
+- Scale the record to the work. An `auto` change needs only its purpose, affected behavior, relevant check, and result. A planned contract remains a checklist rather than a heavyweight specification ([09-agentic-workflow.md](09-agentic-workflow.md) §4).
 - Write every criterion in EARS or Given-When-Then with `SHALL`, and apply the judgment test: **if two agents could disagree about whether it passed, rewrite it.**
 - Pair every criterion with the command that checks it, or mark it `[human]`. A criterion that is neither is not a criterion. The sentence is not decoration: without it nothing can be judged against the criterion, and a test that checks the wrong thing still passes.
 - The command must reach a verdict inside the lane that owns the criterion, against that lane's work alone. A command that imports a sibling lane's module fails on import and says nothing about the lane it was given to, so the end-to-end condition, which is what checks a cross-lane boundary contract, belongs to no lane: it is checked on the merged head after the last merge (→ [06-testing-verification.md](06-testing-verification.md) §1).
 - How a `[human]` criterion passes, and what an unanswered one blocks, is [19-evidence.md](19-evidence.md) §3.
 - Cover functional, non-functional, and **negative** criteria — what must *not* happen. The negative kind is what stops over-building. State what is out of scope; an unstated boundary is the one that gets crossed.
-- For a rewrite, include a characterization criterion that pins existing behaviour first (→ [00-principles.md](00-principles.md)).
-- Declare the done level before starting, chosen by size × reversibility. At every level three things are mandatory: every criterion passes, the evidence exists, and each new test was observed failing at the base commit (the red check and its three outcomes are defined in [06-testing-verification.md](06-testing-verification.md) §3; this document does not restate them).
-- Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. An absence criterion almost always is (→ [06-testing-verification.md](06-testing-verification.md) §3).
+- For a rewrite, include a criterion that preserves required behavior through the smallest suitable existing check, sample run, or characterization test (→ [00-principles.md](00-principles.md)).
+- Declare the done level before starting, chosen by impact and reversibility (§3). At every level, check the intended behavior and record what actually ran. Apply the red or sabotage check only to a new test justified under [06-testing-verification.md](06-testing-verification.md) §3; an existing check needs no red record.
 - Enumerate the boundaries by asking where two lanes could believe differently, not by asking what data passes between them. Four surfaces drift independently: the shape of a shared payload, the name and signature of every symbol one lane calls in another, the accepted value set of a field both sides branch on, and the call graph itself. A lane that only consumes sends nothing outward, so a payload-derived list leaves the lane with the widest call surface holding no boundary contract at all (§5, → [06-testing-verification.md](06-testing-verification.md) §1).
 - Give every lane a disjoint set of owned paths, written as directory prefixes wherever the work divides that way. Globs expanded against the current file list miss files that do not exist yet, which is the collision the rule exists to prevent.
 - Name cross-cutting files individually, one owner each. A repository has files that belong to no directory — the README, the ignore file, the site config — and a prefix rule cannot assign them, so a decomposition that only knows prefixes silently leaves them to whoever touches them first. Give the integration lane an explicit list and run it last.
@@ -33,7 +32,7 @@ A **work contract** fixes three things in the same identifiers before the work s
 | EARS | A sentence template that removes ambiguity: `WHEN <trigger> THE <system> SHALL <response>` |
 | red check | Confirming a new test actually fails at the base commit |
 | pass | Of a criterion or check, the status its command earns by succeeding with the output recorded (`PASS`, [19-evidence.md](19-evidence.md) §1). A verification or review execution is a run or a round, never a pass |
-| run | One execution of a command against a named commit: a sample run, the integration run, a real-data run. At a fixed review point, one run is the Claude lane and Codex dispatched in parallel ([20-review-gate.md](20-review-gate.md) §4) |
+| run | One execution of a command against a named commit: a sample run, the integration run, a real-data run. At a `proven` fixed review point, one run is the Claude lane and Codex dispatched in parallel ([20-review-gate.md](20-review-gate.md) §4) |
 | integration run | The assembled project's sample run — one to three per project, each on the merged head after the last merge ([06-testing-verification.md](06-testing-verification.md) §1) |
 | end-to-end condition | The plan's criterion for the assembled project: every lane's criteria re-run on the merged head, the integration run, and any run no lane can make in its own worktree — a lane whose entry point imports its siblings ([06-testing-verification.md](06-testing-verification.md) §1). The one name for it — the plan, the evidence and the review all use this term |
 | integration lane | The lane that runs last and owns the files no directory prefix assigns (README, root config). It is a lane like the others; the end-to-end condition is checked after it merges and belongs to no lane |
@@ -76,30 +75,30 @@ Sources: [EARS, fifteen years on](https://joshmcdonald.medium.com/ears-fifteen-y
 
 ### 3. Done level
 
-| Level | Adds to the mandatory three | Use for |
+| Level | Required work | Use for |
 |---|---|---|
-| `auto` | the review lanes [20-review-gate.md](20-review-gate.md) Core Rules scale the change to (at least one), none run by the author, closed on no confirmed blocker; the fixed review points are skipped | docs, formatting, behaviour-preserving refactors |
-| `reviewed` | the same, plus each fixed review point run once | the default |
-| `proven` | the same as `reviewed`, plus one run on real data | new modules, pipelines, anything with external effect |
+| `auto` | no plan file or independent review required; record the change and the result of the narrowest relevant existing check | narrow, reversible changes with no external effect or shared boundary, security, or data-loss risk |
+| `reviewed` | a planned contract and one independent review per unit; review the assembled seams after multiple lanes merge | the default for behavior changes outside `auto` |
+| `proven` | a planned contract, review from distinct relevant perspectives, and a representative real-input run | irreversible or high-impact data, security, external-effect, or public-interface changes |
 
 The integration run is not a level's addition: any plan split into lanes owes it as part of the end-to-end condition (§1).
 
-Choose by **size × reversibility**:
+Choose by **impact and reversibility**, with size as a signal rather than the rule:
 
 |  | Easy to reverse | Hard to reverse (migration, deploy, data transform, public API) |
 |---|---|---|
-| Single module | `auto` | **`proven`** |
-| Two or more modules, or an interface/schema change | `reviewed` | `proven` |
+| Narrow change with no shared or external boundary | `auto` | `proven` |
+| Behavior or shared-boundary change | `reviewed` | `proven` |
 
 The upper-right cell is what a size-only rule misses: a one-line change to a published signature is small and nearly impossible to take back.
 
-A diff you can describe in one sentence usually sits in the `auto` cell — single module, easy to reverse. It still gets a contract (Core Rules), at three to five lines. Anthropic uses the same one-sentence threshold for plan mode — "If you could describe the diff in one sentence, skip the plan" ([Claude Code best practices](https://code.claude.com/docs/en/best-practices), checked 2026-09-12).
+A diff described in one sentence may use `auto` only if the risk conditions in the table hold. No independent review or plan file is required. A public API or data migration remains `proven` even when its diff is one line.
 
 A plan with lane boundaries is never `auto`: its boundary contracts are files, and the merged-whole review is one of the places they are compared against the code (§5).
 
-Evidence sits outside the dial deliberately. If it were a property of the higher levels, "this is only `auto`" would become the way to skip it.
+Evidence sits outside the dial: `auto` records the relevant check and result, including a clear statement when no executable check applies.
 
-There is no separate planning-depth setting. How hard a plan is challenged follows the done level, at the fixed review points (§1): `auto` skips both, `reviewed` and `proven` run each once — one run being the parallel Claude-and-Codex pair [20-review-gate.md](20-review-gate.md) §4 dispatches per round, not a per-tool count. Once is a depth, not a round limit: the fix-and-recheck loop at a fixed point still runs until one of [20-review-gate.md](20-review-gate.md) §3's exits, the raising lane re-reviewing each fix. A second dial would only be another thing to under-report.
+There is no separate planning-depth setting. `auto` skips plan and fixed review points. `reviewed` has one independent unit review and, when multiple lanes merge, one review of their seams. `proven` uses separate module, project, and absence lenses, with security review when its trust boundary warrants it ([20-review-gate.md](20-review-gate.md)).
 
 ### 4. Changing and closing a contract
 

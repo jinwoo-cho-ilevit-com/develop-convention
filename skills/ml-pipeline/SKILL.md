@@ -16,7 +16,8 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 | How a stage is shaped so it runs alone, on a sample, and resumes after a kill | 04 |
 | How a stage hands its output to the next one | 04 |
 | A write that must not leave a half-file behind | 04 |
-| It is too slow — and is the bottleneck CPU or IO | 05 |
+| What scale, time, memory, and cost targets does this run need to meet | 05 |
+| It misses a target — where is the measured bottleneck | 05 |
 | What to measure, and what to log while it runs | 05 |
 | Whether a slow stage should move to a compiled language | 05 |
 | Seeds, and why one helper rather than several | 07 |
@@ -33,12 +34,12 @@ Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you
 
 ## Order
 
-1. **04 before writing a stage.** What it asks of a stage is structural, so retrofitting means rewriting rather than adding.
+1. **05 to set the run's scale and resource targets, then 04 before writing a stage.** Use the targets to choose the simplest stage shape that meets them.
 2. **23 as soon as the run leaves this machine** — its sync and smoke rules shape the entry point, so like 04 they are cheaper built in than bolted on.
 3. **07 as soon as a run produces a number** anyone might cite later — earlier than it feels, because by the time someone asks, the run that produced it is gone.
 4. **08 only when the model is yours to train or serve.**
 5. **22 as soon as another project's trainer is in the loop** — the layer it asks for is cheap to add early and expensive to retrofit around a suite that already trusts its doubles.
-6. **05 last.** It comes last because each of the above changes what there is to measure.
+6. **05 again when a target is missed or repeated runs become costly.** Profile the whole flow and improve the largest bottleneck before changing concurrency or language.
 
 ## Boundaries with other skills
 
