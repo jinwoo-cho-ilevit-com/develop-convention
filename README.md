@@ -14,7 +14,7 @@ Numbers are stable identifiers, not a reading order. The groups below are the or
 
 | Doc | Contents |
 |---|---|
-| [00-principles.md](conventions/00-principles.md) | Core principles: fresh start, fresh-context, evidence over claims, fact-based judgment, empirical measurement first |
+| [00-principles.md](conventions/00-principles.md) | Core principles: proportional complexity, behavior-grounded changes, evidence over claims, fact-based judgment, empirical measurement |
 
 Takes precedence over every other document, so it belongs to no single skill and every skill points back at it.
 
@@ -22,8 +22,8 @@ Takes precedence over every other document, so it belongs to no single skill and
 
 | Doc | Contents |
 |---|---|
-| [21-development-loop.md](conventions/21-development-loop.md) | The loop end to end: interview to axes, plan and lane briefs, plan challenge before approval, boundary contract files, worktree fan-out, review on each lane's finish, merge, merged-whole review, end-to-end verification |
-| [18-work-contract.md](conventions/18-work-contract.md) | Work contract: review points table before approval, completion criteria as sentence + command (EARS/Given-When-Then, `[human]` with a recorded verdict, decidable inside the owning lane), the four surfaces a boundary can split on, lane ownership with model tier and effort recorded per lane, done level (auto/reviewed/proven by size × reversibility), changing a frozen contract |
+| [21-development-loop.md](conventions/21-development-loop.md) | Direct path for small reversible work; planned loop for larger work: interview, lane briefs, boundary contracts, worktree fan-out, risk-scaled review, merge and end-to-end verification |
+| [18-work-contract.md](conventions/18-work-contract.md) | Planned work contract: completion criteria as sentence + command or `[human]` verdict, boundary surfaces and lane ownership, done level (auto/reviewed/proven by impact and reversibility), changing a frozen contract |
 | [09-agentic-workflow.md](conventions/09-agentic-workflow.md) | How to write CLAUDE.md/AGENTS.md and the instruction anti-patterns to keep out of them, workflows-first parallel development (worktree for file isolation only), decomposition and frozen contracts, merge-then-cleanup, two-axis (tier + effort) model routing, spec gating |
 | [14-context-management.md](conventions/14-context-management.md) | Minimizing main context (firewall/delegation), understanding compaction/clear behavior, preventing context loss via external files, CLAUDE.md, and auto memory |
 
@@ -49,16 +49,16 @@ Its own skill rather than part of the group above, because it fires on nearly ev
 
 | Doc | Contents |
 |---|---|
-| [06-testing-verification.md](conventions/06-testing-verification.md) | The sample run as the default check with other tests only by reason, lane-boundary contracts as files over symbols and value sets as well as payloads, one sample per object that crosses boundaries, JSON Schema checks of samples and producer output, fixtures and doubles that cannot teach a wrong implementation, spec-derived expected values, sabotage checks for characterization tests, change-detector deletion, golden files, tolerance bands, CPU sample runs, completion verification |
-| [20-review-gate.md](conventions/20-review-gate.md) | Review gate: author-is-not-verifier, what the author's evidence executed, lanes defined by input (module/project/absence/security/fresh-reader), two points fixed by time (plan before approval, merged-whole after the last merge), fan-in with confirmed/refuted/unverified findings and severity, review tool paths without pinned model ids, the two fixed points running a Claude reviewer lane and Codex in parallel with a Cursor fallback on Codex login failure/rate limit |
-| [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: criteria table instead of narrative, command output with secret masking, provenance, human verdict records, recorded bypasses |
+| [06-testing-verification.md](conventions/06-testing-verification.md) | Smallest relevant existing check first, durable tests only for distinct realistic failures, selective red evidence, sample runs for flows, lane-boundary contracts and schemas, trustworthy fixtures and expected values, completion verification |
+| [20-review-gate.md](conventions/20-review-gate.md) | Risk-scaled review: auto may omit independent review, reviewed uses one focused reviewer plus a seam review when lanes merge, proven adds distinct lenses and a plan review; static readings are labeled, findings are checked and ranked |
+| [19-evidence.md](conventions/19-evidence.md) | Evidence artifacts: exact command, exit and decisive output, provenance, secret masking, human verdict records, recorded bypasses |
 
 ### Data and ML pipelines — `ml-pipeline`
 
 | Doc | Contents |
 |---|---|
-| [04-pipeline.md](conventions/04-pipeline.md) | Small-sample debugging, atomic save + resume, streaming, progress monitoring |
-| [05-performance.md](conventions/05-performance.md) | Async/parallel selection, DataLoader tuning, GPU/RAM profiling, structured logging, language choice |
+| [04-pipeline.md](conventions/04-pipeline.md) | Bounded sample debugging, resumable and atomic output with completion identity, memory-budgeted processing, progress monitoring |
+| [05-performance.md](conventions/05-performance.md) | Scale/time/memory/cost targets, end-to-end measurement, algorithm and I/O before concurrency, conditional profiling and logging, language choice |
 | [07-ml-development.md](conventions/07-ml-development.md) | Seed/reproducibility, train-serve skew prevention, experiment tracking, checkpoints/spot pods |
 | [08-llm-development.md](conventions/08-llm-development.md) | Training framework routing, FSDP2/bf16, chat template consistency, evaluation reproducibility, LLM-as-judge, data |
 | [22-framework-wrapping.md](conventions/22-framework-wrapping.md) | Wrapping a third-party training framework: a test layer that imports the real package, config-only tiny-model fixtures, image supplies the dependency and the working tree supplies your code, one gate function, the layer's range |
@@ -118,8 +118,8 @@ Keep `AGENTS.md` to what nobody could infer from the repository. Do not paste co
 
 | Command | Does |
 |---|---|
-| `/dev-harness:spec` | Interviews you until the work is specific enough to split, then writes `PLAN.md` — review points table included — and one brief per lane |
-| `/dev-harness:build` | Freezes each boundary with a contract file, sample and (for JSON/YAML/TOML payloads) schema, fans the lanes out to worktree-isolated agents, reviews each lane the moment it finishes, merges, reviews the merged whole, and verifies |
+| `/dev-harness:spec` | Routes small reversible `auto` work to the direct path; for `reviewed` and `proven` work, develops `PLAN.md` and a brief per lane |
+| `/dev-harness:build` | Runs planned `reviewed` or `proven` work: freezes boundaries, fans out worktree-isolated lanes, applies risk-scaled review, merges, checks seams where lanes meet, and verifies |
 | `/dev-harness:setup` | Writes the short `AGENTS.md` by hand, and the `CLAUDE.md` line that imports it |
 
 Eight skills load themselves when the work matches, so you do not have to remember which rules apply. Each routes to the documents in its Document Map group and copies none of them — a rule stays in exactly one place, where it can only be wrong once:
@@ -135,7 +135,7 @@ Eight skills load themselves when the work matches, so you do not have to rememb
 | `docsync` | Module docs need to catch up with the code that changed (→ [15-doc-tracking.md](conventions/15-doc-tracking.md)) |
 | `explainer-docs` | A report, guide, tutorial, or HTML artifact for a human reader is being written |
 
-The main session orchestrates: it plans, splits and judges, and sends the editing to subagents. That is a convention the documents state rather than something the plugin enforces — its guard hook refuses a read past the context budget and lets everything else through, because a prompt on every edit is paid on the common path and still cannot hold a rule a pattern match is unable to judge; its routing hook injects the skill map once per user prompt and judges nothing. The full loop is [21-development-loop.md](conventions/21-development-loop.md).
+Small reversible `auto` work uses direct iteration with a relevant check and a concise result. Planned work uses the main session to coordinate lanes and judge their results. The guard hook meters reads; the routing hook injects the skill map once per user prompt. The routes are in [21-development-loop.md](conventions/21-development-loop.md).
 
 `/dev-harness:build` reports one outcome per lane. Only the first is a completion:
 
@@ -145,7 +145,6 @@ The main session orchestrates: it plans, splits and judges, and sends the editin
 | `pending-human` | Give the `[human]` criterion its verdict, before the lane merges rather than after |
 | `criteria-failed` | Send the lane back: its own completion criteria did not pass, so it is not done |
 | `review-incomplete` | Re-run the lens that returned nothing rather than merging a short review |
-| `review-unexecuted` | Re-run the lens that ran zero commands — that verdict is a reading, not a review |
 | `verification-incomplete` | Decide the blockers yourself; the verifier's answer did not map onto them |
 | `unverified-blocker` | Decide it with the user — nothing was run that reproduced or refuted the blocker |
 | `criteria-drift` | Restore the brief's criteria — never edit the brief to fit the work |
@@ -172,7 +171,7 @@ The main session orchestrates: it plans, splits and judges, and sends the editin
 
 **No command is needed for everyday use** — the plugin is loaded and the rules apply. The cases below are the ones that need an explicit command; when you want to make sure a specific doc applies, refer to it by its number.
 
-Starting a piece of work:
+For small reversible work, describe the change directly. For planned work:
 ```
 /dev-harness:spec  Add a DeepSeek adapter to the inference layer
 ```
@@ -191,13 +190,13 @@ Add a DeepSeek adapter. Follow the procedure in doc 12 — fetch the official do
 Review:
 ```
 Review this diff against the conventions the plugin carries.
-Flag violations with their doc number, using a separate review agent, not the authoring session.
+Flag violations with their doc number. Use a separate reviewer when the change's risk requires one.
 ```
 
 Rewrite/refactor:
 ```
-Rewrite this module. Per the principles in doc 00: don't be bound by the existing structure,
-start from the spec, but lock in existing behavior with a characterization test before rewriting.
+Rewrite this module. Per doc 00, start from the required behavior and compatibility boundaries;
+preserve them with the smallest suitable existing check, sample run, or characterization test.
 ```
 
 Updating conventions (when a stale fact is found, in this repository — from a consuming project, open an issue here instead, → 12):
@@ -209,10 +208,10 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Principles ([00](conventions/00-principles.md))
 
-- New development/refactoring starts from requirements and behavior (the spec), not from existing structure, comments, or memory.
+- Start from requirements and observed behavior. Inspect existing interfaces for compatibility while choosing structure from the requirements; add complexity only for a current requirement, observed failure risk, or measured constraint.
 - Don't judge from prior knowledge. Verify library/API/model facts against current primary sources before applying them — 16 defines what counts for factual specs, 12 for provider APIs; search results are leads, not proof.
-- Perform review/rewrites in a fresh context (a separate subagent/session), and claim completion only with executable evidence. Keep the author separate from the verifier.
-- Lock in existing behavior with a characterization test before rewriting. Claim performance/productivity improvements only with empirical measurement.
+- Use fresh context for independent review and substantial rewrites where risk calls for it. Match claims to evidence: execution for behavior, source inspection for static facts, measurement for performance.
+- Preserve required behavior through the smallest suitable existing check, sample run, or characterization test before rewriting. Claim performance/productivity improvements only with empirical measurement.
 
 ### Structure & Naming ([01](conventions/01-structure-naming.md))
 
@@ -227,15 +226,15 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Config ([02](conventions/02-config.md))
 
-- Absolutely no hardcoding — paths/hyperparameters/constants all live in central config. Compose them as groups along independent axes and fail-fast with type validation.
-- Do ablations via config combinations only, without code changes. Every run saves its resolved config + git hash to the output directory.
+- Put values that vary by run, experiment, deployment, or environment in resolved config; keep fixed algorithm and format invariants as named code constants. Compose experiment axes only where needed and fail fast on invalid config.
+- Do ablations via config combinations without code changes. Experiments and durable data-processing outputs save their resolved config, git hash, and invocation for reproduction.
 - Externalize LLM prompts into dedicated `.md` files rather than inline string literals, so they can be edited and reviewed without a code change.
 
 ### Environment ([03](conventions/03-environment.md))
 
 - uv (commit uv.lock) + ruff + pre-commit/CI. Dev tools go in `[dependency-groups]`.
-- Runs identically on local (macOS/CPU/MPS) and a remote GPU host (Linux, CUDA) without modification — via uv platform markers or `--torch-backend=auto`.
-- Select the device only through a single helper (based on `torch.accelerator`) — no inline `.cuda()`. Must be runnable and testable on CPU when no GPU is available.
+- ML projects targeting both local macOS (CPU/MPS) and remote Linux (CUDA) keep their source portable across those hosts; uv platform markers or `--torch-backend=auto` can route PyTorch installation.
+- Where CPU fallback is required, select the device through one helper and avoid inline `.cuda()`.
 
 ### Secret Management ([13](conventions/13-secret-management.md))
 
@@ -253,39 +252,39 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 
 ### Pipeline ([04](conventions/04-pipeline.md))
 
-- Every stage supports a `--limit N` small-sample run + input/output dump. Do a small-sample dry-run before the full run.
-- Save intermediate results per chunk + resume (skip completed portions). Save atomically via temp→`os.replace`. Stream large volumes — no loading everything into memory.
+- Data-processing stages expose a bounded sample mode and optional bounded diagnostic dumps where inspection helps.
+- For workloads that exceed the memory budget or are costly to restart, process incrementally and resume only from outputs whose completion and input identity are validated. Publish durable output atomically or with an equivalent completion protocol; stream or chunk when full materialization is too costly.
 - Long-running tasks show tqdm/rich progress + log processing throughput.
 - A bottleneck stage may be ported to a compiled language under 05's conditions; the stage rules apply unchanged, so the stage boundary is the language boundary.
 
 ### Performance ([05](conventions/05-performance.md))
 
-- CPU-bound → multiprocessing, IO-bound → asyncio. Identify bottlenecks with profiling first. Tune DataLoader's `num_workers`, `persistent_workers=True`, `pin_memory=True` and `prefetch_factor`.
-- Log per-stage GPU utilization/VRAM/RAM/CPU + throughput as structured (JSON) logs.
+- Set expected scale, time or throughput, memory, and relevant cost targets. Start with a correct measurable implementation; profile when it misses a target or repeated-run cost is material.
+- Reduce rows, columns, work, and I/O first; improve algorithms, joins, batching, layout, and serialization before adding concurrency. Tune DataLoader and CPU/IO concurrency only for a measured bottleneck.
+- Log the stage and resource metrics needed for the decision. Compare correctness, end-to-end elapsed time, peak memory, and cost on the same representative input in a comparable environment before claiming an improvement.
 - Language follows the measured bottleneck: port a stage to a compiled language (Rust/PyO3, or a standalone binary) only when it profiles CPU-bound in pure computation, its inputs and outputs are files only, and the Python-side options were measured and fail the throughput criterion the module contract carries (a contract without one makes the module no candidate); the port must build and run unmodified on both hosts 03 names. A port is a rewrite (→ 00, 06, 19).
 
 ### Testing & Verification ([06](conventions/06-testing-verification.md))
 
-- The default check is the sample run: the real entry point (CLI or `--limit N` stage, a library's caller-facing flow rather than each exported symbol, a service endpoint) on a stored sample input, asserting spec-derived properties — schema, counts and invariants, exact values for the few inputs whose answer is known. One file per entry point, one test function per criterion inside it, so most criteria are decided there.
-- Any other test needs a reason the sample run cannot supply: a branch or parser edge the sample does not reach (try adding it as a sample row first), or a check 06 or another convention names on its own terms (characterization, a double confirmed against the real system, a standing guard, 08's golden equality test). A test repeating what the sample run asserts is deleted; so is a per-function suite.
+- Start with the narrowest existing check that reaches changed behavior. For a new flow or entry point, use a representative sample run through the real entry point; an entry point alone does not justify a new test file.
+- Add a durable test only when a realistic new behavior, recurring defect, or critical invariant is missed by existing checks. Remove tests that repeat a sample run or assert implementation structure rather than caller-visible behavior; do not chase line coverage.
 - A sample run enters where a user or caller enters, mocks no module of your own, runs on a small stored sample, and follows the real sequence of stateful commands — testing commands in isolation hides defects in their order. A lane runs its own stage on the frozen boundary sample it consumes, or its own input sample where its stage comes first; a lane whose entry point imports its siblings, and the assembled project's run, belong to no lane and run on the merged head after the merge.
 - Contracts exist only where parallel lanes meet, and they are files, not tests; single-flow work is covered by its sample run. A lane boundary's contract is its sample payload plus a contract file naming each crossing symbol under its caller's name and signature, the value set both sides branch on, and which side calls which. Both are written before the lanes start and owned by none.
 - The boundary sample carries every value-set member as rows: it is the consumer lane's sample-run input, and a run checks only what its input carries. A boundary whose payload lands as JSON/YAML/TOML also gets a JSON Schema (draft 2020-12, `minItems: 1`, closed objects, `enum` for the value set): the sample must pass it at freeze, and the producing lane's criterion wipes its dump, re-runs, and checks the fresh output with a pinned `check-jsonschema`. Names, signatures, call direction and schema-less boundaries stay with review — each lane's reviewers, then the merged-whole review. An object crossing more than one lane boundary gets a single sample that every contract file points at: two samples for one object are two definitions nothing compares.
 - Build each stored payload so only the correct rule reproduces it — two properties that coincide in the sample let every implementation confusing them pass, so vary one of them in the file. A double may not assert a shape the real system never produces: confirm it against the real thing once and keep that check. No test patches over one of your own components — the substitution does not merely weaken an assertion, it removes that path from the run. Isolate a fixture from the machine it runs on and from the tests that already used it; a module-scoped fixture handed out by reference or shallow copy carries one test's mutation into the next. A sample or stored input taken from real data or traffic has its personal and customer fields replaced before it is committed — the secret scan does not catch them.
 - Justify each test: is there a realistic change that would break it, does it catch that change when no other test does, could it ever fail? Reduce the assertion to answer the last — a constant compared to a constant, or two sides through the same normalisation, is an identity wearing a test's name. A test that has never failed is a deletion candidate, and a test that fails when behaviour did not change is its mirror: a change-detector asserting implementation structure catches no defects and taxes every change — delete it or re-point it at the public behaviour.
 - Derive expected values from the specification, never by running the code under test and recording what it returns — a recorded output is true by construction, the default failure when one session writes both the implementation and its tests. The one capture allowed is characterization from the base-commit code before a rewrite. Golden values need a source other than the code under test, they update only via an explicit flag, and that diff is reviewed against the specification. Non-deterministic output (LLM text) gets property assertions only; its quality is judged statistically.
-- Cover every completion criterion with an executable check, mostly inside the sample run, or a recorded `[human]` verdict — criteria coverage must reach 100%; line coverage is a different measure and is not the target.
-- Observe every new test failing at the base commit before it passes, and keep that output. Separate "the check could not run" (missing baseline) from "the check ran and failed"; a missing test path also exits non-zero, so conflating them makes writing no test look like a passing check. Standing invariants are exempt and marked as such. A test for code that already works has no red to observe — verify it by sabotage: break the behaviour it pins, watch it fail, revert. A diff that turns a failing test green is checked for the shortcuts that pass a test without meeting it — an edited, deleted or skipped test or loosened CI threshold (read in the diff), an always-agreeing comparison operator (caught by sabotage), state recorded across calls (caught by running the same input twice) and special-cased inputs (caught by an input the test does not carry); each is a review finding.
-- A bug fix needs no dedicated regression test: it is decided by reproducing the defect before and after, with the command and decisive output kept in the fix commit's `## Result`, and adding the triggering input as a sample row is recommended where it fits and an assertion covers it. The fix is checked against the defect's siblings on neighbouring paths before it closes. Assert ML metrics with a tolerance band. CI runs the sample run on CPU to check GPU paths. TODOs/stubs/skips are blockers, not completion.
+- Cover each planned completion criterion with an existing or new executable check, or a recorded `[human]` verdict. A reused check needs no new red run. For a justified new test, observe a real failing baseline; where behavior already exists, temporarily break it and confirm the test fails. A command that could not run is `NO-BASELINE`, not a failing test.
+- Decide a bug fix by reproducing the defect before and after, with command and decisive output in the fix commit's `## Result`. Add a durable guard when a serious defect can recur and existing checks miss it. Inspect the fix's neighboring paths. Before completion, run the narrowest relevant verification and broaden only for a concrete remaining risk or required gate.
 
 ### AI/ML ([07](conventions/07-ml-development.md))
 
-- Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); check skew with a train/serve assertion inside the sample run.
+- Set seeds through a single unified helper. Training/inference import the same preprocessing function (no duplication); check skew with a train/serve assertion inside the sample run. Choose bf16 or optimized attention only when supported and representative checks show acceptable quality and performance.
 - Every run is logged to an experiment-tracking tool (Trackio by default; MLflow when self-hosting is a strong requirement) along with its config + commit. Save last-N + best + milestone checkpoints to a network volume/HF Hub. Design training to assume interruption (resumable).
 
 ### LLM ([08](conventions/08-llm-development.md))
 
-- Route frameworks by use case (single GPU → Unsloth/TRL, multi-GPU reproducibility → Axolotl, RL → TRL+vLLM, pretraining → torchtitan). torchtune is no longer actively maintained — do not adopt it for new work. FSDP2 + bf16 by default.
+- Route frameworks by use case (single GPU → Unsloth/TRL, multi-GPU reproducibility → Axolotl, RL → TRL+vLLM, pretraining → torchtitan). torchtune is no longer actively maintained — do not adopt it for new work. Select FSDP2 and bf16 when supported and justified by the workload; checkpointing, optimized attention, and packing require measured quality, time, and memory tradeoffs.
 - Chat templates use `apply_chat_template` as the single source; golden-test string identity between training and inference; specify sampling parameters explicitly in config.
 - Evaluation records even the harness/task version, fewshot count, and whether a template was applied. Judges use bidirectional ordering + cross-family + length-aware rubrics.
 
@@ -304,7 +303,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### LLM API Inference ([10](conventions/10-llm-api-inference.md), [11](conventions/11-llm-api-providers.md), [12](conventions/12-upstream-docs.md))
 
 - Provider abstraction is a thin native SDK adapter + a pure payload builder (checkable at the SDK boundary without network access). "OpenAI-compatible" covers only the wire format — capability/schema/error/token mapping is isolated per provider.
-- Cap concurrency per model + adaptively control it based on rate-limit headers. Classify errors as typed exceptions, keep a single owner for retries, and retry ensembles per member. Log failed tasks as error rows and keep the batch running.
+- Use async calls and per-model caps when request volume benefits from concurrent waiting; add adaptive rate-limit control when fixed caps miss throughput or error targets. Classify errors as typed exceptions, keep one retry owner, and isolate failed batch tasks.
 - Structured output uses a lowest-common-denominator schema + tiered fallback (native schema → json_object+prompt → parsing → validate-and-retry, capped at 2-3 attempts). Classify `finish_reason` before parsing. No sampling parameters on reasoning calls.
 - Response caching is dev/debug-only. Resume must verify a fingerprint (spec+seed+data+prompt). No hardcoding prices/model names — pin dated snapshots, log tokens+cost per row, and cap the budget.
 - Before writing provider API code, fetch and check the official docs from the canonical URL registry. For SDK usage, prefer the provider's official skill over ctx7; for exceptions/signatures, use the installed SDK source; confirm behavior not in the docs with an empirical smoke test.
@@ -312,26 +311,26 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 ### Agentic Workflow ([09](conventions/09-agentic-workflow.md))
 
 - Keep CLAUDE.md/AGENTS.md concise (bloat causes rules to be ignored), layer them per module — each AGENTS.md with its sibling CLAUDE.md, which Claude Code loads when it reads files in that directory ([15](conventions/15-doc-tracking.md) §1) — and put occasionally-used knowledge into Skills. Keep instruction anti-patterns out of them too: verification rituals, thoroughness boosters, redundant procedures/scratchpads, stale long-reasoning examples, contradictory rules, and dated configuration all cost tokens on current models without adding capability.
-- Prefer workflows/subagent orchestration for parallelization. Git worktree isolates concurrent writes to disjoint files; it does not make overlapping tasks parallel — tasks with overlapping file ownership run sequentially. Write a breakdown table (owner, files, dependencies, integration) before starting; freeze shared contracts during execution, and when one changes mid-way let the kind of change decide how much stops (→ 18 §4) rather than restarting everything; assign locks/migrations to a single owner. Name the channel a subagent must report on, not only the shape of the report, and confirm it delivered — between named agents a turn's ordinary text output reaches nobody, so an agent that writes its findings and ends its turn has answered from its own side and said nothing from yours; count a lane as answered with content, not as finished.
+- Use the direct path for small reversible work; delegate when independent context or parallel work justifies coordination cost. For planned parallel work, git worktrees isolate writes to disjoint files; overlapping ownership runs sequentially. Record owners, dependencies and integration points, freeze shared contracts, and give locks/migrations one owner. Name a subagent's report channel and confirm it delivered content.
 - Merge each branch only after its completion criteria and CI-enforced checks such as lint pass (→ 18, 06, 03) and its review has closed with no blocker (→ 20). The integration runs — one to three per project — happen at a single point, on the merged head after the last merge, not once per lane. Route models on two axes, tier and effort, not tier alone — a stronger model at lower effort can beat a weaker model pushed to high effort, so choose effort per task and re-choose it whenever the model changes rather than carrying the old setting over.
-- A merged lane is a closed lane: once the integration runs are green and the merged-whole review round has closed (→ 20), remove its worktree and delete its branch (`git worktree remove` without `--force`, `git branch -d` never `-D` — refusals are safety signals). Halted lanes keep theirs; fix rounds resume there.
+- A merged lane is a closed lane: once the integration runs are green and, for multiple lanes, the merged-seam review has closed (→ 20), remove its worktree and delete its branch (`git worktree remove` without `--force`, `git branch -d` never `-D` — refusals are safety signals). Halted lanes keep theirs; fix rounds resume there.
 - Write heavyweight spec documents only when they are an asset shared across PRs or workers; small or exploratory work uses lightweight iteration.
 
 ### Context Management ([14](conventions/14-context-management.md))
 
-- The main context is the orchestrator and sends exploration, search, and large reads to subagents (the rule is [09](conventions/09-agentic-workflow.md)'s); what 14 adds is the budget reason — a subagent reads in a separate context window, so only its summary lands in the main one. Dispatch independent work in parallel in a single batch, and run long-running work in the background.
+- Delegate substantial independent exploration when the context saved outweighs coordination overhead; small focused reads can stay in the main context. Dispatch independent work in parallel when useful and run long checks in the background when they block other work.
 - Pipeline the stages; do not put a barrier between them. A barrier is justified only when the next stage genuinely needs every result of the previous one at once — "I need to flatten the results first" and "the stages are conceptually separate" are not barriers, and neither is review (→ [20](conventions/20-review-gate.md)).
 - Keep the source of truth in files, not the conversation — persist plans/decisions/progress to external files and checkpoint at every milestone. Keep durable rules/facts in CLAUDE.md (loaded every session, re-injected after compaction) and in auto memory (survives `/clear`, but it is a setting that can be off — check before relying on it).
 - Only the root CLAUDE.md and auto memory (when enabled) reliably survive a context reset; the conversation does not. Use `/compact <focus>` before it triggers automatically, `/clear` between unrelated tasks, and re-check git status, cwd, and state artifacts right after any resume.
 
 ### Development Loop ([21](conventions/21-development-loop.md))
 
-- The main session orchestrates and does not develop — it interviews, splits, judges, and delegates every edit to a subagent. Reading a large file there costs the same budget an edit would.
+- First choose the direct `auto` path or the planned `reviewed`/`proven` loop. The planned loop interviews, splits, judges and delegates; the direct path records its purpose, relevant check and result without plan artifacts.
 - Specify by interview, not by template. Derive the axes from this project: infer from the request and the repository, check once for what recent practice adds, then keep only those naming a way this project could fail. Keep the list open during the interview and record each axis's state — that record is the only account of what was never asked.
-- Challenge the plan before asking for its approval, at the depth the done level sets; the plan is shown only once that round has closed.
+- Challenge a `proven` plan before asking for approval. A `reviewed` plan does not require a separate plan-review round.
 - Split as far as disjoint file ownership allows, and freeze every boundary with a contract file, sample and (for JSON/YAML/TOML payloads) schema written **before** the lanes start, owned by no lane; separate files do not stop two lanes holding contradictory assumptions about what crosses between them.
-- Review a lane the moment that lane finishes, not when all of them do (→ 20). Send findings back to the lane that wrote the code and re-review; end on no blockers, on most findings coming from the previous fix (change the approach), or on the round cap that calls a person.
-- Merge a lane only after its criteria pass and run the integration lane last; then review the merged whole for the seams unit reviews cannot see, and check the end-to-end condition before claiming completion.
+- Review a lane the moment it finishes, using one comprehensive reviewer for `reviewed` and expanded lenses for `proven`. Send blockers back to the author and re-review the fix.
+- Merge a lane only after its criteria pass and run the integration lane last. For multi-lane work, review the assembled seams and check the end-to-end condition before claiming completion.
 
 ### Work Contract ([18](conventions/18-work-contract.md))
 
@@ -343,28 +342,28 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - The command must reach a verdict inside the lane that owns the criterion, against that lane's work alone — a command importing a sibling lane's module fails on import and says nothing about the lane it was given to. The end-to-end condition, which is what checks a cross-lane contract file, belongs to no lane: it is checked on the merged head after the last merge.
 - Enumerate boundaries by where two lanes could believe differently, not by what data passes between them: payload shape, the name and signature of every symbol one lane calls in another, the accepted value set of a field, and the call graph itself. A consumer-only lane sends nothing outward, so a payload-derived list leaves the widest call surface uncontracted.
 - Cover functional, non-functional, and **negative** criteria (what must not happen), and state what is out of scope. A three-to-five-line contract is complete for small work.
-- Declare the done level (`auto`/`reviewed`/`proven`) up front, chosen by size × reversibility; a plan with lane boundaries is never `auto`. `auto` still passes the review lanes 20 scales the change to (at least one), none run by the author, and skips only the plan and merged-whole points; `reviewed` runs each of those once (Claude + Codex); `proven` adds one run on real data. The integration run belongs to every plan split into lanes, not to a level. Regardless of level, three things are mandatory: every criterion passes, evidence exists, and each new test was observed failing at the base commit.
-- Ask of every criterion whether it was already true at the base commit. If it was, it is a standing invariant — mark it exempt from the red check and say why. Absence criteria almost always are.
+- Choose `auto` only for narrow reversible work without external effect, shared boundary, security or data-loss risk; it needs no plan or independent review. `reviewed` is the planned default with one independent unit review; `proven` covers hard-to-reverse or high-impact work with plan challenge, expanded review and a representative real-input run. Every planned criterion needs a check or recorded human verdict; new tests for changed behavior, recurring defects or critical invariants need failing-baseline evidence.
+- Reused existing checks and standing invariants need no red record. A new test that could not run at the base commit needs a meaningful failing check after implementation, not a missing-file exit presented as red.
 - Give every lane a disjoint set of owned paths — directory prefixes where the work divides that way, cross-cutting files named individually with one owner each, since a prefix rule cannot assign a README or an ignore file. When several kinds of change land in the same documents, slice by file rather than by phase. Assign lock files, migrations, and generated files to a single owner. Record model tier and effort level per lane, never a model id.
 
 ### Evidence ([19](conventions/19-evidence.md))
 
-- Report completion as the criteria table plus the output the commands produced — no narrative summary. Prose is where a hallucinated completion hides.
-- Fill the table as each criterion turns green, not at the end, and paste what the command printed rather than describing it. Record status as a word (`PASS`/`FAIL`/`PENDING-HUMAN`/`NO-BASELINE`), never a symbol.
+- For planned work, report criteria with each exact command, exit status and decisive output. A concise summary may explain the result; retain full output for failures or when needed to investigate a high-risk claim. Direct `auto` work records the relevant check and result without a plan table.
+- Record status as a word (`PASS`/`FAIL`/`PENDING-HUMAN`/`NO-BASELINE`), never a symbol. A reused existing check needs no red evidence; a new test's failing-baseline record stays beside its result.
 - Mask secrets in the command line and environment as well as the output, before evidence leaves the machine — the pre-commit scan never sees gitignored artifacts.
 - Block completion on `PENDING-HUMAN` at every done level; a human criterion passes only once a verdict, its author, and its timestamp are recorded.
 - Name the commit and whether the tree was clean. Record every bypass with its reason — a skipped gate and a passed gate must never look alike in the record.
 
 ### Review Gate ([20](conventions/20-review-gate.md))
 
-- Every change goes through a review its author did not perform, on a tool chosen before development starts and named in the review report. The reviewer gets the diff and the criteria, never the author's reasoning. The plan and merged-whole points are the exception to "one tool": both run a Claude reviewer lane and Codex in parallel, falling back to Cursor only on Codex login failure or rate limit.
-- Completion needs executable evidence, and neither the run nor review is enough alone: a gamed run passes its tests, and review is what catches the shortcut — measured LLM monitors caught 86–89% of the cheating that tests had passed but only 42–65% on multi-file tasks, which that paper's own conclusion calls not sufficient for that harder case, and on public pull requests AI review comments were rarely acted on. A lane judging code runs the code, and reports how many commands it ran; a verdict from a lane that ran none is a reading and says so. Ask the same of the author's evidence — whether any of it ran outside the module under change, since a defect crossing a boundary appears only when something runs both sides.
-- Scale lanes to risk: a 2+ module or interface/schema change gets three lanes defined by their input — module (diff + changed files), project (diff + callers + convention docs + the lane's boundary contract files), absence (requirement + diff, hunting for what is missing); anything smaller gets one. Add a security lane only when auth, secrets, or external input is touched, and a fresh-reader lane (the explainer document alone, no code or author context) only when the deliverable is an explainer doc. Two further points are fixed by time rather than risk: a plan lane before approval and a merged-whole lane (absence-shaped, widened to the seams of the assembled change, given every boundary contract file) after the last merge, at the depth the done level sets. The merged-whole findings cross lanes, so one agent without a worktree fixes them in the main tree and the range is re-pinned to the fix commit for the re-review, before any lane's worktree is removed.
+- `auto` may finish without an independent reviewer. Planned work uses a reviewer who gets the diff and criteria without the author's reasoning; `reviewed` uses one comprehensive unit review, and `proven` expands the lenses. Security review follows actual trust-boundary risk. Multi-lane work gets a merged-seam review; `proven` also challenges the plan before approval.
+- A reviewer reports the exact number of commands run. Zero commands is a reading-only review: its source findings may stand, but it does not confirm runtime behavior. Completion claims about behavior use execution evidence from the relevant checks and independent criterion recheck.
+- Review inputs are chosen for the risk: the comprehensive lens sees the diff, callers, conventions and missing requirements; expanded `proven` lenses inspect module, project and absence separately. A fresh-reader lens applies where an explainer needs its intended reader's comprehension checked. At applicable `proven` plan and merged points, Claude and Codex review in parallel, with the documented Cursor fallback.
 - Fan-out requires fan-in, owned by the dispatching orchestrator: confirm every lane answered *with content*, dedupe by `file:line`, resolve contradictions, verify each finding against the code, rank by severity. A lane that finished is not a lane that answered — an agent can end with its report undelivered. Whatever one lane returns unchecked is multiplied by the lane count, so an unsynthesized merge hands the noise to the human.
-- Mark every finding in three states, not two: confirmed by a run, refuted by a run that reproduced nothing, unverified because nothing ran. A refutation is reported as a result. A reproduction that will not run — a gate the change added rejects the input, a state that can no longer be constructed — is a finding about the procedure and never evidence of a fix.
+- Mark every finding as confirmed by a run, refuted by a run that reproduced nothing, or inferred from reading with zero commands. A refutation is reported as a result. A reproduction that will not run — a gate the change added rejects the input, a state that can no longer be constructed — is a finding about the procedure and never evidence of a fix.
 - Severity carries an action: blocker blocks the merge and is re-reviewed by the lane that raised it, major is fixed in the same work, minor becomes a follow-up, nit may be ignored. A finding with no concrete failing scenario is a nit.
 - Lanes never switch branches in a shared worktree — one checkout erases every other lane's subject. Pin the review to two explicit commits and do not move the branch while lanes read it: a tool given only a base diffs against whatever HEAD currently is and silently re-targets itself when the dispatcher commits, so the lane reports on a subject nobody asked about — give each lane `<base>..<head>`. A finding that depends on a tool's behaviour names the version tested, and it must be the version the project pins.
-- Vendor diversity is paid at the plan and merged-whole points; a unit's own lanes may share one family, recorded in its row. Don't pin model ids in the docs — resolve them at use time and pick by role. A gate that passes is not evidence the gate works; confirm once that it fails when it should.
+- Vendor diversity is paid at the applicable `proven` plan and merged-whole points; unit reviews record the tool that answered. Don't pin model ids in the docs — resolve them at use time and pick by role. For a new or changed critical gate, confirm that it rejects the failure it was added to catch.
 
 ### Doc Tracking ([15](conventions/15-doc-tracking.md))
 
@@ -382,7 +381,7 @@ I checked the official docs and the [X] content in doc 11 has changed. Update th
 - Open every mechanism section with a one-sentence definition in words the reader already has; if it cannot be written, the section waits. Choose one analogy for the document's central contrast and carry it through every section that touches it — a second analogy only for what the first cannot carry.
 - Visualize by what is shown: structure → diagram (Mermaid in markdown, inline SVG in HTML); 3+ quantities, a trend, or a distribution → table plus one sentence, or an inline SVG chart in HTML; a concept text cannot carry → HTML only, with the same explanation in text. Single facts stay prose; a visual that cannot be introduced as "this shows X" in one sentence is decoration and gets cut.
 - Size by the fresh-reader test, not word count: the intended reader can re-explain each mechanism and act without follow-up questions — and nothing longer. Layer as summary → body with examples → deep detail.
-- HTML explainers ship as one self-contained file: no external network dependencies, encoding declared in the file, system fonts rather than embedded ones, diagrams inline, text selectable and greppable — and flow body content as one column of readable line length, sections in reading order, with no fixed sidebars (the table of contents goes inline at the top; two small figures may sit side by side). Before shipping, an explainer passes the fresh-reader review lane.
+- HTML explainers ship as one self-contained file: no external network dependencies, encoding declared in the file, system fonts rather than embedded ones, diagrams inline, text selectable and greppable — and flow body content as one column of readable line length, sections in reading order, with no fixed sidebars (the table of contents goes inline at the top; two small figures may sit side by side). Use a fresh-reader review when the intended audience or mechanism makes comprehension a completion criterion.
 - Each visual in an HTML explainer is designed from the trigger table and the mechanism it must show, never from a form picked first; every figure carries the same accessibility contract — no role on `<figure>`, which would cascade onto every descendant, but `role="img"` with a short label on the `<svg>` inside, and no meaning carried by color alone. Numeric runs use a monospace face with tabular figures while Korean labels keep the body face.
 
 ### Research Protocol ([16](conventions/16-research-protocol.md))
