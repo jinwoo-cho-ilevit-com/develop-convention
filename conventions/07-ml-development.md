@@ -4,7 +4,7 @@
 
 - Set all seeds (random/numpy/torch/CUDA/DataLoader worker) at once with a single helper.
 - Training and inference import the same preprocessing code (the same function). Don't duplicate preprocessing logic.
-- Verify train/inference consistency inside the sample run: feed the same stored input through both paths and assert the outputs match element-wise — an assertion in the run, not a separate script (→ [06-testing-verification.md](06-testing-verification.md) §5).
+- Verify train/inference consistency inside the sample run: feed the same stored input through both paths and assert the outputs match element-wise — an assertion in the run, not a separate script (→ [06-testing-verification.md](06-testing-verification.md) §4).
 - Set training speed and memory goals for the workload. Use bf16, optimized attention, or other optimizations when supported and when representative measurements show a benefit without unacceptable quality or correctness changes (→ [05-performance.md](05-performance.md)).
 - Log every run to an experiment tracking tool along with its config + git commit.
 - Checkpoints preserve last-N + best + milestones, and are stored on a network volume or HF Hub rather than temporary pod disk.
@@ -27,7 +27,6 @@ def set_seed(seed: int) -> None:
 
 - Seed DataLoader workers too, via `worker_init_fn` + `generator` — PyTorch documents both as the way to preserve reproducibility with multiple workers.
 - Document the limits: PyTorch states that **"completely reproducible results are not guaranteed across PyTorch releases, individual commits, or different platforms"**, and that results need not be reproducible between CPU and GPU executions even with identical seeds. That's why tests use tolerance bands (→ [06-testing-verification.md](06-testing-verification.md)).
-- Additional bit-exactness risks from GPU generation, batch size, and parallelism configuration (floating-point non-associativity, kernel selection) are plausible but *(unverified — needs research)* — not stated by the PyTorch notes.
 - Turn on deterministic mode by default. PyTorch warns that **"deterministic operations are often slower than nondeterministic operations"**, so measure the cost on your workload and only turn it off — recording that — once it is shown to be a bottleneck.
 
 Sources: [PyTorch — reproducibility notes](https://docs.pytorch.org/docs/stable/notes/randomness.html)
@@ -37,8 +36,7 @@ Sources: [PyTorch — reproducibility notes](https://docs.pytorch.org/docs/stabl
 If preprocessing differs between training and inference, the model silently degrades — with no exception and no error.
 
 - **Unify the code path**: define preprocessing/feature transforms in one place and have both training and inference import the same function. "Reimplementing similarly for inference" is the usual culprit behind skew.
-- **Match dtypes**: mismatches like training float32 vs. serving float64 flip results near boundary values.
-- **Replay verification**: the sample run passes a stored input through both the training and the inference preprocessing path and compares the results element-wise — the train/serve assertion of [06-testing-verification.md](06-testing-verification.md) §5. That input is its own file, separate from the known-answer sample: the assertion compares the two paths to each other, so it needs no known answer, and it can be refreshed from recent inference traffic to reach the branches real inputs take. Replace personal and customer fields before committing it ([06-testing-verification.md](06-testing-verification.md) §5, real-data samples).
+- **Replay verification**: the sample run passes a stored input through both the training and the inference preprocessing path and compares the results element-wise — the train/serve assertion of [06-testing-verification.md](06-testing-verification.md) §4. That input is its own file, separate from the known-answer sample: the assertion compares the two paths to each other, so it needs no known answer, and it can be refreshed from recent inference traffic to reach the branches real inputs take. Replace personal and customer fields before committing it ([06-testing-verification.md](06-testing-verification.md) §4, real-data samples).
 - LLM chat template consistency has its own separate rule (→ [08-llm-development.md](08-llm-development.md)).
 
 Sources: [Confluent — eliminate training-serving skew](https://www.confluent.io/blog/eliminate-training-serving-skew-mlops/), [Hopsworks — training-inference skew](https://www.hopsworks.ai/dictionary/training-inference-skew)
@@ -56,6 +54,5 @@ Sources: [Trackio](https://huggingface.co/blog/trackio)
 - **Saving**: save only from the main process, unwrap DDP/FSDP wrappers, include optimizer state. For large models, consider DCP `async_save` and safetensors when checkpoint overhead warrants them (→ [04-pipeline.md](04-pipeline.md)).
 - **Retention policy**: `latest` (for resume) + step-based last-N + best-by-metric + major milestones. Set the specific N via the project config.
 - **Storage location**: an ephemeral GPU host's local disk disappears with the host. Store on a network volume or HF Hub/bucket.
-- **Cost optimization**: use spot/interruptible pods for interruption-tolerant work (sweeps, non-urgent experiments) — which is why all training must be resumable. Use reserved only for long-running training that needs guarantees.
 
 Sources: [RunPod — reproducible training/checkpoint guide](https://www.runpod.io/articles/guides/reproducible-ai-made-easy-versioning-data-and-tracking-experiments)

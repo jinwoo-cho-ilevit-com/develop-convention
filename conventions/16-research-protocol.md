@@ -23,34 +23,9 @@
 - [12-upstream-docs.md](12-upstream-docs.md) covers **how to look up SDK/API usage** for implementation (its source tiers are in §1 there).
 - This document governs **factual-spec research as a deliverable** — building comparisons, lineups, recommendations, or any document whose claims are facts about external products. The failure mode it prevents is different from 12's: not "wrong API call" but "confidently wrong facts assembled from memory."
 
-### 2. Prior knowledge: queries only, never results (governing rule)
-
-Training data always lags reality, and for fast-moving domains (AI model lineups, pricing, capabilities) it lags badly. The trap is subtle: prior knowledge feels like knowledge, so a model (or person) "completes" a table from memory and the result looks thoroughly researched while being stale or invented.
-
-The rule that prevents this: prior knowledge may propose **where to look** (query terms, candidate names, hypotheses to test), but every cell of the final deliverable must be backed by a source actually fetched during this research session. A gap marked "unverified — needs research" is a correct result; a plausible number from memory is not.
-
-### 3. Source tier (hard rule)
+### 2. Source tier (hard rule)
 
 | Tier | Source | Role |
 |---|---|---|
 | Authoritative | Official org page, model card, collection, changelog, API docs | The ONLY basis for enumeration facts (variants, sizes, dates, license, modality) |
 | Leads | Search snippets, leaderboards, news, third-party blogs | Pointers to fetch the canonical page — never citable as proof |
-
-When a semantic search tool (exa) is available, prefer it for discovering sources — a semantically phrased query ("the official page listing every model in the X family") surfaces canonical pages that keyword search buries. What it returns still lands in the leads tier: the fetched canonical page is the proof, not the search result.
-
-Search ranking is optimized for popularity, not completeness — a newly released or small variant ranks low or not at all. For completeness questions, query the registry directly with structured filters (e.g. Hugging Face Hub: `pipeline_tag` + `sort=created` + parameter-count filter) instead of keyword search alone.
-
-### 4. Negative and universal claims
-
-"Absence of evidence ≠ evidence of absence." A claim of the form "no model under 1B supports X" or "the smallest variant is N" asserts something about the **entire registry**, so it can only be verified by enumerating the registry — not by observing that a search didn't surface a counterexample. If enumeration wasn't done, write "unverified" instead of asserting.
-
-### 5. Coverage
-
-Emergent discovery (following links from search results) is biased toward what is popular. Two mechanical guards:
-
-- For every vendor/library named in the research scope, fetch its official latest collection/release page at least once.
-- Before searching, collect canonical URLs already known to the repo (existing doc citations) and treat them as a must-fetch list.
-
-### 6. Contradictions
-
-When fresh research contradicts an existing claim in this repo's docs, neither silently overrides the other. Surface the conflict, fetch the primary source, and update whichever side is wrong — the repo claim may be stale, or the new finding may be misread.

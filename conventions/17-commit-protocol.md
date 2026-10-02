@@ -7,7 +7,7 @@
 - Header (required, imperative, **<=72 characters** — counted in characters, not bytes, so a Korean summary gets the full 72): `<type>(<scope>): <summary>`.
 - **type**: `feat` `fix` `refactor` `perf` `docs` `test` `chore` `build` `ci` `style` `revert` `exp` (experiment). **scope**: module/area, optional. Breaking change: append `!` after type/scope.
 - Body is **required** for `feat`/`fix`/`refactor`/`perf`, recommended otherwise, using the Korean markdown sections `## Why` / `## What` / `## How` / `## Result`. Trivial commits (typo, formatting, one-liner) may use header + a one-line `## Why` only.
-- Never fabricate `## Result` or metrics — write "측정 안 함" (not measured) if unverified. A `fix` commit cannot write "측정 안 함": its `## Result` carries the defect's reproduction before and after the fix, command and decisive output ([06-testing-verification.md](06-testing-verification.md) Core Rules), masked first because a commit body is pushed (secrets per [19-evidence.md](19-evidence.md) §2, personal and customer fields per [06-testing-verification.md](06-testing-verification.md) §5).
+- Never fabricate `## Result` or metrics — write "측정 안 함" (not measured) if unverified. A `fix` commit cannot write "측정 안 함": its `## Result` carries the defect's reproduction before and after the fix, command and decisive output ([06-testing-verification.md](06-testing-verification.md) Core Rules), masked first because a commit body is pushed (secrets per [19-evidence.md](19-evidence.md) §1, personal and customer fields per [06-testing-verification.md](06-testing-verification.md) §4).
 - No emoji anywhere in the message — header, body, or trailers. `git log` output is scanned and grepped as plain text (→ [01-structure-naming.md](01-structure-naming.md)).
 - One logical change per commit. Before committing, survey the working tree and group changes by intent; never commit a mixed bag (feature + reformatting + incidental refactor).
 - Machine-parseable trailers when relevant: `Intent:` (classification tag), `Impact:` (one-line effect), `Refs:` (files, #issues, doc paths), `Experiment:` (stable research id, reused across a series of related commits).
@@ -15,16 +15,7 @@
 
 ## Details
 
-### 1. Header
-
-```
-<type>(<scope>): <summary>
-```
-
-- Imperative mood, <=72 characters counted in characters (Korean summaries are not penalized by byte counting).
-- scope examples: `(snapshots)`, `(corpus)`.
-
-### 2. Body template
+### 1. Body template
 
 Write it so that **왜·무엇을·어떻게·결과** (why / what / how / result) is understandable much later without opening the diff. The template below is copied verbatim into commit bodies (section descriptions in Korean by policy):
 
@@ -43,7 +34,7 @@ Write it so that **왜·무엇을·어떻게·결과** (why / what / how / resul
 - fix면 결함 재현 명령과 수정 전/후 결정적 출력 (마스킹 후, "측정 안 함" 불가)
 ```
 
-### 3. Trailers (machine-parseable footer)
+### 2. Trailers (machine-parseable footer)
 
 ```
 Intent: <classification tag, e.g. bugfix-hotpath>
@@ -55,50 +46,14 @@ Experiment: <stable research id, e.g. auth-cache-2026-06-13>
 - The `Experiment:` trailer ties a series of commits to one research thread; reuse the same id across related commits.
 - Extraction later: `git log --format='%h %s%n%b' --grep='Experiment: <id>'`.
 
-### 4. Full example
+### 3. Result example
 
-Korean summary + Korean body + English type/scope:
+A `fix` commit's `## Result`:
 
 ```
-fix(auth): JWT 공개키를 캐시해 토큰 검증 지연 제거
-
-## Why
-- 매 요청마다 JWKS를 네트워크에서 다시 받아 p99에 ~1s가 더해졌다.
-- #482에서 부하 시 간헐적 로그인 타임아웃이 보고됐다.
-
-## What
-- `auth/jwks.py`에 JWKS용 인메모리 TTL 캐시 추가.
-- 캐시 미스 또는 `kid` 불일치 시에만 지연 갱신.
-
-## How
-- issuer 키로 10분 TTL. 시작 시 스레드를 늘리지 않으려고 백그라운드 워커 대신
-  지연 갱신 방식을 택했다.
-
 ## Result
 - 재현: `uv run python scripts/bench_login.py --rps 200 --duration 60`
   - 수정 전: `p99=1203ms jwks_fetches=11874`
   - 수정 후: `p99=181ms jwks_fetches=3`
 - auth 테스트 전부 통과, 토큰 검증 로직 변경 없음.
-
-Intent: bugfix-hotpath
-Impact: 로그인 p99 지연 1200ms -> 180ms
-Refs: auth/jwks.py, #482
 ```
-
-### 5. Splitting into logical units
-
-Before committing, inspect the working tree and group changes by intent — never commit a mixed bag.
-
-1. **Survey**: run `git status` and `git diff` (and `git diff --staged`) to see every pending change.
-2. **Classify** each change into one logical group: feature, fix, refactor, formatting, docs, test, chore. A different *intent* means a different commit, even within one file.
-3. **Stage per group**, then commit before moving to the next:
-   - Whole-file groups: `git add <path> ...`
-   - Mixed changes inside one file: `git add -p <path>` to select only the relevant hunks (interactive `git add -i` is unavailable in some harnesses; prefer `-p`, or split via temporary `git stash -p`).
-4. **Verify isolation**: `git diff --staged` should show only the current group before each commit.
-5. **Order** commits so each one builds/tests green on its own (dependencies first).
-
-Never mix unrelated work — e.g. a feature + reformatting + an incidental refactor — in a single commit.
-
-### 6. Why git log as a research note
-
-A commit body written to this protocol makes `git log` a self-contained research narrative: motivation, alternatives considered, and measured outcomes survive even when the surrounding docs rot. This is the L4 history layer of [15-doc-tracking.md](15-doc-tracking.md) — structured commits are where history and the decisions behind it are recorded and searched for.

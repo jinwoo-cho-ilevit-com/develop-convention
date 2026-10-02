@@ -207,55 +207,54 @@ SABOTAGE = [
         "a section reference wrapped over two lines still resolves",
         "conventions/02-config.md",
         "# 02. Central Config + Ablation",
-        "# 02. Central Config + Ablation\n\nSee [18-work-contract.md](18-work-contract.md)\n"
-        "§55 here.\n",
-        [("conventions/02-config.md", "18-work-contract.md has no §55 to point at")],
+        "# 02. Central Config + Ablation\n\nSee "
+        "[06-testing-verification.md](06-testing-verification.md)\n§55 here.\n",
+        [("conventions/02-config.md", "06-testing-verification.md has no §55 to point at")],
     ),
     (
         "section cross references resolve",
-        "conventions/06-testing-verification.md",
-        "[18-work-contract.md](18-work-contract.md) §5, and its sample",
-        "[18-work-contract.md](18-work-contract.md) §55, and its sample",
+        "conventions/05-performance.md",
+        "[06-testing-verification.md](06-testing-verification.md) §1",
+        "[06-testing-verification.md](06-testing-verification.md) §55",
         [
             (
-                "conventions/06-testing-verification.md",
-                "18-work-contract.md has no §55 to point at",
+                "conventions/05-performance.md",
+                "06-testing-verification.md has no §55 to point at",
             )
         ],
     ),
     (
         "every §n of a run is checked, not only the first",
-        "conventions/21-development-loop.md",
-        "[06-testing-verification.md](06-testing-verification.md) §1, §7",
-        "[06-testing-verification.md](06-testing-verification.md) §1, §77",
-        [("conventions/21-development-loop.md", "06-testing-verification.md has no §77")],
+        "conventions/07-ml-development.md",
+        "[06-testing-verification.md](06-testing-verification.md) §4",
+        "[06-testing-verification.md](06-testing-verification.md) §4, §77",
+        [("conventions/07-ml-development.md", "06-testing-verification.md has no §77")],
     ),
     (
         "the target is read from the link URL, not the link text",
-        "conventions/11-llm-api-providers.md",
-        "(→ [10](10-llm-api-inference.md) §5)",
-        "(→ [10](10-llm-api-inference.md) §55)",
+        "conventions/08-llm-development.md",
+        "[22-framework-wrapping.md](22-framework-wrapping.md) §6",
+        "(→ [22](22-framework-wrapping.md) §55)",
         [
             (
-                "conventions/11-llm-api-providers.md",
-                # gitleaks:allow — a document name beside the word "api", not a key
-                "10-llm-api-inference.md has no §55",
+                "conventions/08-llm-development.md",
+                "22-framework-wrapping.md has no §55",
             )
         ],
     ),
     (
         "a §n with no link before it points inside its own document",
         "conventions/05-performance.md",
-        "the conditions in §5.",
+        "the conditions in §4.",
         "the conditions in §55.",
         [("conventions/05-performance.md", "no §55 in this document to point at")],
     ),
     (
         "section numbering is contiguous",
         "conventions/05-performance.md",
+        "### 4.",
         "### 5.",
-        "### 6.",
-        [("conventions/05-performance.md", "section numbering skips: [1, 2, 3, 4, 6]")],
+        [("conventions/05-performance.md", "section numbering skips: [1, 2, 3, 5]")],
     ),
     (
         "an as-of stamp is inside the reverification window",

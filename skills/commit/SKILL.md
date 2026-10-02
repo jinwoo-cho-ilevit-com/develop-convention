@@ -5,9 +5,7 @@ description: Routes to the commit protocol — header form, which types require 
 
 # commit — The Commit Protocol
 
-Routing procedure for convention [17-commit-protocol.md](../../conventions/17-commit-protocol.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
-
-Read the document from `${CLAUDE_PLUGIN_ROOT}/conventions/17-commit-protocol.md` — the project you are working in does not carry a copy. This file routes to it and does not restate it; the template and the worked examples live there.
+Routing procedure for convention [17-commit-protocol.md](../../conventions/17-commit-protocol.md).
 
 ## What 17 decides
 
@@ -28,16 +26,3 @@ The step that gets skipped is the first one, and skipping it is what produces th
 ## Boundaries with other skills
 
 What the code should have looked like before it was committed is [code-and-config](../code-and-config/SKILL.md). Whether it is finished at all is [verify-and-review](../verify-and-review/SKILL.md) — a commit is not a completion claim, and 19 governs the latter.
-
-## When documents disagree
-
-[00-principles.md](../../conventions/00-principles.md) takes precedence.
-
-## Use From Other Tools
-
-Claude Code gets this skill from the `dev-harness` plugin; nothing is copied into the project. Tools that do not read plugins need a pointer in AGENTS.md instead:
-
-```
-Before committing, follow the routing at
-https://jinwoo-cho-ilevit-com.github.io/develop-convention/skills/commit/SKILL/
-```

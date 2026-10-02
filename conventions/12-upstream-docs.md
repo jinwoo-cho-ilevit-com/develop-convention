@@ -21,7 +21,7 @@ Provider API knowledge goes stale on a timescale of months (the silent `output_f
 | Tier | Source | Purpose |
 |---|---|---|
 | Tier 1 | Canonical URL registry below (official docs) | API specs, parameters, constraints, pricing, deprecations — the source of facts |
-| Tier 1.5 | Provider official skill (§2.1 below) | On-demand knowledge bundle maintained directly by the provider — takes priority over Tier 2 when available |
+| Tier 1.5 | Provider official skill (§2) | On-demand knowledge bundle maintained directly by the provider — takes priority over Tier 2 when available |
 | Tier 2 | context7 (`ctx7` CLI/MCP) | SDK usage, code examples, version migration |
 | Tier 3 | Installed SDK source/type definitions | Exception hierarchy, signatures, defaults — the locked version is authoritative |
 | Tier 4 | Provider-specific smoke tests | Empirical confirmation of undocumented behavior (feature combinations, actual error shapes) |
@@ -30,47 +30,20 @@ Web search is for lead-finding only. Facts are confirmed only through Tiers 1–
 
 ### 2. Canonical URL Registry (as of: 2026-08)
 
-When starting work related to a provider, fetch the URL in the corresponding row. Check whether the provider offers an `llms.txt` (a documentation index for agents), and if so, add it to this table.
+When starting work related to a provider, fetch the page you need under its docs root. Check whether the provider offers an `llms.txt` (a documentation index for agents), and if so, add it here.
 
-**OpenAI** — https://developers.openai.com/api/docs/
-- guides/structured-outputs · guides/reasoning · guides/rate-limits · guides/batch · guides/prompt-caching · deprecations (top level, not under guides/)
-- Reference parallel-processing implementation: https://github.com/openai/openai-cookbook/blob/main/examples/api_request_parallel_processor.py
-
-**Anthropic** — https://platform.claude.com/docs/en/
-- build-with-claude/structured-outputs · build-with-claude/effort · build-with-claude/thinking · build-with-claude/prompt-caching · build-with-claude/batch-processing · build-with-claude/streaming
-- api/rate-limits · about-claude/models/model-ids-and-versions
-- agents-and-tools/tool-use/tool-search-tool · build-with-claude/prompt-engineering/prompting-claude-<model> (per-model prompting guides) (as of: 2026-09)
-
-**Google Gemini** — https://ai.google.dev/gemini-api/docs/
-- structured-output · thinking · models · troubleshooting
-
-**DeepSeek** — https://api-docs.deepseek.com/
-- guides/json_mode · guides/thinking_mode · quick_start/pricing
-
-**OpenRouter** — https://openrouter.ai/docs/
-- guides/features/structured-outputs · guides/overview/auth/byok · limits
+| Provider | Docs root |
+|---|---|
+| OpenAI | https://developers.openai.com/api/docs/ |
+| Anthropic | https://platform.claude.com/docs/en/ |
+| Google Gemini | https://ai.google.dev/gemini-api/docs/ |
+| DeepSeek | https://api-docs.deepseek.com/ |
+| OpenRouter | https://openrouter.ai/docs/ |
 
 For the ML/training stack (torch, TRL, vLLM, etc.), the source links in [08-llm-development.md](08-llm-development.md) are the seed. When a new library is adopted, leaving its official docs URL as a source in the corresponding convention document is itself the registry entry.
 
-### 2.1 Provider Official Skills (as of: 2026-09)
-
-Agent Skills is an open standard — a folder holding a `SKILL.md` (with `name` and `description`) plus optional scripts and references — originally developed by Anthropic and then released as an open standard. Claude Code, Codex, Cursor, and Gemini CLI all read it, as do a long tail of other agents. If a provider offers an official skill, install and use it, and prioritize it over ctx7 when checking SDK usage. It does not replace the Tier 1 fetch the Core Rules require: a fact such as a parameter's existence, a limit, or a model name is still confirmed on the registry page.
-
-| Provider | Official skill | Install |
-|---|---|---|
-| Google | `gemini-api-dev` (general development), `gemini-live-api-dev` (real-time), `gemini-interactions-api`, `gemini-omni-flash-api` | `npx skills add google-gemini/gemini-skills --skill <name>` or ctx7 (the flags the README documents are `--list` and `--skill`; no `--global` appears, checked 2026-09-19) |
-| Anthropic | Claude Code ships a bundled `claude-api` skill. Use `/claude-api prompt-audit` to audit prompts and tool descriptions for patterns written for older models (Claude Code 2.1.221) and `/claude-api cost-optimize` to profile a project's Claude API spend and work through the cost levers (caching, token hygiene, batch, effort, model choice) one measured change at a time (2.1.247). Also see the anthropics/skills marketplace (`document-skills`, `example-skills`). A `hillclimb` subcommand is not in the changelog (unverified — needs research). | Built in to Claude Code; marketplace skills: `/plugin marketplace add anthropics/skills` then `/plugin install` |
-| OpenAI | Dedicated API-development skill **(unverified — needs research)**. Codex itself reads the standard from `.agents/skills`, but the `openai/skills` catalog repo is deprecated in favor of `openai/plugins` (author new ones as skill-only plugins) | — Use the Tier 1/2 path, re-check periodically |
-| DeepSeek / OpenRouter | **(unverified — needs research)** | — Use the Tier 1/2 path, re-check periodically |
-
-Sources: [Agent Skills — open standard](https://agentskills.io), [Claude Code — skills](https://code.claude.com/docs/en/skills), [Codex — build skills](https://learn.chatgpt.com/docs/build-skills), [Gemini — coding agents](https://ai.google.dev/gemini-api/docs/coding-agents), [google-gemini/gemini-skills](https://github.com/google-gemini/gemini-skills), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills (deprecation notice)](https://github.com/openai/skills), [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md)
+Provider official skills follow the [Agent Skills](https://agentskills.io) open standard (a folder holding a `SKILL.md`); check the provider's docs for one before falling back to ctx7. A skill does not replace the Tier 1 fetch: a parameter's existence, a limit, or a model name is still confirmed on the registry page.
 
 ### 3. Provider Smoke Tests (Tier 4)
 
 Each provider adapter has a minimum smoke set: one basic call, one structured output call, one thinking/reasoning combination, and error classification verification (confirm a typed exception with an invalid parameter). Run it: when writing a new adapter, upgrading the SDK, or changing the target model. Cost runs about 1–2 calls per task.
-
-Combinations the docs are silent on (e.g., a given provider's thinking × structured output combined) are confirmed with this smoke test, and the result is recorded in the capability table ([11-llm-api-providers.md](11-llm-api-providers.md)) along with a date stamp.
-
-### 4. How This Reaches a Project
-
-In Claude Code, the dev-harness plugin's `external-sources` skill routes to this document the moment provider-API work starts, rather than having any of it pasted into a project's CLAUDE.md/AGENTS.md — an excerpt is a copy, and README's "How to Apply" forbids that path. Tools and cloud sandboxes without the plugin installed read this document directly from the published site, https://jinwoo-cho-ilevit-com.github.io/develop-convention/. The criterion for what belongs in an on-demand skill rather than an always-loaded instruction file is in [09-agentic-workflow.md](09-agentic-workflow.md) §1.

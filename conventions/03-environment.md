@@ -65,24 +65,3 @@ explicit = true
 Method B — `--torch-backend=auto` (or `UV_TORCH_BACKEND=auto`): detects the CUDA driver at install time to pick the index, falling back to CPU if none is found. Suited to ephemeral environments with changing GPU configurations.
 
 Sources: [uv — PyTorch integration](https://docs.astral.sh/uv/guides/integration/pytorch/) (uses `whl/cu130` in its own example), [PyTorch wheel index listing](https://download.pytorch.org/whl/) (as of: 2026-08)
-
-### 3. Device Abstraction (CPU Fallback)
-
-For projects requiring CPU fallback, select the device through one helper. Base it on the `torch.accelerator` API (a unified CUDA/MPS/XPU abstraction), but guard it since older torch versions lack this API.
-
-```python
-def get_device() -> torch.device:
-    if hasattr(torch, "accelerator") and torch.accelerator.is_available():
-        return torch.accelerator.current_accelerator()
-    return torch.device("cpu")
-```
-
-- Make the device overridable via config when users need to force CPU execution (`device: cpu`).
-- Avoid inline `.cuda()` or `"cuda:0"` strings in portable code; they break CPU fallback.
-- How CI exercises GPU code paths without a GPU is [06-testing-verification.md](06-testing-verification.md) §5.
-
-Sources: [PyTorch — accelerator device API](https://docs.pytorch.org/docs/main/accelerator/device.html)
-
-### 4. Docker
-
-When using Docker, combine it with uv and keep it thin: copy only the lockfile and pyproject.toml first → run `uv sync` as a cache layer → then copy the source. uv.lock handles reproducibility; the image handles the Linux/CUDA runtime.

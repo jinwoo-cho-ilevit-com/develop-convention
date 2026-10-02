@@ -11,7 +11,6 @@ DEFAULT_READ_LINE_LIMIT = 500
 # What a line of source costs when the limit is expressed in lines but the file is minified.
 BYTES_PER_LINE = 200
 CHUNK = 1 << 20
-PLAN_DIR_NAME = ".plans"
 AGENTS_FILE_NAME = "AGENTS.md"
 UNPARSEABLE = (
     "dev-harness cannot run: the hook payload is not a JSON object. Refusing rather than "
@@ -79,11 +78,9 @@ def main():
     path = tool_input.get("file_path")
     path = path if isinstance(path, str) else ""
 
-    # The plan, the lane briefs and AGENTS.md are the orchestrator's own artifacts. A `..`
-    # segment forfeits the exemption, since such a path can name the exempt file and land elsewhere.
+    # AGENTS.md is the orchestrator's own artifact. A `..` segment forfeits the exemption,
+    # since such a path can name the exempt file and land elsewhere.
     if ".." not in path.split("/"):
-        if path.startswith(PLAN_DIR_NAME + "/") or "/" + PLAN_DIR_NAME + "/" in path:
-            allow()
         if path == AGENTS_FILE_NAME or path.endswith("/" + AGENTS_FILE_NAME):
             allow()
 

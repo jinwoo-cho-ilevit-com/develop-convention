@@ -9,8 +9,7 @@
 - The primary update mechanism is change-time sync (`/docsync` — each module is resynced when its own directory changed since its own last verified commit, with no shared pointer across modules; the first run covers everything, i.e., bootstrap). Scheduled runs are audit-only — do not periodically regenerate narrative docs wholesale.
 - Audit starts by confirming sync itself is alive (dead-man's switch: warn first if N commits/M days have passed since the *oldest* module's last sync — the newest keeps reading fresh while everything around it rots). The core check is a blind rebuild — block out the existing docs, rewrite from code alone, diff claim-by-claim, and report any claim that can't be backed by a code citation as a hallucination candidate. Wording differences with the same meaning are not treated as drift.
 - If a human edits a managed section, don't silently revert it — log the reason code to the corrections log and feed it into future generation prompts (RMA loop). If contradictory reasons pile up for the same section, demote that section to human ownership.
-- Standardize visualizations on Mermaid (it's text, so it's diffable/reviewable, GitHub renders it natively, and agents can read and write it). Generate module dependency graphs with deterministic tools (pydeps, madge, etc.) rather than maintaining them by hand. This governs the four layers above; human-facing explainer deliverables choose their visual form under [24-explainer-docs.md](24-explainer-docs.md).
-- Include a "code change ↔ doc update consistency" check in the review gate (→ [20-review-gate.md](20-review-gate.md)).
+- Standardize visualizations on Mermaid (it's text, so it's diffable/reviewable, GitHub renders it natively, and agents can read and write it). Generate module dependency graphs with deterministic tools (pydeps, madge, etc.) rather than maintaining them by hand.
 - When something ships, update what distributes it in the same change: the installer or bootstrap script, the getting-started page, the excerpt loaded elsewhere, the navigation of the published site. Docs-follow-code covers the description; nothing covers the delivery path, and it is the one that leaves a working artifact unreachable.
 - An excerpt is a copy, copies drift, and one that drifts is worse than the original being wrong — it is loaded everywhere and matches nothing. Prefer a **generated** excerpt: a consumer file declares marker blocks that `scripts/fill-excerpts.py` fills verbatim from a document's Core Rules, so the copy either regenerates or fails loudly when the source moves — it cannot drift silently. An excerpt a human authored instead carries a header naming its source document and the commit it was taken at, checked against the source automatically.
 
@@ -20,19 +19,12 @@
 
 "Overall flow, per-module implementation logic, I/O contracts, and change history" are information with different rates of change and different natures. Bundled into one large document, the whole thing rots at the pace of its most expensive-to-update part. The principle is to give each layer the mechanism and update owner that fits it.
 
-| Layer | Tracks | Mechanism | Update owner |
-|---|---|---|---|
-| L1 | I/O contracts | The code itself (type hints, pydantic and other schemas). If docs are needed, generate them from code | Automatic |
-| L2 | Per-module implementation logic | Per-directory AGENTS.md — role, core logic (input→processing→output narrative, invariants, edge cases), Mermaid, pitfalls | Agent + human review |
-| L3 | Overall flow | Root ARCHITECTURE.md — per-entry-point sequence diagram + dependency graph | Agent + human review |
-| L4 | Decisions/change history | Structured commit body (Why/What/How/Result) | Human (agent drafts) |
-
 - Why L1 isn't hand-written: a hand-written I/O doc becomes harmful the moment it diverges from the code. If the code is the single source, drift in this layer is structurally impossible.
 - Why L2 lives in per-directory AGENTS.md: docs crammed into the root don't show up in the diff, so they rot. Placed next to the code, the doc appears in the same diff that fixes the module, and it reaches the agent working in that directory — the tracking system and the agent's context system become the same artifact. Codex and Cursor read AGENTS.md themselves. Claude Code reads CLAUDE.md, not AGENTS.md, and a subdirectory's CLAUDE.md is "included when Claude reads files in those subdirectories", so each AGENTS.md needs a sibling CLAUDE.md that imports it ([Claude Code — memory](https://code.claude.com/docs/en/memory), checked 2026-09-12).
-- **The sibling CLAUDE.md.** Every AGENTS.md, at the root or in a directory, has a CLAUDE.md beside it whose only line is `@AGENTS.md` — bare in the file, since inside backticks it is text, not an import. The one exception is the root of a project that keeps its CLAUDE.md at `./.claude/CLAUDE.md`: that file imports the root AGENTS.md as `@../AGENTS.md`, and no second import is created beside it. Create it wherever an AGENTS.md has none, every AGENTS.md already in the tree included. Never overwrite an existing CLAUDE.md: leave one that is a symlink to AGENTS.md alone, and add the line as the first line of any other only after confirmation, moving into AGENTS.md rather than duplicating anything it already says that AGENTS.md would hold. Setup, docsync and the harness's lanes apply this rule by pointing here.
+- **The sibling CLAUDE.md.** Every AGENTS.md, at the root or in a directory, has a CLAUDE.md beside it whose only line is `@AGENTS.md` — bare in the file, since inside backticks it is text, not an import. The one exception is the root of a project that keeps its CLAUDE.md at `./.claude/CLAUDE.md`: that file imports the root AGENTS.md as `@../AGENTS.md`, and no second import is created beside it. Create it wherever an AGENTS.md has none, every AGENTS.md already in the tree included. Never overwrite an existing CLAUDE.md: leave one that is a symlink to AGENTS.md alone, and add the line as the first line of any other only after confirmation, moving into AGENTS.md rather than duplicating anything it already says that AGENTS.md would hold. Setup and docsync apply this rule by pointing here.
 - At the function level, use docstrings: they need to live in the same file as the code so they follow along through refactors.
 
-Summary principle: **Generate whatever can be generated, have humans write only the "why," and enforce updates with a gate.**
+Summary principle: **Generate whatever can be generated, and have humans write only the "why."**
 
 ### 2. The docsync Skill — Incremental Sync
 
@@ -45,40 +37,20 @@ The update procedure is packaged as a skill in [skills/docsync/SKILL.md](../skil
 | Trigger | Method | Role |
 |---|---|---|
 | Manual | `/docsync` at the end of a task | Primary mechanism |
-| Review gate | Include "code change ↔ doc update consistency" as a review item | Prevents omissions |
 | Scheduled | `/docsync --audit` (e.g., weekly) | Drift audit + global consistency |
 
 Why time-based wholesale regeneration isn't the primary mechanism: by the time documentation happens, the context of the change (the "why") has already evaporated, turning it into diff archaeology and guesswork; and if an LLM periodically regenerates narrative docs wholesale, the prose style drifts and the diffs balloon until nobody reviews them anymore. The only areas where scheduled runs fit are regenerating deterministically derived artifacts (diagrams) and auditing repository-wide consistency.
 
-### 3. The Verification Layer — Mechanisms That Keep Docs From Rotting
+### 3. The Verification Layer
 
-The design rationale is the common limitation of documentation tools that only generate. Even doc-it — the closest existing skill (generation, audit, and update support) — has its author state as limitations that "it's manual-trigger-only, so docs go stale silently as code changes" and that "it can generate content that sounds plausible but doesn't exist." The mechanisms below close that gap.
-
-Sources: [dosu — A Claude Code Skill for Auto-Generating Project Docs](https://dosu.dev/blog/claude-code-skill-doc-it)
-
-- **dead-man's switch**: a dead sync pipeline looks identical to a healthy one. The first check in an audit isn't the docs — it's "is sync still alive?"
-- **Freshness stamp**: record the verification commit and date on every managed block, and insert a staleness banner once a threshold is exceeded. The real failure mode is a stale doc being read with the same authority as a current one.
-- **blind rebuild**: because incremental sync regenerates using the previous doc as scaffolding, early hallucinations get laundered into established fact. Break this chain by comparing a version rewritten with the existing doc blocked out against the maintained version, claim by claim. For claims that exist only in the maintained version, attempt a code citation — citation failure = hallucination candidate. Confirmed hallucinations are deleted; genuine tacit knowledge is promoted to a human section, ending the pretense of "derived from code."
-- **Tolerance**: don't misjudge same-meaning wording differences as drift and repeatedly rewrite a perfectly fine doc.
-- **RMA loop**: a human edit is a learning signal, not something to discard. A managed section's hash mismatch with no corresponding code diff is detected as human intervention; log the reason code (wrong/stale/unclear/granularity) to `.docsync/corrections.jsonl` and feed it as a negative example into future generation of the same section type.
+- **blind rebuild**: because incremental sync regenerates using the previous doc as scaffolding, early hallucinations get laundered into established fact. Comparing a version rewritten with the existing doc blocked out against the maintained version, claim by claim, breaks this chain. Confirmed hallucinations are deleted; genuine tacit knowledge is promoted to a human section.
+- **RMA loop**: a managed section's hash mismatch with no corresponding code diff is detected as human intervention; log the reason code (wrong/stale/unclear/granularity) to `.docsync/corrections.jsonl` and feed it as a negative example into future generation of the same section type.
 
 ### 4. The History Layer — Commits
 
 - History is carried by the structured commit body (Why/What/How/Result) — write it so a dev note can be reconstructed from `git log` alone (→ [17-commit-protocol.md](17-commit-protocol.md)).
 - Record failures too: a reverting or rolling-back commit states in its body what was tried and why it did not work. What's actually needed during incident response is the record that "that approach was already tried and it failed", and `git log` is where it is searched for.
 
-### 5. Visualization
-
-- Standardize on Mermaid: because it's text-based, it works with git diff and review, GitHub renders it natively in markdown code blocks, and agents can read and write it, so it fits naturally into the update pipeline.
-- Don't hand off to the LLM anything that can be generated deterministically: generate module dependency graphs from the output of tools like pydeps (Python) or madge (JS/TS). The LLM generates only things that require judgment, like sequence/flow diagrams, and a human reviews them.
-
-Sources: [GitHub — Include diagrams in your Markdown files with Mermaid](https://github.blog/developer-skills/github/include-diagrams-markdown-files-mermaid/)
-
-### 6. Applying This to a Project
-
-1. Install the `dev-harness` plugin; [skills/docsync/SKILL.md](../skills/docsync/SKILL.md) comes with it. Tools that do not read plugins get a one-line pointer to the published copy from AGENTS.md instead.
-2. The first `/docsync` run is the bootstrap — there is no separate initialization procedure.
-
-### 7. Generated Excerpts
+### 5. Generated Excerpts
 
 A consumer that needs a subset of this repository's rules (an agent's always-on rules file, a tool-specific instruction file) declares what it excerpts with marker blocks; `scripts/fill-excerpts.py` fills each block verbatim from the named document's Core Rules bullets, selected by anchors that must match exactly one bullet. The marker syntax and CLI live in the script's docstring. The failure contract is the point: a reworded source bullet makes the fill fail loudly instead of leaving a stale copy behind, which replaces stamp-and-audit maintenance for these consumers.

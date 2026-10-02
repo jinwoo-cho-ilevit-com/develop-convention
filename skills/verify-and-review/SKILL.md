@@ -1,47 +1,26 @@
 ---
 name: verify-and-review
-description: Routes to the conventions that govern testing, evidence, and the review gate. Use before claiming a task complete, when deciding which tests to write or run, or when reviewing a diff.
+description: Routes to the conventions that govern testing and evidence. Use before claiming a task complete, when deciding which tests to write or run, or when reporting what a check showed.
 ---
 
-# verify-and-review — Tests, Evidence, and the Review Gate
+# verify-and-review — Tests and Evidence
 
-Routing procedure for conventions [06-testing-verification.md](../../conventions/06-testing-verification.md), [19-evidence.md](../../conventions/19-evidence.md) and [20-review-gate.md](../../conventions/20-review-gate.md). This file is a tool-neutral procedure — in Claude Code it runs as a skill; other agents (Codex/Cursor, etc.) read this file and follow the same procedure.
-
-Read the documents from `${CLAUDE_PLUGIN_ROOT}/conventions/` — the project you are working in does not carry a copy. This file routes to them and does not restate them; a rule written twice drifts.
+Routing procedure for conventions [06-testing-verification.md](../../conventions/06-testing-verification.md) and [19-evidence.md](../../conventions/19-evidence.md).
 
 ## Which document decides what
 
 | Question | Document |
 |---|---|
 | What the sample run checks, and when a test beyond it is warranted | 06 |
-| What a lane boundary's contract file and sample hold, and why one object gets one sample | 06 |
 | When does a new test need a failing baseline, and what if it could not run at all | 06 |
 | How I report what I ran — the command, verdict, and decisive output | 19 |
 | What to write when a check was skipped, bypassed, or waiting on a person | 19 |
-| Who reviews this, and what input each reviewer gets | 20 |
-| When the review loop stops, and which exits need a human | 20 |
-| What reviews the plan, and what reviews the merged whole | 20 |
-| Whether a hook may block a session nobody is watching | 20 |
 
 ## Order
 
 1. **06 before writing tests.** It selects the smallest relevant existing check first and sets the reason for adding a durable test.
-2. **20 before reviewing.** It decides whether an independent review is needed and what the reviewer receives.
-3. **19 when reporting either.** Record the exact command, verdict, and decisive output, including checks that could not run.
+2. **19 when reporting.** Record the exact command, verdict, and decisive output, including checks that could not run.
 
 ## Boundaries with other skills
 
-The criteria this skill checks against are written earlier, under [plan-and-delegate](../plan-and-delegate/SKILL.md) — 18 states them, 20 judges against them, 19 records the judgment. Checking that docs still match the code is [docsync](../docsync/SKILL.md). Testing code whose job is to drive another project's training framework needs a layer 06 does not describe — that is [ml-pipeline](../ml-pipeline/SKILL.md), routing to 22.
-
-## When two documents disagree
-
-[00-principles.md](../../conventions/00-principles.md) takes precedence over any of them.
-
-## Use From Other Tools
-
-Claude Code gets this skill from the `dev-harness` plugin; nothing is copied into the project. Tools that do not read plugins need a pointer in AGENTS.md instead:
-
-```
-Before claiming completion or reviewing a diff, follow the routing at
-https://jinwoo-cho-ilevit-com.github.io/develop-convention/skills/verify-and-review/SKILL/
-```
+Checking that docs still match the code is [docsync](../docsync/SKILL.md). Testing code whose job is to drive another project's training framework needs a layer 06 does not describe — that is [ml-pipeline](../ml-pipeline/SKILL.md), routing to 22.

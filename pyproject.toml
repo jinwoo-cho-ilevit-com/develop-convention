@@ -1,10 +1,10 @@
-# This repository's deliverable is documentation plus the dev-harness plugin that runs
-# it. This file exists so the plugin's guard and workflow can be linted and driven by
+# This repository's deliverable is documentation plus the dev-harness plugin that routes
+# to it. This file exists so the plugin's guard and hooks can be linted and driven by
 # tests here, rather than only read.
 [project]
 name = "develop-convention"
 version = "0"
-description = "Development convention documents and the dev-harness plugin that runs them"
+description = "Development convention documents and the dev-harness plugin that routes to them"
 requires-python = ">=3.13"
 dependencies = []
 

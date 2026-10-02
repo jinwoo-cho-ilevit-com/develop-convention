@@ -1,15 +1,14 @@
 """The plugin is the delivery path, and 15 requires the delivery path to be checked.
 
-Reading a manifest only tells you it parses, so the checks below execute the guard, the
-routing hook and the build workflow: one that was never observed refusing is
-indistinguishable from one that never fires (→ conventions/20-review-gate.md).
+Reading a manifest only tells you it parses, so the checks below execute the guard and the
+routing hook: one that was never observed refusing is indistinguishable from one that never
+fires.
 
 The plugin's static document invariants — a skill's name, its links, the text it must not
 copy, the convention it routes — moved to `scripts/check-docs.py`.
 """
 
 import json
-import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -47,7 +46,7 @@ def test_the_hook_only_intercepts_reads():
 
     Matching the editing tools would spend a prompt on every edit to enforce a norm the guard
     cannot hold, and matching Bash would spend a subprocess on every command to reach a
-    pattern match (→ conventions/21-development-loop.md §3).
+    pattern match.
     """
     entries = load(ROOT / "hooks" / "hooks.json")["hooks"]["PreToolUse"]
     matchers = {entry["matcher"] for entry in entries}
@@ -115,7 +114,7 @@ def decision(payload: dict, env: dict | None = None) -> str:
 def test_a_subagent_may_read_past_the_budget(tmp_path):
     """`agent_id` is present only inside a subagent call. That is the whole test.
 
-    The budget belongs to the orchestrator. A lane reading the module it was given is the
+    The budget belongs to the orchestrator. A subagent reading the module it was given is the
     thing the budget exists to make affordable, not the thing it guards against.
     """
     big = tmp_path / "big.py"
@@ -194,15 +193,6 @@ def test_one_enormous_line_is_judged_by_bytes(tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(bundle)}}) == "deny"
 
 
-def test_the_orchestrator_may_read_its_own_plan(tmp_path):
-    """Blocking the orchestrator from its own brief defeats what the guard exists for."""
-    plan = tmp_path / ".plans" / "feature"
-    plan.mkdir(parents=True)
-    brief = plan / "PLAN.md"
-    brief.write_text("# plan\n" * 900, encoding="utf-8")
-    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(brief)}}) == "allow"
-
-
 def test_a_binary_read_is_not_judged_by_line_count(tmp_path):
     """Line counts are meaningless for an image; a small screenshot must not be refused."""
     image = tmp_path / "shot.png"
@@ -231,43 +221,6 @@ def test_only_a_real_agent_id_counts_as_a_subagent(agent_id, tmp_path):
     assert decision(payload) == "deny"
 
 
-@pytest.mark.parametrize("name", ["release..notes.md", "v1..2.md"])
-def test_a_plan_file_with_two_dots_in_its_name_is_not_traversal(name, tmp_path):
-    """Two dots in a file name are not a `..` path segment. Feature names come from the user
-    and nothing forbids this spelling, so a guard matching two dots anywhere refuses the
-    orchestrator the plan file it was told to work from.
-    """
-    brief = tmp_path / ".plans" / "f" / name
-    brief.parent.mkdir(parents=True, exist_ok=True)
-    brief.write_text("# plan\n" * 900, encoding="utf-8")
-    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(brief)}}) == "allow"
-
-
-@pytest.mark.parametrize("path", [".plans/f/PLAN.md", "AGENTS.md"])
-def test_the_exemptions_match_a_relative_path_too(path, tmp_path, monkeypatch):
-    """The exemptions match a relative spelling as well as an absolute one.
-
-    The only relative fixture here: every other is built under `tmp_path` and absolute, so
-    without this the relative branch could be deleted with the suite still green.
-    """
-    target = tmp_path / path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("# long\n" * 900, encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "allow"
-
-
-def test_a_leading_parent_segment_forfeits_the_exemption(tmp_path, monkeypatch):
-    """`../.plans/x.md` holds the exempt name; the `..` segment is what forfeits the exemption."""
-    brief = tmp_path / ".plans" / "x.md"
-    brief.parent.mkdir(parents=True)
-    brief.write_text("# plan\n" * 900, encoding="utf-8")
-    (tmp_path / "sub").mkdir()
-    monkeypatch.chdir(tmp_path / "sub")
-    assert Path("../.plans/x.md").is_file(), "the spelling must resolve, or this proves nothing"
-    assert decision({"tool_name": "Read", "tool_input": {"file_path": "../.plans/x.md"}}) == "deny"
-
-
 def test_a_binary_whose_first_chunk_is_text_is_still_not_metered(tmp_path):
     """A NUL byte past the first megabyte still marks the file binary: a container whose
     header is ASCII would otherwise be refused on the line count of its payload.
@@ -278,16 +231,6 @@ def test_a_binary_whose_first_chunk_is_text_is_still_not_metered(tmp_path):
     assert decision({"tool_name": "Read", "tool_input": {"file_path": str(blob)}}) == "allow"
 
 
-def test_a_directory_merely_containing_the_plan_spelling_is_not_exempt(tmp_path):
-    """The exemption is the `.plans` segment, not the letters: a directory named `.plansy`
-    would otherwise carry every file under it past the budget.
-    """
-    big = tmp_path / "x.plansy" / "app.js"
-    big.parent.mkdir(parents=True)
-    big.write_text("x = 1\n" * 900, encoding="utf-8")
-    assert decision({"tool_name": "Read", "tool_input": {"file_path": str(big)}}) == "deny"
-
-
 def test_a_read_asking_for_exactly_the_budget_is_allowed(tmp_path):
     """The budget is what a read may cost, so a window of exactly the guard's 500 lines is
     within it, and one larger is judged by the file.
@@ -296,19 +239,6 @@ def test_a_read_asking_for_exactly_the_budget_is_allowed(tmp_path):
     big.write_text("x = 1\n" * 900, encoding="utf-8")
     read = {"tool_name": "Read", "tool_input": {"file_path": str(big), "limit": 500}}
     assert decision(read) == "allow"
-
-
-def test_the_plan_exemption_does_not_reach_outside_the_plan(tmp_path):
-    """`.plans/../src/app.js` contains the exempt segment and resolves outside it, so an
-    exemption matching the segment alone makes any guarded path readable by spelling it
-    through a parent.
-    """
-    (tmp_path / ".plans").mkdir()
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "app.js").write_text("x = 1\n" * 900, encoding="utf-8")
-    path = f"{tmp_path}/.plans/../src/app.js"
-    assert Path(path).is_file(), "the spelling must resolve, or the test proves nothing"
-    assert decision({"tool_name": "Read", "tool_input": {"file_path": path}}) == "deny"
 
 
 @pytest.mark.parametrize("where", ["AGENTS.md", "src/parser/AGENTS.md"])
@@ -333,8 +263,7 @@ def test_the_agents_exemption_matches_the_whole_name(name, tmp_path):
 def test_the_guard_refuses_and_never_prompts(tmp_path):
     """One refusal, no prompt. The metered read has no false positive and a strictly better
     alternative (delegate the read), so the guard refuses rather than asking; the editing
-    tools and shell commands are not its business at all
-    (→ conventions/21-development-loop.md §3).
+    tools and shell commands are not its business at all.
     """
     big = tmp_path / "big.py"
     big.write_text("x = 1\n" * 900, encoding="utf-8")
@@ -415,53 +344,3 @@ def test_the_bypass_is_recorded_not_silent(tmp_path):
     assert result.returncode == 0
     assert not result.stdout.strip(), "the bypass still denied the call"
     assert "bypassed" in result.stderr, "the bypass left no trace"
-
-
-# --- the build workflow ----------------------------------------------------------------------
-
-
-# A bullet in the outcome list opens with its outcome names in backticks, one or two of them
-# (`develop-failed` / `fix-failed` share a line), before the em dash that starts the prose.
-OUTCOME_BULLET = re.compile(r"^ +- ((?:`[a-z-]+`(?: / )?)+) —", re.M)
-
-
-@pytest.mark.skipif(shutil.which("node") is None, reason="the harness needs node")
-def test_the_review_loop_exits_are_observed():
-    """The exits are the part of workflows/build.js a reader cannot confirm by reading, so
-    two things hold them: `commands/build.md` names every one a caller has to handle, and
-    tests/workflow_harness.mjs drives them against scripted review rounds.
-
-    An exit the workflow can take and the command does not describe leaves a caller with an
-    outcome string and no instruction; one the command describes and the workflow cannot take
-    sends them to handle something that never arrives.
-    """
-    js = read(ROOT / "workflows" / "build.js")
-    # Both places an outcome is minted: `result('…')` and the three `measure` returns that
-    # `result(developed.outcome, …)` passes through.
-    taken = set(re.findall(r"result\('([a-z-]+)'", js))
-    taken |= set(re.findall(r"outcome: '([a-z-]+)'", js))
-    documented = {
-        name
-        for m in OUTCOME_BULLET.finditer(read(ROOT / "commands" / "build.md"))
-        for name in re.findall(r"`([a-z-]+)`", m.group(1))
-    }
-    # `passed` is the clean exit, handled by the merge steps rather than by the halt list.
-    assert documented == taken - {"passed"}, (
-        f"commands/build.md documents {sorted(documented)}, build.js takes {sorted(taken)}"
-    )
-
-    result = subprocess.run(
-        ["node", str(ROOT / "tests" / "workflow_harness.mjs")], capture_output=True, text=True
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-def test_every_documented_schema_check_uses_the_version_the_workflow_pins():
-    # A guard: the pin lives in build.js; a doc quoting another version sends a lane elsewhere.
-    pinned = re.search(r"SCHEMA_CHECK = '([^']+)'", read(ROOT / "workflows" / "build.js")).group(1)
-    for path in (
-        ROOT / "conventions" / "06-testing-verification.md",
-        ROOT / "commands" / "spec.md",
-    ):
-        quoted = set(re.findall(r"uvx check-jsonschema@[\w.]+", read(path)))
-        assert quoted == {pinned}, f"{path.name} quotes {sorted(quoted)}, build.js pins {pinned}"

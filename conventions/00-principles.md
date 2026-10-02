@@ -7,7 +7,7 @@ The foundation for all convention documents. When it conflicts with another docu
 - Start from requirements and observed behavior. Inspect existing code, docs, and interfaces for behavior and compatibility constraints; do not treat their structure as the required design.
 - Add implementation, configuration, abstraction, or process only when a current requirement, observed failure risk, or measured constraint justifies its cost. Prefer the simplest design that meets the acceptance criteria and preserves required behavior.
 - Don't decide from prior knowledge. Verify library/API/model facts against current-point-in-time primary sources before applying them — what counts as one is [16-research-protocol.md](16-research-protocol.md) for factual specs and [12-upstream-docs.md](12-upstream-docs.md) for provider APIs.
-- Use a fresh context for independent review and substantial refactoring or rewrites; apply the review depth required by the work's risk ([20-review-gate.md](20-review-gate.md)).
+- Use a fresh context for independent review and substantial refactoring or rewrites; scale review depth to the work's risk.
 - Match completion claims to evidence: use execution results for behavior, measurements for performance, and direct source inspection for static claims. Keep verification independent where the work's risk calls for it.
 - When rewriting, preserve required behavior. Capture it with the smallest suitable existing check, sample run, or characterization test before the rewrite, then compare after it.
 - Measure performance/productivity improvements — don't estimate them. If you didn't measure, write "not measured."
@@ -29,7 +29,7 @@ AI agents anchor to conclusions already present in context, and the anchoring ha
 Both are single studies (the second an unrefereed preprint). Treat the direction as evidence and the magnitudes as provisional.
 
 Application:
-- Code review is done by a fresh reviewer who starts from the diff and the criteria, never the session that wrote the code.
+- Code review is done by a fresh reviewer who starts from the diff and the requirements, never the session that wrote the code.
 - When rewriting legacy code, inspect the relevant behavior and interfaces before choosing a structure; avoid reading unrelated areas. Compare the result with the behavior evidence selected for the work.
 
 Sources: [Conflict-Aware Meta-Review Generation via Cognitive Alignment (arXiv 2503.13879)](https://arxiv.org/abs/2503.13879), [Cross-Context Review: Separating Production and Review Sessions (arXiv 2603.12123)](https://arxiv.org/abs/2603.12123), [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
@@ -39,24 +39,14 @@ Sources: [Conflict-Aware Meta-Review Generation via Cognitive Alignment (arXiv 2
 "Done" means the acceptance criteria are met, not merely that the program terminated.
 
 - Verify behavior with an appropriate execution or sample and inspect its output. Static claims can be checked from source; label them as static findings.
-- Use independent verification or review when the change's risk requires it; the lighter path for small reversible work is in [18-work-contract.md](18-work-contract.md).
+- Use independent verification or review when the change's risk requires it.
 - Attach decisive evidence to claims: the relevant command and result, source location, or measurement.
 
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)
 
-### 4. Research-first, fact-based judgment
-
-- Library usage, model specs, versions, APIs — verify against current documentation, not trained memory. The source tiers (official docs, provider skills, context7, the locked SDK source, smoke tests) are in [12-upstream-docs.md](12-upstream-docs.md) §1; search results are leads, not proof ([16-research-protocol.md](16-research-protocol.md)).
-- Before choosing a framework/methodology, research its maintenance status and alternatives at that point in time (e.g., a tool that was once standard can become deprecated — torchtune, see [08-llm-development.md](08-llm-development.md)).
-- Don't put facts unverified by research into docs, code, or commits — mark them "unverified" instead.
-
-### 5. Measure first
+### 4. Measure first
 
 Even the effect of using AI tools can run opposite to felt experience versus measurement. In METR's 2025 RCT, experienced developers estimated they were 20% faster with AI, but the measured result was 19% slower.
 Apply the same principle to speed optimization, parallelization, and parallel agent development: to claim an improvement, measure before/after.
 
 Sources: [METR — Early 2025 AI experienced OS dev study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/)
-
-### 6. Proportionate design
-
-Overengineering is complexity whose cost cannot be justified by a current requirement, observed failure risk, or measured constraint. Before adding a layer, option, dependency, or workflow step, identify the acceptance criterion it serves and whether a simpler design meets it. A plausible future use alone is insufficient. Keep protections for data loss, security, and hard-to-reverse changes proportional to their consequences rather than removing them for brevity.

@@ -45,6 +45,11 @@ RETIRED = (
     "last_sync_commit",
     "last_audit_commit",
     "`revision`",
+    "workflows/build.js",
+    "dev-harness:build",
+    "dev-harness:spec",
+    "plan-and-delegate",
+    "explainer-docs",
 )
 
 # A stamp records when a fact was last checked. 12's own Core Rule requires re-verifying

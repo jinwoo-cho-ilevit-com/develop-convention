@@ -84,7 +84,7 @@ def test_the_fill_run_writes_the_anchored_bullets_in_anchor_order(filled):
     """
     bullets = [ln for ln in filled.splitlines() if ln.startswith("- ")]
     assert len(bullets) == 2, f"the run filled {len(bullets)} bullets, not 2"
-    assert "rename in place" in bullets[0], bullets[0]
+    assert "first author would write" in bullets[0], bullets[0]
     assert "semantic naming" in bullets[1], bullets[1]
 
 
@@ -105,7 +105,8 @@ def test_the_fill_run_rewrites_relative_links_to_clone_paths(filled):
     The target is read out of the source bullet rather than written here, so rewording 01 moves
     the expectation with it and only the script's own behaviour can fail this.
     """
-    source = next(ln for ln in core_rules_of(SOURCE_DOC).splitlines() if "rename in place" in ln)
+    anchor = "first author would write"
+    source = next(ln for ln in core_rules_of(SOURCE_DOC).splitlines() if anchor in ln)
     targets = re.findall(r"\]\((\d\d-[a-z-]+\.md)\)", source)
     assert targets, f"the anchored bullet carries no relative convention link: {source!r}"
     for target in targets:
@@ -143,7 +144,7 @@ def test_the_check_run_passes_on_a_renderable_skeleton_and_fails_on_a_broken_anc
 
     broken = tmp_path / "broken.md"
     broken.write_text(
-        INPUT.read_text(encoding="utf-8").replace('"rename in place"', '"no such rule text"'),
+        INPUT.read_text(encoding="utf-8").replace('"semantic naming"', '"no such rule text"'),
         encoding="utf-8",
     )
     bad = cli("--check", str(broken))

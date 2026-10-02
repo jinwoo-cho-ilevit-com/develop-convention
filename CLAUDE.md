@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A development-conventions repository that also ships the harness running them. The rules live in `conventions/NN-*.md`; `README.md` is the doc map (grouped, numbers being stable identifiers rather than a reading order) plus the full rules summary.
+A development-conventions repository that also ships the plugin routing to them. The rules live in `conventions/NN-*.md`; `README.md` is the doc map (grouped, numbers being stable identifiers rather than a reading order) plus a link index of every document.
 
-The code is the `dev-harness` plugin: `.claude-plugin/` manifests, `hooks/` (`delegate-guard.py`, `route-map.sh`), `commands/`, `workflows/build.js`, `skills/`. `scripts/` holds the two non-plugin tools: `check-docs.py`, which runs the document invariants of the Verification section below over the whole tree; and `fill-excerpts.py`, which consumer repositories (the claude-config kit) call at deploy time to render their rule excerpts from Core Rules (→ conventions/15 §7). `uv run --group dev pytest` runs the repository invariants under `tests/`, which drive the guard, the routing hook and the build workflow rather than reading them, and sample-run both scripts. `templates/` is down to what a plugin cannot supply — a short `AGENTS.md` and the local tool configuration.
+The code is the `dev-harness` plugin: `.claude-plugin/` manifests, `hooks/` (`delegate-guard.py`, `route-map.sh`), `commands/` (`setup`), `skills/`. `scripts/` holds the two non-plugin tools: `check-docs.py`, which runs the document invariants of the Verification section below over the whole tree; and `fill-excerpts.py`, which consumer repositories (the claude-config kit) call at deploy time to render their rule excerpts from Core Rules (→ conventions/15 §5). `uv run --group dev pytest` runs the repository invariants under `tests/`, which drive the guard and the routing hook rather than reading them, and sample-run both scripts. `templates/` is down to what a plugin cannot supply — a short `AGENTS.md` and the local tool configuration.
 
 Projects consume this by installing the plugin, not by copying rules out. An excerpt is a copy, and 15 requires a copy to carry its source and be checked; when changing a rule, check whether the plugin that delivers it needs the same change.
 
@@ -24,7 +24,7 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 - `uv run --group dev python scripts/check-docs.py` decides the mechanical items and reports each violation with its file and line: (1) every conventions doc has `## Core Rules` as its first body heading, (5) no tool-call residue and every doc-map link resolves, (6) no skill or command copies a convention's sentences, (7) every section of the README rule summary links its source convention — and alongside them the section cross references, the section numbering, the `as of` stamps, the doc-map groups, and what the published nav lists.
 - By hand before completion, since no check decides them: (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (6) a paraphrase that restates a rule instead of routing to it.
 - A claim that two rules conflict, or that a rule lives somewhere, quotes the actual file. The same holds for refuting one: name the tool version you tested with, and make it the version this repo pins.
-- Sizable changes go through fresh-context review lanes (→ `conventions/20-review-gate.md`), which this repo applies to itself.
+- Sizable changes get a fresh-context review (→ `conventions/00-principles.md` §3), which this repo applies to itself.
 
 ## Commits
 

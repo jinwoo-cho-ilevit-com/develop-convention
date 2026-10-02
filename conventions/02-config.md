@@ -18,12 +18,7 @@ When uncertain, ask whether changing the value without a code review is a suppor
 
 ### 2. What the config layer has to provide
 
-No tool is prescribed here. Pick one per project and use it consistently; what the choice may not trade away is this:
-
-- **composition by axis when needed**: for experiments with multiple independent choices, groups like `configs/model/`, `configs/data/`, `configs/train/` allow named combinations without one file per variant. A single-run tool need not have this structure.
-- **sweeps from that same composition**: when running combinations, generate them from the same config path as a single run rather than maintaining variant-specific code.
-- **validation at load**: types and ranges checked while the config is assembled, so `train_size=1.5` fails before the run starts rather than mid-training. Typed dataclasses cover shape; pair them with a constraint validator (Pydantic) for what a type cannot express.
-- **a reproducible output snapshot nobody has to remember**: §5 states the requirement for experiments and durable data-processing outputs. A tool that writes it by default satisfies it; otherwise the runner does.
+No tool is prescribed here. Pick one per project and use it consistently; what it may not trade away is validation at load: types and ranges checked while the config is assembled, so `train_size=1.5` fails before the run starts rather than mid-training. Typed dataclasses cover shape; pair them with a constraint validator (Pydantic) for what a type cannot express.
 
 Code-first without YAML: tyro (dataclass-based, strong static type checking) or draccus.
 
@@ -35,13 +30,7 @@ Sources: [tyro](https://github.com/brentyi/tyro), [draccus](https://github.com/d
 - Each combination run's results must be logged to an experiment tracking tool alongside its config, so "which combination gave which performance" can be compared without opening the code (→ [07-ml-development.md](07-ml-development.md)).
 - Manage the list of ablation combinations itself as a config file — it's only an experiment if it's re-runnable.
 
-### 4. Prompt externalization
-
-LLM prompts get the same treatment as config: inlining them in code means a one-line prompt fix requires a code review and deployment, and diffs mix prompt changes with logic changes. Separating them into dedicated `.md` files (e.g., `prompts/summarize.md`) turns prompt editing into doc editing, so version control, review, and experiment tracking run independently of the logic. The prompt file path itself is a config field.
-
-### 5. Config snapshots and reproducibility
+### 4. Config snapshots and reproducibility
 
 - Name runs identifiably (`{experiment-name}-{key-condition}-{date}`) so a directory listing is readable months later.
-- An experiment or durable data-processing output directory must retain, at minimum: the full resolved config (after overrides applied), the git commit hash, and the run command.
-- Where the config tool writes that snapshot by default, leave the default on; where it does not, the runner writes it. Either way it is not the caller's job to remember.
 - Version-control config files alongside code. "That run's settings at that time" must be recoverable from commit history.

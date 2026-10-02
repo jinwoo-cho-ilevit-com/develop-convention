@@ -7,7 +7,7 @@
 - Use flat layout for app/research/pipeline code. Use `src/` layout only for distributed libraries.
 - Keep files small and module boundaries clear — both humans and agents should be able to read only the part they need.
 - Name variables/functions/classes/scripts/folders with semantic naming that directly reveals their role. Follow PEP 8.
-- No `_v2`, `_new`, `_old`, `_final` suffixes on code identifiers, modules, or scripts. When improving, rename in place to change the name itself. The one exception is an artifact a past evaluation result is pinned to (prompt files, golden sets): those version append-only, because a result stops being reproducible the moment the input it ran against is overwritten (→ [10-llm-api-inference.md](10-llm-api-inference.md)).
+- No `_v2`, `_new`, `_old`, `_final` suffixes on code identifiers, modules, or scripts. When improving, rename in place to change the name itself. The one exception is an artifact a past evaluation result is pinned to (prompt files, golden sets): those version append-only, because a result stops being reproducible the moment the input it ran against is overwritten.
 - Never re-spell a module or symbol name as a string literal, least of all on an error path. A literal does not follow a rename, and the handler reporting the mismatch is the path the tests do not run — a guard marked `pragma: no cover` will name a module that no longer exists and read as if its check had succeeded. Derive the name from the object, or let the original error propagate.
 - Delete dead code as soon as it's found. Don't leave it commented out. An unreachable function is not only clutter: its docstring is read as a statement about the system, so a correct claim sitting on a path nobody calls is how a reader concludes the live path holds a property it does not.
 - Comments should state only constraints/intent that the code itself can't express. No internal context that other AIs/teammates wouldn't know, no unnecessary TMI, no explaining the obvious. Cap a comment block at three lines and an inline comment at one; past that the content belongs in a document, or the code needs a better shape. A comment claiming another component enforces something names the call site that enforces it — an unreferenced claim cannot be checked, and it outlives the day that component stopped being called.
@@ -24,7 +24,7 @@
 ### 1. Separation by module/feature
 
 - Modularize the pipeline independently by stage (preprocessing/training/evaluation/inference, etc.). Each stage must be runnable standalone (→ [04-pipeline.md](04-pipeline.md)).
-- Connect dependencies between modules only through explicit interfaces (function signatures, data schemas). Agents tend to silently violate architectural boundaries, so boundaries must be explicit in code. Where parallel lanes meet, the boundary is a contract file and sample written before the lanes start ([06-testing-verification.md](06-testing-verification.md), [18-work-contract.md](18-work-contract.md) §5).
+- Connect dependencies between modules only through explicit interfaces (function signatures, data schemas). Agents tend to silently violate architectural boundaries, so boundaries must be explicit in code.
 
 ### 2. Integrating new modules: structure follows design
 
@@ -52,37 +52,17 @@ Sources: [PyPA — src layout vs flat layout](https://packaging.python.org/en/la
 
 Sources: [PEP 8](https://peps.python.org/pep-0008/)
 
-### 5. Comment rules
-
-The bar for a comment is: "can a first-time reader (human or model) read it and act on it?"
-
-- Write: constraints not visible from the code alone (e.g., "this order exists because of the external API's rate limit"), known limitations and upgrade paths, reasons for non-obvious choices. These are standing facts about the module — what its first author would have written.
-- Don't write: explaining what the next line does (duplicates the code), the editing session's narrative — history of how it was written, why this change was made, what it replaced (git already covers this) — context only insiders know ("as decided in last time's meeting"), personal notes or TMI. The distinction: a standing constraint's "why" stays; a change's "why" goes in the commit body.
-- Documentation (README/docstrings) follows the same bar: only what a first-time reader needs, kept concise.
-
-**Emoji.** The same "does it inform?" bar applies to emoji, and decorative emoji fail it. Concretely, prefer plain text because:
-
-- Status markers as words (`OK` / `FAILED` / `TODO` / `unverified`) are greppable; symbols are not, and they collapse into unreadable boxes in terminals, log aggregators, and diffs with narrow fonts.
-- Emoji on every heading or bullet costs tokens and adds no signal an agent can act on — the same bloat problem that makes over-long instruction files get skipped (see [09-agentic-workflow.md](09-agentic-workflow.md)).
-- A rare informative case survives the rule: a legend where the symbol *is* the data (e.g. a status column in a compatibility matrix). Use one there, consistently, and define it.
-
-Code comments take no emoji at all — a comment exists to state a constraint, and a symbol cannot state one.
-
-**Unicode escapes.** `\uXXXX` escapes fail the same greppability bar: a file holding `\uc548\ub155` never matches a search for `안녕`, and a diff over escaped text is unreadable. So non-ASCII text is written as literal UTF-8 everywhere it lands — tool-call JSON parameters, file content, serialized output. JSON itself requires escaping only the quotation mark, the backslash, and control characters (RFC 8259 §7); everything else may be literal. Python's `json.dumps` escapes every non-ASCII character unless told otherwise (`ensure_ascii` defaults to true), so serialization whose output humans or agents read passes `ensure_ascii=False`. Deliberate escapes in code or test fixtures are the remaining exception.
-
-Sources: [RFC 8259 §7 — Strings](https://www.rfc-editor.org/rfc/rfc8259#section-7), [Python `json` — `ensure_ascii`](https://docs.python.org/3/library/json.html#json.dump)
-
-### 6. Migration/cleanup rules
+### 5. Migration/cleanup rules
 
 - When moving to a new project, move only what's "actually called." If usage is unclear, don't move it — add it later when it's needed.
 - Delete dead code (unused functions, commented-out blocks, unreachable branches) as soon as it's found. Git history is the backup.
 - At the wrap-up stage of a task, scan for duplication: confirm the same constant isn't defined in two places and that two functions/scripts doing the same thing haven't been created, before declaring completion.
 
-### 7. Agent-friendly structure (context engineering)
+### 6. Agent-friendly structure (context engineering)
 
 The context window is an agent's fundamental constraint. A giant single file is bad for both humans and agents.
 
 - One file holds one concern only. When a file grows long, consider splitting it.
-- Per-module docs (a README or AGENTS.md in that directory) should contain only content scoped to that directory (→ [09-agentic-workflow.md](09-agentic-workflow.md)).
+- Per-module docs (a README or AGENTS.md in that directory) should contain only content scoped to that directory.
 
 Sources: [Anthropic — Claude Code best practices](https://code.claude.com/docs/en/best-practices)

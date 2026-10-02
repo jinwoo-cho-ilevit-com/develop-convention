@@ -1,8 +1,8 @@
 {
   "name": "dev-harness",
   "displayName": "Development Harness",
-  "version": "0.44.1",
-  "description": "Runs the development conventions in this repository: skills that load the rules the work at hand needs, interview-driven planning, delegated execution in parallel lanes, and review that starts the moment a lane finishes.",
+  "version": "0.45.0",
+  "description": "Runs the development conventions in this repository: skills that load the rules the work at hand needs, plus a setup command for the project AGENTS.md.",
   "author": {
     "name": "Jinwoo Cho",
     "email": "jinwoo.cho@ilevit.com"
@@ -10,5 +10,5 @@
   "homepage": "https://jinwoo-cho-ilevit-com.github.io/develop-convention/",
   "repository": "https://github.com/jinwoo-cho-ilevit-com/develop-convention",
   "license": "MIT",
-  "keywords": ["conventions", "planning", "delegation", "review", "parallel-development"]
+  "keywords": ["conventions", "skills", "testing", "commits"]
 }
