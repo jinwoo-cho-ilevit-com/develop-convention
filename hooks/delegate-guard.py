@@ -51,7 +51,7 @@ def counts(value):
 def main():
     # The declared bypass is read from this hook's own environment, which a PreToolUse hook has
     # before the tool call runs: session-scoped, set at launch or through the settings env
-    # block, with no per-call form. Recorded on stderr (→ conventions/19-evidence.md).
+    # block, with no per-call form. Recorded on stderr.
     if os.environ.get("DEV_HARNESS_ALLOW_MAIN") == "1":
         warn("dev-harness: main-session guard bypassed via DEV_HARNESS_ALLOW_MAIN")
         allow()

@@ -1,6 +1,5 @@
 # Local hooks can be skipped — and on a machine with a global `core.hooksPath`,
 # `pre-commit install` refuses outright — so CI is where these actually run
-# (→ conventions/03-environment.md).
 name: checks
 
 on:

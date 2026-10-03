@@ -17,8 +17,7 @@ Each pipeline stage must let you immediately verify "how it works, what goes in,
 
 - Provide a bounded sample mode such as `--limit N` (e.g., 10 records) for a stage that processes a dataset.
 - When intermediate inspection is useful, provide an opt-in, size-limited input/output sample in a readable format (JSON/JSONL/Parquet). Avoid dumping whole intermediate datasets as a default.
-- Being able to replay an individual stage standalone from captured input dramatically speeds up debugging — isolate and run just the problem stage instead of rerunning the whole pipeline. When the failure happened on a remote GPU host, pull the dumped input down and replay locally (→ [22-framework-wrapping.md](22-framework-wrapping.md)).
-- Make it standard procedure to validate schema/format/tokenization with a small-sample dry-run before the real run (→ [08-llm-development.md](08-llm-development.md)).
+- Being able to replay an individual stage standalone from captured input dramatically speeds up debugging — isolate and run just the problem stage instead of rerunning the whole pipeline.
 
 Sources: [AI agent observability — trace/replay](https://mastra.ai/articles/ai-agent-observability)
 
@@ -30,7 +29,7 @@ For long-running or expensive-to-restart jobs, account for interruption, especia
 - **Validated resume**: skip a chunk only when its completion state confirms success and its recorded input/config identity matches the current run. A file's presence alone does not prove either condition.
 - **Atomic publication**: for a single local file, write to a temp file on the same filesystem and swap it in with `os.replace(tmp, final)`. For multiple files or remote storage, publish a completion marker or manifest only after all required outputs are complete.
 
-- **Large model checkpoints**: consider `torch.distributed.checkpoint`'s `async_save` and safetensors when checkpoint time or format is a measured constraint (→ [07-ml-development.md](07-ml-development.md)).
+- **Large model checkpoints**: consider `torch.distributed.checkpoint`'s `async_save` and safetensors when checkpoint time or format is a measured constraint.
 
 Sources: [PyTorch — distributed checkpoint recipe](https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html), [DCP safetensors support](https://pytorch.org/blog/huggingface-safetensors-support-in-pytorch-distributed-checkpointing/)
 

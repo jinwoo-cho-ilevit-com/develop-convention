@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Injects the convention routing map once per user prompt: a pointer carrying no rule text.
 # Each line is the trigger clause ("Use ...") of a skill's own frontmatter description, so the
-# map cannot disagree with what the agent selects on (→ conventions/15-doc-tracking.md).
+# map cannot disagree with what the agent selects on.
 set -euo pipefail
 
 cat >/dev/null

@@ -10,7 +10,7 @@ Read the project first — `pyproject.toml`, `package.json`, `Makefile`, the CI 
 
 Start from `${CLAUDE_PLUGIN_ROOT}/templates/AGENTS.md` and fill its placeholders; the shape is the template's, not this command's.
 
-Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so give `AGENTS.md` its sibling `CLAUDE.md` under the rule in `${CLAUDE_PLUGIN_ROOT}/conventions/15-doc-tracking.md` §1. Two cases exist only at the root:
+Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so give `AGENTS.md` its sibling `CLAUDE.md` Two cases exist only at the root:
 
 - The project `CLAUDE.md` may live at `./.claude/CLAUDE.md` instead. There the line is `@../AGENTS.md`, since an import resolves relative to the file that holds it.
 - Where both `./CLAUDE.md` and `./.claude/CLAUDE.md` exist, put the line in `./CLAUDE.md`. The memory documentation names both locations without saying how they combine, so confirm with `/context` that `AGENTS.md` appears under Memory files.
@@ -20,7 +20,7 @@ Then list every other `AGENTS.md` in the tree that has no sibling `CLAUDE.md`, a
 Rules:
 
 - **Never overwrite an existing `AGENTS.md` or `CLAUDE.md`.** Show a diff and merge only the missing sections or line after confirmation.
-- **Do not paste convention rules into it.** The harness reads `conventions/` directly, and a copied excerpt drifts from its source while being loaded everywhere (→ `${CLAUDE_PLUGIN_ROOT}/conventions/15-doc-tracking.md`). Every line here must be something no one could infer from the repository.
+- **Do not paste convention rules into it.** The harness reads `conventions/` directly, and a copied excerpt drifts from its source while being loaded everywhere. Every line here must be something no one could infer from the repository.
 - Leave a command you genuinely cannot determine as a visible `TODO` rather than guessing.
 
 Nothing triggers this automatically: you run it once per project, again after a plugin update, and again after the commands change.

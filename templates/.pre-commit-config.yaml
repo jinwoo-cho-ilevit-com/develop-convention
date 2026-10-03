@@ -1,4 +1,4 @@
-# Local hooks can be skipped, so CI runs the same set (→ conventions/03, 13).
+# Local hooks can be skipped, so CI runs the same set.
 # Keep `rev` in step with the ruff version in pyproject.toml's dependency group:
 # pre-commit pins its own copy, and two versions format differently.
 repos:

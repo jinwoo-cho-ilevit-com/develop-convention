@@ -131,9 +131,9 @@ SABOTAGE = [
         # unrouted arm without also breaking a link.
         "a convention no skill routes to",
         "skills/code-and-config/SKILL.md",
-        "[03-environment.md](../../conventions/03-environment.md)",
-        "03-environment.md",
-        [("conventions/03-environment.md", "no skill routes to this convention")],
+        "[02-config.md](../../conventions/02-config.md)",
+        "02-config.md",
+        [("conventions/02-config.md", "no skill routes to this convention")],
     ),
     (
         "the README skill table names every skill",
@@ -171,8 +171,8 @@ SABOTAGE = [
     (
         "no skill or command copies convention text",
         "skills/ml-pipeline/SKILL.md",
-        "# ml-pipeline — Stages, Throughput, Experiments, Self-Hosted Models\n",
-        "# ml-pipeline — Stages, Throughput, Experiments, Self-Hosted Models\n\n"
+        "# ml-pipeline — Stages and Throughput\n",
+        "# ml-pipeline — Stages and Throughput\n\n"
         "Where CPU fallback is a project requirement, CI verifies the shared entry path "
         "with a bounded CPU sample run.\n",
         [("skills/ml-pipeline/SKILL.md", "copies convention text")],
@@ -225,20 +225,20 @@ SABOTAGE = [
     ),
     (
         "every §n of a run is checked, not only the first",
-        "conventions/07-ml-development.md",
-        "[06-testing-verification.md](06-testing-verification.md) §4",
-        "[06-testing-verification.md](06-testing-verification.md) §4, §77",
-        [("conventions/07-ml-development.md", "06-testing-verification.md has no §77")],
+        "conventions/06-testing-verification.md",
+        "[00-principles.md](00-principles.md) §3",
+        "[00-principles.md](00-principles.md) §3, §77",
+        [("conventions/06-testing-verification.md", "00-principles.md has no §77")],
     ),
     (
         "the target is read from the link URL, not the link text",
-        "conventions/08-llm-development.md",
-        "[22-framework-wrapping.md](22-framework-wrapping.md) §6",
-        "(→ [22](22-framework-wrapping.md) §55)",
+        "conventions/17-commit-protocol.md",
+        "[06-testing-verification.md](06-testing-verification.md) §4",
+        "(→ [06](06-testing-verification.md) §55)",
         [
             (
-                "conventions/08-llm-development.md",
-                "22-framework-wrapping.md has no §55",
+                "conventions/17-commit-protocol.md",
+                "06-testing-verification.md has no §55",
             )
         ],
     ),

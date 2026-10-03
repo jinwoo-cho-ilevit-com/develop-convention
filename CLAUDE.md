@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A development-conventions repository that also ships the plugin routing to them. The rules live in `conventions/NN-*.md`; `README.md` is the doc map (grouped, numbers being stable identifiers rather than a reading order) plus a link index of every document.
 
-The code is the `dev-harness` plugin: `.claude-plugin/` manifests, `hooks/` (`delegate-guard.py`, `route-map.sh`), `commands/` (`setup`), `skills/`. `scripts/` holds the two non-plugin tools: `check-docs.py`, which runs the document invariants of the Verification section below over the whole tree; and `fill-excerpts.py`, which consumer repositories (the claude-config kit) call at deploy time to render their rule excerpts from Core Rules (→ conventions/15 §5). `uv run --group dev pytest` runs the repository invariants under `tests/`, which drive the guard and the routing hook rather than reading them, and sample-run both scripts. `templates/` is down to what a plugin cannot supply — a short `AGENTS.md` and the local tool configuration.
+The code is the `dev-harness` plugin: `.claude-plugin/` manifests, `hooks/` (`delegate-guard.py`, `route-map.sh`), `commands/` (`setup`), `skills/`. `scripts/` holds the two non-plugin tools: `check-docs.py`, which runs the document invariants of the Verification section below over the whole tree; and `fill-excerpts.py`, which consumer repositories (the claude-config kit) call at deploy time to render their rule excerpts from Core Rules. `uv run --group dev pytest` runs the repository invariants under `tests/`, which drive the guard and the routing hook rather than reading them, and sample-run both scripts. `templates/` is down to what a plugin cannot supply — a short `AGENTS.md` and the local tool configuration.
 
-Projects consume this by installing the plugin, not by copying rules out. An excerpt is a copy, and 15 requires a copy to carry its source and be checked; when changing a rule, check whether the plugin that delivers it needs the same change.
+Projects consume this by installing the plugin, not by copying rules out. An excerpt is a copy that carries its source and is checked; when changing a rule, check whether the plugin that delivers it needs the same change.
 
 ## Document format (must follow when editing/adding docs)
 
@@ -17,7 +17,7 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 - Specific factual claims (a tool's deprecated status, research numbers, comparison results) must carry a source URL in that section. Numbers/claims not verified by research are omitted or marked "unverified". General engineering advice needs no source.
 - When editing a doc, check that README.md's doc map and full rules summary do not contradict it, and update them together.
 - New docs follow the `NN-topic.md` numbering scheme and are added to the README doc map.
-- A `skills/*/SKILL.md` is one of two kinds and declares which in its opening line. A **routing procedure** says which conventions govern a kind of work and in what order, and carries no rule text of its own — a copied Core Rule is the second copy 15 forbids. An **execution procedure** (`docsync`) carries the steps for running one convention, which that convention's Details does not hold. Neither restates what the other place already states. A new skill needs a Document Map group naming it and an entry in `mkdocs.yml`.
+- A `skills/*/SKILL.md` is one of two kinds and declares which in its opening line. A **routing procedure** says which conventions govern a kind of work and in what order, and carries no rule text of its own — a copied Core Rule drifts from its source. A new skill needs a Document Map group naming it and an entry in `mkdocs.yml`.
 
 ## Verification
 

@@ -50,6 +50,8 @@ RETIRED = (
     "dev-harness:spec",
     "plan-and-delegate",
     "explainer-docs",
+    "docsync",
+    "15-doc-tracking",
 )
 
 # A stamp records when a fact was last checked. 12's own Core Rule requires re-verifying

@@ -52,4 +52,4 @@ Port a stage or hot loop to a compiled language (Rust via PyO3/maturin, or a sta
 - its inputs and outputs are files only, so no Python object crosses the boundary;
 - the Python-side options (data reduction, algorithm choice, vectorization, batching, and an existing compiled library) were measured and fail a throughput target set before the port decision.
 
-The port must build and run on the project's supported hosts ([03-environment.md](03-environment.md)). A port is a rewrite: preserve behavior with the checks and before/after evidence selected under [00-principles.md](00-principles.md), [06-testing-verification.md](06-testing-verification.md) §1 and [19-evidence.md](19-evidence.md).
+The port must build and run on the project's supported hosts. A port is a rewrite: preserve behavior with the checks and before/after evidence selected under [00-principles.md](00-principles.md) and [06-testing-verification.md](06-testing-verification.md) §1.

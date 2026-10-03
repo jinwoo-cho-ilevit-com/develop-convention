@@ -1,8 +1,8 @@
 """The rules this repository states about its toolchain and its CI, executed rather than read.
 
-`conventions/03` and `13` require enforcement in CI, and 03's first Core Rule pins the
-interpreter. They live here as tests rather than as inline shell in a CI workflow so that the
-contract's `verify` commands and the CI job execute the same file.
+Lint, the secret scan and the interpreter pin are enforced in CI. They live here as tests
+rather than as inline shell in a CI workflow so that a local run and the CI job execute the
+same file.
 
 The document and skill invariants moved to `scripts/check-docs.py`; its sample run is
 `tests/test_check_docs.py`.
@@ -17,7 +17,7 @@ import pytest
 import yaml
 from _repo import ROOT, read
 
-# --- conventions/03's first Core Rule ---------------------------------------------------
+# --- toolchain pins ------------------------------------------------------------------------
 
 
 def floor_of(requires_python: str) -> tuple[int, int]:
@@ -28,10 +28,10 @@ def floor_of(requires_python: str) -> tuple[int, int]:
 
 @pytest.mark.parametrize("directory", ["", "templates"])
 def test_python_version_agrees_with_requires_python(directory):
-    """03: `pyproject.toml` + `uv.lock` (committed) + `.python-version`.
+    """`pyproject.toml` + `uv.lock` (committed) + `.python-version` agree on the floor.
 
     Checked in `templates/` as well as here: a project bootstrapped from the template can
-    only satisfy 03's first Core Rule if the template it came from does.
+    only agree if the template it came from does.
     """
     base = ROOT / directory if directory else ROOT
     pinned = (base / ".python-version").read_text(encoding="utf-8").strip()
@@ -39,7 +39,7 @@ def test_python_version_agrees_with_requires_python(directory):
     assert floor_of(pinned) >= floor_of(declared["project"]["requires-python"])
 
 
-# --- conventions/03 and 13: enforcement in CI --------------------------------------------
+# --- enforcement in CI --------------------------------------------------------------------
 
 
 @functools.cache
@@ -83,8 +83,8 @@ def test_workflow_runs_on_pull_requests():
 
 @pytest.mark.parametrize("tool", ["ruff check", "ruff format", "pytest", "gitleaks", "check-docs"])
 def test_workflow_runs_lint_tests_and_secret_scan(tool):
-    """03:20 enforces lint in CI because local hooks can be skipped; 13:12 the same for
-    secret scanning; the document checker is the same argument for the checklist it holds.
+    """Lint and the secret scan run in CI because local hooks can be skipped; the document
+    checker is the same argument for the checklist it holds.
     Some of these the workflow names itself and some it reaches by running the whole
     pre-commit set, which is why the assertion is against `ci_tools` rather than the run
     steps alone.

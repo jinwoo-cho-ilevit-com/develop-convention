@@ -1,11 +1,11 @@
 ---
 name: ml-pipeline
-description: Routes to the conventions that govern pipeline stage shape, throughput, ML experiment discipline, the iteration loop between a local machine and a rented GPU, and training or serving a model yourself. Use when building a preprocessing, training, or evaluation pipeline over weights you run yourself, when something is too slow, or when handling seeds, checkpoints, and experiment tracking.
+description: Routes to the conventions that govern pipeline stage shape and throughput. Use when building a preprocessing, training, or evaluation pipeline, or when something is too slow.
 ---
 
-# ml-pipeline — Stages, Throughput, Experiments, Self-Hosted Models
+# ml-pipeline — Stages and Throughput
 
-Routing procedure for conventions [04-pipeline.md](../../conventions/04-pipeline.md), [05-performance.md](../../conventions/05-performance.md), [07-ml-development.md](../../conventions/07-ml-development.md), [08-llm-development.md](../../conventions/08-llm-development.md) and [22-framework-wrapping.md](../../conventions/22-framework-wrapping.md).
+Routing procedure for conventions [04-pipeline.md](../../conventions/04-pipeline.md) and [05-performance.md](../../conventions/05-performance.md).
 
 ## Which document decides what
 
@@ -18,27 +18,12 @@ Routing procedure for conventions [04-pipeline.md](../../conventions/04-pipeline
 | It misses a target — where is the measured bottleneck | 05 |
 | What to measure, and what to log while it runs | 05 |
 | Whether a slow stage should move to a compiled language | 05 |
-| Seeds, and why one helper rather than several | 07 |
-| Which run produced this number, at which config and which commit | 07 |
-| Checkpoints: what to keep, and surviving a pod that disappears | 07 |
-| Training or serving an LLM yourself — framework, precision, sharding | 08 |
-| The chat template, and proving train and inference agree on it | 08 |
-| Evaluation that another run can reproduce, and where a judge is biased | 08 |
-| Deduplicating and decontaminating training data | 08 |
-| Driving someone else's training framework, and proving your reading of it before renting a GPU | 22 |
-| A test double that stays green while the thing it stands for is broken | 22 |
-| Code edited here but run on a rented GPU — getting it there without a rebuild, failing fast once there | 22 |
-| A smoke mode that must pass locally before a GPU is occupied | 22 |
 
 ## Order
 
 1. **05 to set the run's scale and resource targets, then 04 before writing a stage.** Use the targets to choose the simplest stage shape that meets them.
-2. **22 as soon as the run leaves this machine** — its sync and smoke rules shape the entry point, so like 04 they are cheaper built in than bolted on.
-3. **07 as soon as a run produces a number** anyone might cite later — earlier than it feels, because by the time someone asks, the run that produced it is gone.
-4. **08 only when the model is yours to train or serve.**
-5. **22 as soon as another project's trainer is in the loop** — the layer it asks for is cheap to add early and expensive to retrofit around a suite that already trusts its doubles.
-6. **05 again when a target is missed or repeated runs become costly.** Profile the whole flow and improve the largest bottleneck before changing concurrency or language.
+2. **05 again when a target is missed or repeated runs become costly.** Profile the whole flow and improve the largest bottleneck before changing concurrency or language.
 
 ## Boundaries with other skills
 
-Looking up a third-party SDK or API is [external-sources](../external-sources/SKILL.md). File placement and config for this code still come from [code-and-config](../code-and-config/SKILL.md). Test tolerances, fixtures, and the smoke tests CI runs on CPU are in [verify-and-review](../verify-and-review/SKILL.md); the `--smoke` mode an entry point carries while you iterate is 22's.
+Looking up a third-party SDK or API is [external-sources](../external-sources/SKILL.md). File placement and config for this code still come from [code-and-config](../code-and-config/SKILL.md). Test tolerances, fixtures, and the sample runs CI runs on CPU are in [verify-and-review](../verify-and-review/SKILL.md).

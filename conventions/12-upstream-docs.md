@@ -1,6 +1,6 @@
 # 12. Upstream Documentation: Reference Procedure + Canonical URL Registry
 
-How to check someone else's official documentation before writing against their SDK or API. Keeping *this* project's own docs in step with its code is [15-doc-tracking.md](15-doc-tracking.md).
+How to check someone else's official documentation before writing against their SDK or API.
 
 Provider API knowledge goes stale on a timescale of months (the silent `output_format`→`output_config.format` migration, DeepSeek model name deprecations, torchtune's development sunset). This document defines not a "structure that trusts memory" but a **"structure that forces verification."**
 
@@ -40,7 +40,7 @@ When starting work related to a provider, fetch the page you need under its docs
 | DeepSeek | https://api-docs.deepseek.com/ |
 | OpenRouter | https://openrouter.ai/docs/ |
 
-For the ML/training stack (torch, TRL, vLLM, etc.), the source links in [08-llm-development.md](08-llm-development.md) are the seed. When a new library is adopted, leaving its official docs URL as a source in the corresponding convention document is itself the registry entry.
+When a new library is adopted, leaving its official docs URL as a source in the corresponding convention document is itself the registry entry.
 
 Provider official skills follow the [Agent Skills](https://agentskills.io) open standard (a folder holding a `SKILL.md`); check the provider's docs for one before falling back to ctx7. A skill does not replace the Tier 1 fetch: a parameter's existence, a limit, or a model name is still confirmed on the registry page.
 
