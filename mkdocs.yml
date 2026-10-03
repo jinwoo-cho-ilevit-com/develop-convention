@@ -54,6 +54,6 @@ nav:
   - Skills:
       - skills/code-and-config/SKILL.md
       - skills/commit/SKILL.md
-      - skills/ml-pipeline/SKILL.md
+      - skills/pipeline/SKILL.md
       - skills/external-sources/SKILL.md
       - templates/AGENTS.md

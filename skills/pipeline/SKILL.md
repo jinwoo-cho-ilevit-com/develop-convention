@@ -1,9 +1,9 @@
 ---
-name: ml-pipeline
+name: pipeline
 description: Routes to the convention that governs pipeline stage shape. Use when building a preprocessing, training, or evaluation pipeline, or when a stage must run on a sample, resume, or publish output safely.
 ---
 
-# ml-pipeline — Stages
+# pipeline — Stages
 
 Routing procedure for convention [03-pipeline.md](../../conventions/03-pipeline.md).
 

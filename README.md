@@ -31,7 +31,7 @@ Takes precedence over every other document, so it belongs to no single skill and
 |---|---|
 | [06-commit-protocol.md](conventions/06-commit-protocol.md) | Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting |
 
-### Data and ML pipelines — `ml-pipeline`
+### Data and ML pipelines — `pipeline`
 
 | Doc | Contents |
 |---|---|
@@ -60,7 +60,7 @@ Skills load themselves when the work matches, so you do not have to remember whi
 |---|---|
 | `code-and-config` | Files appear or move, config or dependencies change |
 | `commit` | A commit is about to be written |
-| `ml-pipeline` | A preprocessing, training, or evaluation pipeline is being built, or a model is trained or served here |
+| `pipeline` | A preprocessing, training, or evaluation pipeline is being built, or a model is trained or served here |
 | `external-sources` | Code calls someone else's SDK or model API, or external facts are the deliverable |
 
 **Note for cloud-executed agents**: with the plugin installed, `conventions/` travels inside it and its skills read from there. In isolated sandboxes without the plugin (Codex cloud, Cursor background agents, Claude Code web), read the published docs at <https://jinwoo-cho-ilevit-com.github.io/develop-convention/>, or add this repo as a git submodule so a local path resolves there too.

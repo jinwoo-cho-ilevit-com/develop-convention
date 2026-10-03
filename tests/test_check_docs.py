@@ -170,21 +170,21 @@ SABOTAGE = [
     ),
     (
         "no skill or command copies convention text",
-        "skills/ml-pipeline/SKILL.md",
-        "# ml-pipeline — Stages\n",
-        "# ml-pipeline — Stages\n\n"
+        "skills/pipeline/SKILL.md",
+        "# pipeline — Stages\n",
+        "# pipeline — Stages\n\n"
         "Publish durable output atomically or with an equivalent completion protocol.\n",
-        [("skills/ml-pipeline/SKILL.md", "copies convention text")],
+        [("skills/pipeline/SKILL.md", "copies convention text")],
     ),
     (
         "every convention is routed by exactly one skill",
-        "skills/ml-pipeline/SKILL.md",
-        "# ml-pipeline — Stages",
-        "# ml-pipeline — Stages\n\nAlso [06](../../conventions/06-commit-protocol.md).",
+        "skills/pipeline/SKILL.md",
+        "# pipeline — Stages",
+        "# pipeline — Stages\n\nAlso [06](../../conventions/06-commit-protocol.md).",
         [
             (
                 "skills/commit/SKILL.md",
-                "06-commit-protocol.md is routed by more than one skill: commit, ml-pipeline",
+                "06-commit-protocol.md is routed by more than one skill: commit, pipeline",
             )
         ],
     ),

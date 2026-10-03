@@ -34,4 +34,4 @@ Both are about not trusting what you remember. The split is what you are produci
 
 ## Boundaries with other skills
 
-Training or serving the model yourself is [ml-pipeline](../ml-pipeline/SKILL.md).
+Training or serving the model yourself is [pipeline](../pipeline/SKILL.md).

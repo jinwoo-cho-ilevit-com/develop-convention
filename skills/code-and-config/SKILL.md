@@ -25,4 +25,4 @@ Routing procedure for conventions [01-structure-naming.md](../../conventions/01-
 
 ## Boundaries with other skills
 
-Committing the result is [commit](../commit/SKILL.md) — peeled out because it fires far more often than the rest of this bucket. Pipeline code has additional shape rules in [ml-pipeline](../ml-pipeline/SKILL.md); code that calls someone else's model API has its own in [external-sources](../external-sources/SKILL.md). Both compose with this skill rather than replacing it.
+Committing the result is [commit](../commit/SKILL.md) — peeled out because it fires far more often than the rest of this bucket. Pipeline code has additional shape rules in [pipeline](../pipeline/SKILL.md); code that calls someone else's model API has its own in [external-sources](../external-sources/SKILL.md). Both compose with this skill rather than replacing it.
