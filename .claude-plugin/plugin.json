@@ -1,7 +1,7 @@
 {
   "name": "dev-harness",
   "displayName": "Development Harness",
-  "version": "0.45.0",
+  "version": "0.46.0",
   "description": "Runs the development conventions in this repository: skills that load the rules the work at hand needs, plus a setup command for the project AGENTS.md.",
   "author": {
     "name": "Jinwoo Cho",
