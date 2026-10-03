@@ -3,7 +3,7 @@
 
 CLAUDE.md carries a verification checklist and the documents state rules about each other:
 a `§n` cross reference points at a section that exists, a fact carries a stamp inside the
-window 12 sets, a skill routes to a convention instead of copying it, the published nav
+window 04 sets, a skill routes to a convention instead of copying it, the published nav
 lists what a project still takes. Each is mechanical, and this is where they run — for a
 person by hand, for pre-commit, and for CI, all through the same entry point.
 
@@ -56,7 +56,7 @@ RETIRED = (
     "06-testing-verification",
 )
 
-# A stamp records when a fact was last checked. 12's own Core Rule requires re-verifying
+# A stamp records when a fact was last checked. 04's own Core Rule requires re-verifying
 # one older than three months, so the window here is that rule rather than a taste.
 STAMP_MONTHS = 3
 STAMP = re.compile(r"\(?as of:? (\d{4})-(\d{2})\)?", re.I)
@@ -518,7 +518,7 @@ def section_numbering_is_contiguous(repo: Path) -> Iterator[Violation]:
 
 
 def as_of_stamps_are_inside_the_reverification_window(repo: Path) -> Iterator[Violation]:
-    """12's Core Rule requires re-verifying a fact whose stamp is over three months old, and
+    """04's Core Rule requires re-verifying a fact whose stamp is over three months old, and
     the rule that governs stamps is itself one of the documents carrying one.
     """
     cutoff = dt.date.today() - dt.timedelta(days=31 * STAMP_MONTHS)
