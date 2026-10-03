@@ -77,9 +77,9 @@ SABOTAGE = [
     (
         "the nav lists every convention",
         "mkdocs.yml",
-        "      - conventions/05-performance.md\n",
+        "      - conventions/03-pipeline.md\n",
         "",
-        [("mkdocs.yml", "the nav omits conventions/05-performance.md")],
+        [("mkdocs.yml", "the nav omits conventions/03-pipeline.md")],
     ),
     (
         "the nav lists what a project still takes",
@@ -171,21 +171,20 @@ SABOTAGE = [
     (
         "no skill or command copies convention text",
         "skills/ml-pipeline/SKILL.md",
-        "# ml-pipeline — Stages and Throughput\n",
-        "# ml-pipeline — Stages and Throughput\n\n"
-        "Where CPU fallback is a project requirement, CI verifies the shared entry path "
-        "with a bounded CPU sample run.\n",
+        "# ml-pipeline — Stages\n",
+        "# ml-pipeline — Stages\n\n"
+        "Publish durable output atomically or with an equivalent completion protocol.\n",
         [("skills/ml-pipeline/SKILL.md", "copies convention text")],
     ),
     (
         "every convention is routed by exactly one skill",
-        "skills/verify-and-review/SKILL.md",
-        "# verify-and-review",
-        "# verify-and-review\n\nAlso [17](../../conventions/17-commit-protocol.md).",
+        "skills/ml-pipeline/SKILL.md",
+        "# ml-pipeline — Stages",
+        "# ml-pipeline — Stages\n\nAlso [06](../../conventions/06-commit-protocol.md).",
         [
             (
                 "skills/commit/SKILL.md",
-                "17-commit-protocol.md is routed by more than one skill: commit, verify-and-review",
+                "06-commit-protocol.md is routed by more than one skill: commit, ml-pipeline",
             )
         ],
     ),
@@ -207,54 +206,53 @@ SABOTAGE = [
         "a section reference wrapped over two lines still resolves",
         "conventions/02-config.md",
         "# 02. Central Config + Ablation",
-        "# 02. Central Config + Ablation\n\nSee "
-        "[06-testing-verification.md](06-testing-verification.md)\n§55 here.\n",
-        [("conventions/02-config.md", "06-testing-verification.md has no §55 to point at")],
+        "# 02. Central Config + Ablation\n\nSee [00-principles.md](00-principles.md)\n§55 here.\n",
+        [("conventions/02-config.md", "00-principles.md has no §55 to point at")],
     ),
     (
         "section cross references resolve",
-        "conventions/05-performance.md",
-        "[06-testing-verification.md](06-testing-verification.md) §1",
-        "[06-testing-verification.md](06-testing-verification.md) §55",
+        "conventions/01-structure-naming.md",
+        "[06-commit-protocol.md](06-commit-protocol.md) §1",
+        "[06-commit-protocol.md](06-commit-protocol.md) §55",
         [
             (
-                "conventions/05-performance.md",
-                "06-testing-verification.md has no §55 to point at",
+                "conventions/01-structure-naming.md",
+                "06-commit-protocol.md has no §55 to point at",
             )
         ],
     ),
     (
         "every §n of a run is checked, not only the first",
-        "conventions/06-testing-verification.md",
-        "[00-principles.md](00-principles.md) §3",
-        "[00-principles.md](00-principles.md) §3, §77",
-        [("conventions/06-testing-verification.md", "00-principles.md has no §77")],
+        "conventions/00-principles.md",
+        "[05-research-protocol.md](05-research-protocol.md) §2",
+        "[05-research-protocol.md](05-research-protocol.md) §2, §77",
+        [("conventions/00-principles.md", "05-research-protocol.md has no §77")],
     ),
     (
         "the target is read from the link URL, not the link text",
-        "conventions/17-commit-protocol.md",
-        "[06-testing-verification.md](06-testing-verification.md) §4",
-        "(→ [06](06-testing-verification.md) §55)",
+        "conventions/00-principles.md",
+        "[04-upstream-docs.md](04-upstream-docs.md) §1",
+        "(→ [04](04-upstream-docs.md) §55)",
         [
             (
-                "conventions/17-commit-protocol.md",
-                "06-testing-verification.md has no §55",
+                "conventions/00-principles.md",
+                "04-upstream-docs.md has no §55",
             )
         ],
     ),
     (
         "a §n with no link before it points inside its own document",
-        "conventions/05-performance.md",
-        "the conditions in §4.",
-        "the conditions in §55.",
-        [("conventions/05-performance.md", "no §55 in this document to point at")],
+        "conventions/04-upstream-docs.md",
+        "Provider official skill (§2)",
+        "Provider official skill (§55)",
+        [("conventions/04-upstream-docs.md", "no §55 in this document to point at")],
     ),
     (
         "section numbering is contiguous",
-        "conventions/05-performance.md",
+        "conventions/03-pipeline.md",
         "### 4.",
         "### 5.",
-        [("conventions/05-performance.md", "section numbering skips: [1, 2, 3, 5]")],
+        [("conventions/03-pipeline.md", "section numbering skips: [1, 2, 3, 5]")],
     ),
     (
         "an as-of stamp is inside the reverification window",
@@ -421,9 +419,7 @@ def broken(tmp_path_factory):
 
 @pytest.mark.parametrize("case", SABOTAGE, ids=lambda case: case[0])
 def test_the_run_reports_every_deliberate_break(case, broken):
-    """A row per check, so each can be observed failing on its own
-    (→ conventions/06-testing-verification.md §2).
-    """
+    """A row per check, so each can be observed failing on its own."""
     assert broken.returncode == 1, broken.stdout + broken.stderr
     for path, message in case[4]:
         found = [

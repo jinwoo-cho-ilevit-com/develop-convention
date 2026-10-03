@@ -29,27 +29,20 @@ Takes precedence over every other document, so it belongs to no single skill and
 
 | Doc | Contents |
 |---|---|
-| [17-commit-protocol.md](conventions/17-commit-protocol.md) | Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting |
-
-### Verify and report — `verify-and-review`
-
-| Doc | Contents |
-|---|---|
-| [06-testing-verification.md](conventions/06-testing-verification.md) | Smallest relevant existing check first, durable tests only for distinct realistic failures, selective red evidence, sample runs, trustworthy fixtures, completion verification |
+| [06-commit-protocol.md](conventions/06-commit-protocol.md) | Conventional Commits header (English type/scope) + Korean body (Why/What/How/Result), trailers, logical-unit splitting |
 
 ### Data and ML pipelines — `ml-pipeline`
 
 | Doc | Contents |
 |---|---|
-| [04-pipeline.md](conventions/04-pipeline.md) | Bounded sample debugging, resumable and atomic output, memory-budgeted processing, progress monitoring |
-| [05-performance.md](conventions/05-performance.md) | Scale/time/memory/cost targets, end-to-end measurement, algorithm and I/O before concurrency, conditional profiling |
+| [03-pipeline.md](conventions/03-pipeline.md) | Bounded sample debugging, resumable and atomic output, memory-budgeted processing, progress monitoring |
 
 ### External sources — `external-sources`
 
 | Doc | Contents |
 |---|---|
-| [12-upstream-docs.md](conventions/12-upstream-docs.md) | Latest-docs reference procedure (5 tiers), per-provider canonical URL registry, smoke-test confirmation |
-| [16-research-protocol.md](conventions/16-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim needs a source from this research, source tiers, verification of negative/universal claims |
+| [04-upstream-docs.md](conventions/04-upstream-docs.md) | Latest-docs reference procedure (5 tiers), per-provider canonical URL registry, smoke-test confirmation |
+| [05-research-protocol.md](conventions/05-research-protocol.md) | Fact research protocol: prior knowledge is for queries only, every claim needs a source from this research, source tiers, verification of negative/universal claims |
 
 ## How to Apply to a New Project
 
@@ -67,7 +60,6 @@ Skills load themselves when the work matches, so you do not have to remember whi
 |---|---|
 | `code-and-config` | Files appear or move, config or dependencies change |
 | `commit` | A commit is about to be written |
-| `verify-and-review` | Tests are being chosen or run, completion is about to be claimed |
 | `ml-pipeline` | A preprocessing, training, or evaluation pipeline is being built, or a model is trained or served here |
 | `external-sources` | Code calls someone else's SDK or model API, or external facts are the deliverable |
 
@@ -80,9 +72,7 @@ Link index; the rules are each document's `## Core Rules`.
 ### Principles ([00](conventions/00-principles.md))
 ### Structure & Naming ([01](conventions/01-structure-naming.md))
 ### Config ([02](conventions/02-config.md))
-### Pipeline ([04](conventions/04-pipeline.md))
-### Performance ([05](conventions/05-performance.md))
-### Testing & Verification ([06](conventions/06-testing-verification.md))
-### Upstream Docs ([12](conventions/12-upstream-docs.md))
-### Research Protocol ([16](conventions/16-research-protocol.md))
-### Commits ([17](conventions/17-commit-protocol.md))
+### Pipeline ([03](conventions/03-pipeline.md))
+### Upstream Docs ([04](conventions/04-upstream-docs.md))
+### Research Protocol ([05](conventions/05-research-protocol.md))
+### Commits ([06](conventions/06-commit-protocol.md))

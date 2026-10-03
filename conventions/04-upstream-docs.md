@@ -1,4 +1,4 @@
-# 12. Upstream Documentation: Reference Procedure + Canonical URL Registry
+# 04. Upstream Documentation: Reference Procedure + Canonical URL Registry
 
 How to check someone else's official documentation before writing against their SDK or API.
 

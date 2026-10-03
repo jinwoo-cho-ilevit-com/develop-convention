@@ -47,16 +47,13 @@ nav:
       - conventions/00-principles.md
       - conventions/01-structure-naming.md
       - conventions/02-config.md
-      - conventions/04-pipeline.md
-      - conventions/05-performance.md
-      - conventions/06-testing-verification.md
-      - conventions/12-upstream-docs.md
-      - conventions/16-research-protocol.md
-      - conventions/17-commit-protocol.md
+      - conventions/03-pipeline.md
+      - conventions/04-upstream-docs.md
+      - conventions/05-research-protocol.md
+      - conventions/06-commit-protocol.md
   - Skills:
       - skills/code-and-config/SKILL.md
       - skills/commit/SKILL.md
-      - skills/verify-and-review/SKILL.md
       - skills/ml-pipeline/SKILL.md
       - skills/external-sources/SKILL.md
       - templates/AGENTS.md

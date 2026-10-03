@@ -13,7 +13,7 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 ## Document format (must follow when editing/adding docs)
 
 - Every `conventions/*.md` must have `## Core Rules` as its first body heading: a list of imperative rules excerptable verbatim into agent instruction files. It is followed by `## Details` (human-oriented explanation + source links).
-- Body in English; code/identifiers/tool names in English. Exception: the commit examples in `conventions/17-commit-protocol.md` follow its policy of English type/scope with Korean summary and body.
+- Body in English; code/identifiers/tool names in English. Exception: the commit examples in `conventions/06-commit-protocol.md` follow its policy of English type/scope with Korean summary and body.
 - Specific factual claims (a tool's deprecated status, research numbers, comparison results) must carry a source URL in that section. Numbers/claims not verified by research are omitted or marked "unverified". General engineering advice needs no source.
 - When editing a doc, check that README.md's doc map and full rules summary do not contradict it, and update them together.
 - New docs follow the `NN-topic.md` numbering scheme and are added to the README doc map.
@@ -22,11 +22,11 @@ Projects consume this by installing the plugin, not by copying rules out. An exc
 ## Verification
 
 - `uv run --group dev python scripts/check-docs.py` decides the mechanical items and reports each violation with its file and line: (1) every conventions doc has `## Core Rules` as its first body heading, (5) no tool-call residue and every doc-map link resolves, (6) no skill or command copies a convention's sentences, (7) every section of the README rule summary links its source convention — and alongside them the section cross references, the section numbering, the `as of` stamps, the doc-map groups, and what the published nav lists.
-- By hand before completion, since no check decides them: (2) the body is in English (17 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (6) a paraphrase that restates a rule instead of routing to it.
+- By hand before completion, since no check decides them: (2) the body is in English (06 is the only exception), (3) no contradiction between the README summary and individual docs, (4) no unsourced specific claims, (6) a paraphrase that restates a rule instead of routing to it.
 - A claim that two rules conflict, or that a rule lives somewhere, quotes the actual file. The same holds for refuting one: name the tool version you tested with, and make it the version this repo pins.
 - Sizable changes get a fresh-context review (→ `conventions/00-principles.md` §3), which this repo applies to itself.
 
 ## Commits
 
-- Commit messages: Conventional Commits header (English type/scope, Korean summary) + Korean body (`## Why/What/How/Result`) — see `conventions/17-commit-protocol.md`. Doc changes use the `docs(conventions): ...` form.
+- Commit messages: Conventional Commits header (English type/scope, Korean summary) + Korean body (`## Why/What/How/Result`) — see `conventions/06-commit-protocol.md`. Doc changes use the `docs(conventions): ...` form.
 - `.omc/` and `.claude/` are gitignored operational artifacts — never commit them.

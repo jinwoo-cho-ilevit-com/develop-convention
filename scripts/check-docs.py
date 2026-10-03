@@ -52,6 +52,8 @@ RETIRED = (
     "explainer-docs",
     "docsync",
     "15-doc-tracking",
+    "verify-and-review",
+    "06-testing-verification",
 )
 
 # A stamp records when a fact was last checked. 12's own Core Rule requires re-verifying

@@ -1,4 +1,4 @@
-# 04. Pipeline Design
+# 03. Pipeline Design
 
 ## Core Rules
 
@@ -7,7 +7,6 @@
 - Publish durable output atomically or with an equivalent completion protocol.
 - Stream or chunk data when full materialization would exceed the memory budget or add avoidable I/O.
 - Attach progress display (tqdm/rich) to every long-running task, including training/evaluation/preprocessing.
-- A stage measured as the bottleneck may be ported to a compiled language under the conditions [05-performance.md](05-performance.md) sets; the rules above apply to it unchanged, so the stage boundary stays the language boundary.
 
 ## Details
 
@@ -43,6 +42,6 @@ Sources: [HF datasets — streaming](https://huggingface.co/docs/datasets/stream
 ### 4. Progress Monitoring
 
 - Use `tqdm.contrib.logging` (or rich's log integration) so the progress bar and log output don't get garbled together.
-- Record processing speed (samples/sec) alongside progress — a slowdown is an early signal of a problem (→ [05-performance.md](05-performance.md)).
+- Record processing speed (samples/sec) alongside progress — a slowdown is an early signal of a problem.
 
 Sources: [tqdm.contrib.logging](https://tqdm.github.io/docs/contrib.logging/)

@@ -6,7 +6,7 @@ The foundation for all convention documents. When it conflicts with another docu
 
 - Start from requirements and observed behavior. Inspect existing code, docs, and interfaces for behavior and compatibility constraints; do not treat their structure as the required design.
 - Add implementation, configuration, abstraction, or process only when a current requirement, observed failure risk, or measured constraint justifies its cost. Prefer the simplest design that meets the acceptance criteria and preserves required behavior.
-- Don't decide from prior knowledge. Verify library/API/model facts against current-point-in-time primary sources before applying them — what counts as one is [16-research-protocol.md](16-research-protocol.md) for factual specs and [12-upstream-docs.md](12-upstream-docs.md) for provider APIs.
+- Don't decide from prior knowledge. Verify library/API/model facts against current-point-in-time primary sources before applying them — what counts as one is [05-research-protocol.md](05-research-protocol.md) §2 for factual specs and [04-upstream-docs.md](04-upstream-docs.md) §1 for provider APIs.
 - Use a fresh context for independent review and substantial refactoring or rewrites; scale review depth to the work's risk.
 - Match completion claims to evidence: use execution results for behavior, measurements for performance, and direct source inspection for static claims. Keep verification independent where the work's risk calls for it.
 - When rewriting, preserve required behavior. Capture it with the smallest suitable existing check, sample run, or characterization test before the rewrite, then compare after it.

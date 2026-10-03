@@ -5,11 +5,11 @@ description: Routes to the commit protocol — header form, which types require 
 
 # commit — The Commit Protocol
 
-Routing procedure for convention [17-commit-protocol.md](../../conventions/17-commit-protocol.md).
+Routing procedure for convention [06-commit-protocol.md](../../conventions/06-commit-protocol.md).
 
-## What 17 decides
+## What 06 decides
 
-| Question | Where in 17 |
+| Question | Where in 06 |
 |---|---|
 | The header form, and the length it is counted in | Core Rules |
 | Which change types require a body, and which sections that body has | Core Rules, and the template under Details |
@@ -19,10 +19,10 @@ Routing procedure for convention [17-commit-protocol.md](../../conventions/17-co
 
 ## Order
 
-17 gives the sequence — survey, group, split, then write — in its Core Rules and again as a worked procedure under Details. Follow it from there rather than from memory: the survey step names more commands than the two that are obvious, and the split step names which interactive form is unavailable inside an agent harness.
+06 gives the sequence — survey, group, split, then write — in its Core Rules and again as a worked procedure under Details. Follow it from there rather than from memory: the survey step names more commands than the two that are obvious, and the split step names which interactive form is unavailable inside an agent harness.
 
 The step that gets skipped is the first one, and skipping it is what produces the commit that bundles an unrelated fix. Nothing later in the sequence recovers from it.
 
 ## Boundaries with other skills
 
-What the code should have looked like before it was committed is [code-and-config](../code-and-config/SKILL.md). Whether it is finished at all is [verify-and-review](../verify-and-review/SKILL.md) — a commit is not a completion claim, and 19 governs the latter.
+What the code should have looked like before it was committed is [code-and-config](../code-and-config/SKILL.md).
